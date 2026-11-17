@@ -1,0 +1,54 @@
+name: SNotes Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - snotes
+    paths-ignore:
+      - "**.md"
+
+jobs:
+  build:
+    name: Build APK (FOSS)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - uses: "./.github/shared_workflows/install_apt_dependencies"
+
+      - name: Setup Flutter
+        uses: adil192/setup-flutter-submodule@v3
+        with:
+          flutter-path: submodules/flutter
+          no-save-caches: true
+
+      - name: Setup Android build tools
+        run: |
+          ANDROID_NDK=/usr/local/lib/android/sdk/ndk/29.0.14206865
+          echo "ANDROID_NDK=$ANDROID_NDK" >> $GITHUB_ENV
+          echo "ANDROID_NDK_HOME=$ANDROID_NDK" >> $GITHUB_ENV
+          echo "ANDROID_NDK_ROOT=$ANDROID_NDK" >> $GITHUB_ENV
+          echo "JAVA_HOME=$JAVA_HOME_25_X64" >> $GITHUB_ENV
+
+      - run: flutter config --no-cli-animations
+      - run: ./patches/pre/remove_proprietary_dependencies.sh
+      - run: patch pubspec.lock < patches/pre/pubspec-fdroid.lock.patch
+
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+        continue-on-error: true
+
+      - name: Build apk
+        run: flutter build apk
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: SNotes-Android
+          path: build/app/outputs/flutter-apk/app-release.apk
