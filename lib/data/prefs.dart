@@ -216,6 +216,14 @@ class Stows {
     volatile: !_isOnMainIsolate,
   );
 
+  /// Druckkurve des Stifts in Prozent (100 = normal), siehe
+  /// `applyPressureCurve`.
+  final pressureCurve = PlainStow(
+    'pressureCurve',
+    100,
+    volatile: !_isOnMainIsolate,
+  );
+
   final recentColorsChronological = PlainStow(
     'recentColorsChronological',
     <String>[],

@@ -13,6 +13,7 @@ import 'package:saber/data/editor/page.dart';
 import 'package:saber/data/extensions/change_notifier_extensions.dart';
 import 'package:saber/data/extensions/matrix4_extensions.dart';
 import 'package:saber/data/prefs.dart';
+import 'package:saber/data/pressure_curve.dart';
 import 'package:saber/pages/editor/editor.dart';
 import 'package:vector_math/vector_math_64.dart';
 
@@ -417,10 +418,12 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector> {
     final double? pressure;
     if (isStylus) {
       if (event.pressureMin != event.pressureMax) {
-        pressure = _inverseLerp(
-          event.pressure,
-          min: event.pressureMin,
-          max: event.pressureMax,
+        pressure = applyPressureCurve(
+          _inverseLerp(
+            event.pressure,
+            min: event.pressureMin,
+            max: event.pressureMax,
+          ),
         );
       } else {
         // Detected as stylus, but no pressure values

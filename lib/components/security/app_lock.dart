@@ -65,8 +65,8 @@ class AppLock extends StatefulWidget {
 }
 
 class _AppLockState extends State<AppLock> with WidgetsBindingObserver {
-  bool _locked = false;
-  bool _authenticating = false;
+  var _locked = false;
+  var _authenticating = false;
   DateTime? _backgroundedAt;
 
   @override

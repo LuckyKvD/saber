@@ -392,6 +392,18 @@ class _SettingsPageState extends State<SettingsPage> {
                   icon: Icons.cleaning_services,
                   pref: stows.autoClearWhiteboardOnExit,
                 ),
+                SettingsSelection(
+                  title: 'Druckkurve des Stifts',
+                  icon: Icons.show_chart,
+                  pref: stows.pressureCurve,
+                  options: const [
+                    ToggleButtonsOption(50, Text('Sehr weich')),
+                    ToggleButtonsOption(75, Text('Weich')),
+                    ToggleButtonsOption(100, Text('Normal')),
+                    ToggleButtonsOption(150, Text('Hart')),
+                    ToggleButtonsOption(200, Text('Sehr hart')),
+                  ],
+                ),
                 SettingsSwitch(
                   title: t.settings.prefLabels.disableEraserAfterUse,
                   subtitle: t.settings.prefDescriptions.disableEraserAfterUse,
