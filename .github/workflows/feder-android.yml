@@ -1,10 +1,10 @@
-name: SNotes Android APK
+name: Feder Android APK
 
 on:
   workflow_dispatch:
   push:
     branches:
-      - snotes
+      - feder
     paths-ignore:
       - "**.md"
 
@@ -36,6 +36,24 @@ jobs:
           echo "ANDROID_NDK_ROOT=$ANDROID_NDK" >> $GITHUB_ENV
           echo "JAVA_HOME=$JAVA_HOME_25_X64" >> $GITHUB_ENV
 
+      - name: Signing-Schlüssel einrichten (nur aus Secrets, kein Fallback)
+        env:
+          KS_B64: ${{ secrets.FEDER_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.FEDER_KEYSTORE_PASSWORD }}
+          KS_ALIAS: ${{ secrets.FEDER_KEY_ALIAS }}
+        run: |
+          if [ -z "$KS_B64" ] || [ -z "$KS_PASS" ] || [ -z "$KS_ALIAS" ]; then
+            echo "::error::Signing-Secrets fehlen (FEDER_KEYSTORE_BASE64, FEDER_KEYSTORE_PASSWORD, FEDER_KEY_ALIAS). Anleitung: FEDER-DOKU.md"
+            exit 1
+          fi
+          echo "$KS_B64" | base64 -d > android/feder-release.jks
+          {
+            echo "storePassword=$KS_PASS"
+            echo "keyPassword=$KS_PASS"
+            echo "keyAlias=$KS_ALIAS"
+            echo "storeFile=../feder-release.jks"
+          } > android/key.properties
+
       - run: flutter config --no-cli-animations
       - run: ./patches/pre/remove_proprietary_dependencies.sh
       - run: patch pubspec.lock < patches/pre/pubspec-fdroid.lock.patch
@@ -50,5 +68,5 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: SNotes-Android
+          name: Feder-Android
           path: build/app/outputs/flutter-apk/app-release.apk

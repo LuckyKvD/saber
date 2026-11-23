@@ -10,11 +10,13 @@ plugins {
 
 val keystoreProperties = Properties()
 val keystorePropertiesFile = rootProject.file("key.properties")
-val fallbackKeystorePropertiesFile = rootProject.file("fallback-key.properties")
 if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
-} else if (fallbackKeystorePropertiesFile.exists()) {
-    keystoreProperties.load(FileInputStream(fallbackKeystorePropertiesFile))
+} else {
+    throw GradleException(
+        "android/key.properties fehlt. Feder wird nur mit eigenem Signing-Key gebaut " +
+            "(siehe FEDER-DOKU.md, Abschnitt Signing). Es gibt bewusst keinen Fallback-Key."
+    )
 }
 
 android {
@@ -29,7 +31,7 @@ android {
 
     defaultConfig {
         // https://flutter.dev/to/review-gradle-config
-        applicationId = "de.luckykvd.snotes"
+        applicationId = "de.luckykvd.feder"
         // If you change this minSdk, also update patches/pre/remove_proprietary_dependencies.sh.
         minSdk = 26
         targetSdk = flutter.targetSdkVersion
