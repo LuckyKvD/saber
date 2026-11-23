@@ -43,7 +43,7 @@ Ohne diese Schritte baut der Workflow bewusst nicht (kein Fallback-Key).
 1. Windows-Taste drücken, "PowerShell" tippen, **Windows PowerShell** öffnen.
 2. Java suchen: `winget search openjdk` und die Zeile **Microsoft.OpenJDK** mit der höchsten Zahl merken (Unsicher: genaue Paketnummer ändert sich).
 3. Installieren, z. B.: `winget install Microsoft.OpenJDK.21` (Nummer aus Schritt 2 einsetzen). PowerShell danach schließen und neu öffnen.
-4. In einen Ordner wechseln, den nur du nutzt: `cd $HOME\Documents`
+4. In deinen Dokumente-Ordner wechseln: `cd ([Environment]::GetFolderPath('MyDocuments'))`
 5. Schlüssel erzeugen (Passwort nur aus Buchstaben und Ziffern, mindestens 16 Zeichen; Passwortmanager nutzen):
    `keytool -genkeypair -v -keystore feder-release.jks -alias feder -keyalg RSA -keysize 4096 -validity 10000`
 6. Auf die Fragen antworten (Name, Ort usw. frei, "Ja" zum Bestätigen). Beim Schlüsselpasswort einfach Enter (gleiches Passwort).
@@ -56,7 +56,7 @@ Ohne diese Schritte baut der Workflow bewusst nicht (kein Fallback-Key).
    - `FEDER_KEYSTORE_PASSWORD` = dein Passwort
    - `FEDER_KEY_ALIAS` = `feder`
    - `FEDER_KEYSTORE_BASE64` = Ausgabe von diesem PowerShell-Befehl (landet in der Zwischenablage):
-     `[Convert]::ToBase64String([IO.File]::ReadAllBytes("$HOME\Documents\feder-release.jks")) | Set-Clipboard`
+     `[Convert]::ToBase64String([IO.File]::ReadAllBytes((Resolve-Path .\feder-release.jks).Path)) | Set-Clipboard` (im selben Ordner wie die Datei ausführen)
 3. Danach in **Actions → Feder Android APK → Run workflow** (Branch `feder`).
 
 ## 5. Backup deiner Saber-Daten (vor der ersten Installation von Feder)
