@@ -13,6 +13,8 @@ Jede Aussage ist als **Fakt** (im Code/Build geprüft), **Vermutung** oder **Uns
 | 2026-11-23 | Fork läuft parallel zu Saber (andere applicationId). Saber-Notizen werden **kopiert importiert**, die Originale bleiben unverändert. |
 | 2026-11-23 | Eigener Nextcloud-Ordner für Feder. Der Saber-Ordner wird nie beschrieben. |
 | 2026-11-23 | Schutzziele der lokalen Verschlüsselung: Verlust/Diebstahl des Geräts, Zugriff anderer Apps, USB-Zugriff. |
+| 2026-11-23 | Neues Aussehen (Symbol, Farben, Startseite, Notizbuch-Regal) kommt gesammelt in Phase 5. Stil: gezeichnete Schreibfeder, Nachtblau und Gold, eigenes Original-Symbol. |
+| 2026-11-23 | Startseite zeigt die Zeile "Idee & Veränderung: LuckyKvD · Ausführung: Claude" und darunter den Saber-Urhebervermerk (GPL-3.0, darf nicht entfallen). Bauteil: `lib/components/home/credits_line.dart`. |
 | 2026-11-23 | Handballe: Es bleibt bei "Stift erkannt → Fingerzeichnen aus" (wie Saber). Der Zwei-Pointer-Zweig in `isDrawGesture` wird trotzdem geprüft. |
 
 ## 2. Stand der Basis (Phase 0)
@@ -73,7 +75,7 @@ Ohne diese Schritte baut der Workflow bewusst nicht (kein Fallback-Key).
 | Phase | Inhalt | Status |
 |---|---|---|
 | 0 | Analyse und Machbarkeit | erledigt |
-| 1 | Fundament: Name, Signing, Workflow, Doku | Code fertig, wartet auf Signing-Secrets |
+| 1 | Fundament: Name, Signing, Workflow, Doku | abgeschlossen (Build grün, Test auf Tab Active 5 bestanden) |
 | 2 | App-Sperre | offen |
 | 3 | Eingabe: Stift-Priorität, Druckkurve, Strichradierer | offen |
 | 4 | Neue Verschlüsselung, lokale Verschlüsselung, Format 20, Import als Kopie | offen |
