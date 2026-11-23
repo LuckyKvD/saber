@@ -10,6 +10,7 @@ import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:saber/components/security/app_lock.dart';
 import 'package:saber/components/theming/saber_theme.dart';
 import 'package:saber/components/theming/yaru_builder.dart';
 import 'package:saber/data/prefs.dart';
@@ -260,6 +261,7 @@ class ExplicitlyThemedApp extends StatelessWidget {
           (_, child) => _WindowsTitleBarWrapper(child: child),
         // ignore: deprecated_member_use (It's marked as deprecated since it's a temporary migration helper.)
         (_, child) => MaterialUiCompatibilityBridge(child: child!),
+        (_, child) => AppLock(child: child!),
       ]),
     );
   }

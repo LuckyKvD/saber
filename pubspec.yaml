@@ -114,6 +114,7 @@ dependencies:
   path_drawing: ^1.0.1
 
   printing: ^5.13.2
+  local_auth: ^3.0.2
 
   open_file: ^4.0.0
 

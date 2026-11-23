@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:collapsible/collapsible.dart';
@@ -7,6 +8,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:saber/components/navbar/responsive_navbar.dart';
+import 'package:saber/components/security/app_lock.dart';
 import 'package:saber/components/settings/app_info.dart';
 import 'package:saber/components/settings/nextcloud_profile.dart';
 import 'package:saber/components/settings/settings_button.dart';
@@ -137,6 +139,26 @@ class _SettingsPageState extends State<SettingsPage> {
     Icons.west,
   ];
 
+  /// Aktiviert die App-Sperre nur, wenn die Authentifizierung funktioniert.
+  /// Sonst würde man sich beim nächsten Start aussperren.
+  Future<void> _verifyAppLock(bool enabled) async {
+    if (!enabled) return;
+    final ok =
+        await AppLock.isAvailable() &&
+        await AppLock.authenticate('App-Sperre aktivieren');
+    if (ok) return;
+    stows.appLockEnabled.value = false;
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'App-Sperre nicht aktiviert. Richte zuerst eine Bildschirmsperre '
+          '(PIN, Muster oder Fingerabdruck) in den Android-Einstellungen ein.',
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = ColorScheme.of(context);
@@ -192,6 +214,16 @@ class _SettingsPageState extends State<SettingsPage> {
                 const NextcloudProfile(),
                 const Padding(padding: .all(8), child: AppInfo()),
                 SettingsSubtitle(subtitle: t.settings.prefCategories.general),
+                SettingsSwitch(
+                  title: 'App-Sperre',
+                  subtitle:
+                      'Fingerabdruck, Gesicht oder Geräte-PIN beim Start und '
+                      'nach 30 Sekunden im Hintergrund. Verbirgt die App in '
+                      'der App-Übersicht und sperrt Bildschirmfotos.',
+                  icon: Icons.lock,
+                  pref: stows.appLockEnabled,
+                  afterChange: (enabled) => unawaited(_verifyAppLock(enabled)),
+                ),
                 SettingsDropdown(
                   title: t.settings.prefLabels.locale,
                   icon: cupertino ? CupertinoIcons.globe : Icons.language,

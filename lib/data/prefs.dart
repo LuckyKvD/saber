@@ -209,6 +209,13 @@ class Stows {
     volatile: !_isOnMainIsolate,
   );
 
+  /// App-Sperre per Biometrie oder Geräte-PIN (Feder).
+  final appLockEnabled = PlainStow(
+    'appLockEnabled',
+    false,
+    volatile: !_isOnMainIsolate,
+  );
+
   final recentColorsChronological = PlainStow(
     'recentColorsChronological',
     <String>[],

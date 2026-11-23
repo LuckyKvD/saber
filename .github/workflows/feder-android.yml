@@ -58,9 +58,8 @@ jobs:
       - run: ./patches/pre/remove_proprietary_dependencies.sh
       - run: patch pubspec.lock < patches/pre/pubspec-fdroid.lock.patch
 
-      - name: Analyze
-        run: flutter analyze --no-fatal-infos --no-fatal-warnings
-        continue-on-error: true
+      - name: Analyze (nur eigener App-Code in lib/, Fehler brechen den Build ab)
+        run: flutter analyze lib --no-fatal-infos --no-fatal-warnings
 
       - name: Build apk
         run: flutter build apk
