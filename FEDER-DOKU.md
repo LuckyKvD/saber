@@ -43,7 +43,7 @@ Ohne diese Schritte baut der Workflow bewusst nicht (kein Fallback-Key).
 1. Windows-Taste drücken, "PowerShell" tippen, **Windows PowerShell** öffnen.
 2. Java suchen: `winget search openjdk` und die Zeile **Microsoft.OpenJDK** mit der höchsten Zahl merken (Unsicher: genaue Paketnummer ändert sich).
 3. Installieren, z. B.: `winget install Microsoft.OpenJDK.21` (Nummer aus Schritt 2 einsetzen). PowerShell danach schließen und neu öffnen.
-4. In deinen Dokumente-Ordner wechseln: `cd ([Environment]::GetFolderPath('MyDocuments'))`
+4. Eigenen Ordner anlegen und hineinwechseln: `mkdir $HOME\feder-key; cd $HOME\feder-key`. (Nicht in "Dokumente": Der Windows-Ransomware-Schutz kann dort das Schreiben durch Java blockieren, Meldung `FileNotFoundException`.)
 5. Schlüssel erzeugen (Passwort nur aus Buchstaben und Ziffern, mindestens 16 Zeichen; Passwortmanager nutzen):
    `keytool -genkeypair -v -keystore feder-release.jks -alias feder -keyalg RSA -keysize 4096 -validity 10000`
 6. Auf die Fragen antworten (Name, Ort usw. frei, "Ja" zum Bestätigen). Beim Schlüsselpasswort einfach Enter (gleiches Passwort).
