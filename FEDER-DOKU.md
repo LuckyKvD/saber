@@ -123,3 +123,9 @@ Ohne diese Schritte baut der Workflow bewusst nicht (kein Fallback-Key).
 - Test Teilstrich-Radierer (Kay, 24.11.2026): alle Tests erfolgreich; Wunsch Radiergröße einstellbar umgesetzt. Spätere GUI: Größe direkt in der Radierer-Leiste.
 
 - **Handflächen-Test (Kay, 24.11.2026):** Handfläche aufgelegt + Stift: keine Probleme, keine Latenz. Kein Code nötig. Phase 3 damit abgeschlossen.
+
+## 12. Phase 4 – Befund Saber-Verschlüsselung (Code gelesen, 24.11.2026)
+
+- Fakt (Code): `Encrypter(AES(passwordKey))` ohne Modusangabe; Schlüssel = einmal SHA-256(Passwort + festes Salz im Quelltext); ein IV pro Konto, für alle Dateien wiederverwendet; der Dateischlüssel (`key`) wird mit demselben IV in `config.sbc` abgelegt.
+- Vermutung (Standard des `encrypt`-Pakets, vor Umsetzung gegen Paketquelltext zu prüfen): Standardmodus ist `AESMode.sic` (CTR-artig) – dann ohne Authentifizierung und mit Schlüsselstrom-Wiederverwendung: aus zwei verschlüsselten Dateien lässt sich die XOR-Verknüpfung der Klartexte gewinnen; Manipulation wäre unbemerkt.
+- Folge: Feder bekommt ein eigenes Schema (authentifizierte Verschlüsselung, eigenes Nonce pro Datei, echte Schlüsselableitung mit Zufalls-Salt) im eigenen Nextcloud-Ordner. Das alte Schema bleibt nur lesend für den Import aus dem Saber-Ordner.
