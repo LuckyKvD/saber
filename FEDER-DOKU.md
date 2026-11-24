@@ -145,3 +145,5 @@ Ohne diese Schritte baut der Workflow bewusst nicht (kein Fallback-Key).
 - Lokal gespeichert wird nur der Hauptschlüssel (sicherer Speicher); das Passwort nie. Der „Login mit Saber-Server“ wurde entfernt.
 - Einrichtung: Passwort (min. 12 Zeichen) → Wiederherstellungsschlüssel anzeigen → erst nach Bestätigung wird der Tresor hochgeladen.
 - Bekannte Grenzen (Vermutung/Unsicher): gleichzeitige Ersteinrichtung auf zwei Geräten (wird per Prüfung vor dem Upload abgefangen, aber nicht atomar); Passwortwechsel noch ohne Oberfläche; Dateien werden im Hauptprozess ver-/entschlüsselt (große PDFs könnten kurz ruckeln); Pfadlänge: sehr lange Pfade können das 255-Zeichen-Limit der Dateinamen sprengen.
+
+- **Test Schritt 2 (Kay, 24.11.2026):** Anmeldung, Tresor, Wiederherstellungsschlüssel, Sync nach `Feder/` ok. Reines Dart-Argon2id brauchte >20 Minuten auf dem Tab Active 5; ersetzt durch Argon2id in Java (BouncyCastle 1.78.1, MethodChannel `de.luckykvd.feder/crypto`) – danach „rasend schnell“, bestehender Tresor blieb entsperrbar (Dart und Java liefern dasselbe Ergebnis). Speicherplatz-Anzeige lädt jetzt beim Öffnen. Krypto-Schritte 1+2 in `feder` übernommen.
