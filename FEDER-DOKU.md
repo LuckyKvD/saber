@@ -147,3 +147,12 @@ Ohne diese Schritte baut der Workflow bewusst nicht (kein Fallback-Key).
 - Bekannte Grenzen (Vermutung/Unsicher): gleichzeitige Ersteinrichtung auf zwei Geräten (wird per Prüfung vor dem Upload abgefangen, aber nicht atomar); Passwortwechsel noch ohne Oberfläche; Dateien werden im Hauptprozess ver-/entschlüsselt (große PDFs könnten kurz ruckeln); Pfadlänge: sehr lange Pfade können das 255-Zeichen-Limit der Dateinamen sprengen.
 
 - **Test Schritt 2 (Test):** Anmeldung, Tresor, Wiederherstellungsschlüssel, Sync nach `Feder/` ok. Reines Dart-Argon2id brauchte >20 Minuten auf dem Tab Active 5; ersetzt durch Argon2id in Java (BouncyCastle 1.78.1, MethodChannel `de.luckykvd.feder/crypto`) – danach „rasend schnell“, bestehender Tresor blieb entsperrbar (Dart und Java liefern dasselbe Ergebnis). Speicherplatz-Anzeige lädt jetzt beim Öffnen. Krypto-Schritte 1+2 in `feder` übernommen.
+
+## 15. Import aus Saber (Branch `feature/saber-import`, in `feder` übernommen)
+
+- Ablauf: Einstellungen → Import aus Saber. Passwort des alten Saber-Kontos eingeben; Feder liest `Saber/config.sbc` und die `.sbe`-Dateien **nur lesend** und legt Kopien unter `Import aus Saber/` an. Danach laufen sie wie alle Notizen durch den Feder-Sync (verschlüsselt nach `Feder/`). Lokale Kopien sind (wie bei Saber) unverschlüsselt; lokale Verschlüsselung folgt später.
+- Bereits vorhandene Dateien werden übersprungen (Wiederholung ist ungefährlich). 0-Byte-Dateien (in Saber gelöscht) werden ignoriert.
+- Der Sync-Kreis oben rechts zeigt jetzt auch Uploads (vorher nur Downloads).
+- **Befund defekte Quelldateien (Fakt):** Einzelne Dateien im alten Saber-Ordner sind auf dem Server abgeschnitten (Dateikopf nennt größere Länge als vorhanden; Größe glatt durch 4096 teilbar). Das ist kein Feder-Fehler. Der Import meldet sie mit Größe, Kopfwert und letztem Byte; Notizen daraus müssen aus der lokalen Saber-Kopie exportiert und per „+“ → Import übernommen werden (Unsicher, ob inklusive Bildern vollständig). Vorschaubilder (`.p`) werden von der App neu erzeugt (Vermutung).
+- **Offener Prüfpunkt:** Schneidet der Server große Uploads ab? Test: Größe einer großen `.fde`-Datei = lokale Größe + 44 Byte.
+- **Wunsch Phase 5:** Statt des Fortschrittskreises eine Prozentanzeige; die Anzeige braucht einen eigenen Takt, weil sie sich bisher nur bei Änderungen der Warteschlange oder beim Neuaufbau der Seite aktualisiert (Vermutung).
