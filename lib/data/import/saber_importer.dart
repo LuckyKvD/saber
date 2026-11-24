@@ -12,6 +12,7 @@ import 'package:saber/data/nextcloud/nextcloud_client_extension.dart';
 class SaberImportResult {
   int imported = 0;
   int skippedExisting = 0;
+  int recovered = 0;
   int failed = 0;
   final List<String> errors = [];
 }
@@ -105,10 +106,30 @@ class SaberImporter {
         diag = 'Server: ${remote.size} B, geladen: ${encrypted.length} B '
             '(Rest mod 16: ${encrypted.length % 16}), '
             'geändert: ${remote.lastModified?.toIso8601String()}';
-        final decrypted = await crypto.decryptFile(
-          encrypted,
-          isOldJson: path.endsWith('.sbn'),
-        );
+        Uint8List decrypted;
+        try {
+          decrypted = await crypto.decryptFile(
+            encrypted,
+            isOldJson: path.endsWith('.sbn'),
+          );
+        } catch (e) {
+          // Rettungsversuch: Padding am Ende defekt (z. B. angehängte Bytes).
+          final raw = await crypto.decryptRaw(encrypted);
+          final info = _bsonInfo(raw);
+          diag += ', roh: ${raw.length} B, letztes Byte: ${raw.last}, ${info.text}';
+          final cut = info.length;
+          if (path.endsWith('.sbn2') &&
+              cut != null &&
+              cut <= raw.length &&
+              raw.length - cut <= 8192 &&
+              raw[cut - 1] == 0) {
+            decrypted = Uint8List.sublistView(raw, 0, cut);
+            result.recovered++;
+            log.warning('Gerettet (Ende abgeschnitten): $path ($e)');
+          } else {
+            rethrow;
+          }
+        }
         if (decrypted.isEmpty) {
           throw const FormatException('Leere Datei nach Entschlüsselung');
         }
@@ -127,5 +148,17 @@ class SaberImporter {
     }
     onProgress('Fertig', remoteFiles.length, remoteFiles.length);
     return result;
+  }
+
+  /// BSON-Dokumente beginnen mit ihrer Gesamtlänge (Int32, little endian) und
+  /// enden mit 0x00. (Annahme: .sbn2 ist BSON – wird hier nur geprüft.)
+  static ({int? length, String text}) _bsonInfo(Uint8List raw) {
+    if (raw.length < 5) return (length: null, text: 'zu kurz');
+    final len = ByteData.sublistView(raw).getInt32(0, Endian.little);
+    final ok = len >= 5 && len <= raw.length;
+    return (
+      length: ok ? len : null,
+      text: 'Kopfwert: $len${ok ? ', Byte am Ende: ${raw[len - 1]}' : ''}',
+    );
   }
 }

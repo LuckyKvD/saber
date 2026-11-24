@@ -83,6 +83,19 @@ class SaberLegacyCrypto {
       );
     });
   }
+
+  /// Entschlüsselt OHNE Padding-Prüfung (nur für Diagnose/Rettung defekter
+  /// Server-Dateien). Liefert die rohen Bytes.
+  Future<Uint8List> decryptRaw(Uint8List encrypted) {
+    final keyBytes = _keyBytes;
+    final ivBytes = _iv.bytes;
+    return Isolate.run(() {
+      final encrypter = Encrypter(AES(Key(keyBytes), padding: null));
+      return Uint8List.fromList(
+        encrypter.decryptBytes(Encrypted(encrypted), iv: IV(ivBytes)),
+      );
+    });
+  }
 }
 
 class SaberLegacyWrongPassword implements Exception {

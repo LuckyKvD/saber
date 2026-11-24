@@ -74,6 +74,8 @@ class _ImportDialog extends HookWidget {
             if (res != null) ...[
               Text('Importiert: ${res.imported}'),
               Text('Schon vorhanden (übersprungen): ${res.skippedExisting}'),
+              if (res.recovered > 0)
+                Text('Repariert (Dateiende war defekt): ${res.recovered}'),
               Text('Fehlgeschlagen: ${res.failed}'),
               const SizedBox(height: 8),
               const Text(
