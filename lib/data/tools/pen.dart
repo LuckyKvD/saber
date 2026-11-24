@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:perfect_freehand/perfect_freehand.dart';
@@ -7,6 +9,7 @@ import 'package:saber/data/prefs.dart';
 import 'package:saber/data/tools/_tool.dart';
 import 'package:saber/data/tools/highlighter.dart';
 import 'package:saber/data/tools/pencil.dart';
+import 'package:saber/data/tools/shape_pen.dart';
 import 'package:saber/i18n/strings.g.dart';
 import 'package:sbn/tool_id.dart';
 
@@ -95,18 +98,48 @@ class Pen extends Tool {
     onDragUpdate(position, pressure);
   }
 
+  /// Formen-Halten: Bleibt der Stift am Ende eines Strichs kurz stehen,
+  /// wird die erkannte Form (Linie, Rechteck, Kreis, Dreieck) angezeigt und
+  /// beim Abheben übernommen. Gilt für alle Stifte außer dem Formen-Stift
+  /// (der erkennt immer).
+  bool get holdToShape => stows.autoShape.value && this is! ShapePen;
+
+  static const holdToShapeDelay = Duration(milliseconds: 600);
+  static Timer? _holdTimer;
+
+  /// Wird aufgerufen, wenn eine Form im Halten erkannt wurde (Editor zeichnet neu).
+  static VoidCallback? onHoldShapeDetected;
+
   void onDragUpdate(Offset position, double? pressure) {
     currentStroke?.addPoint(position, pressure);
+
+    if (holdToShape) {
+      ShapePen.detectedShape = null;
+      _holdTimer?.cancel();
+      _holdTimer = Timer(holdToShapeDelay, () {
+        ShapePen.detectedShape = Pen.currentStroke?.detectShape();
+        onHoldShapeDetected?.call();
+      });
+    }
   }
 
   Stroke? onDragEnd() {
+    final heldShape = holdToShape ? ShapePen.detectedShape : null;
+    if (holdToShape) {
+      _holdTimer?.cancel();
+      _holdTimer = null;
+      ShapePen.detectedShape = null;
+    }
+
     final stroke = currentStroke;
     currentStroke = null;
     if (stroke == null) return null;
 
-    return stroke
+    stroke
       ..options.isComplete = true
       ..markPolygonNeedsUpdating();
+    if (heldShape != null) return ShapePen.convert(this, stroke, heldShape);
+    return stroke;
   }
 
   /// The default stroke options.

@@ -2,6 +2,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:saber/components/toolbar/size_picker.dart';
+import 'package:saber/components/toolbar/tool_setting_chips.dart';
 import 'package:saber/data/extensions/axis_extensions.dart';
 import 'package:saber/data/prefs.dart';
 import 'package:saber/data/tools/calligraphy_pen.dart';
@@ -31,9 +32,12 @@ class _PenModalState<T extends Pen> extends State<PenModal<T>> {
     final axis = stows.editorToolbarAlignment.value.axis.opposite;
     final pen = widget.getTool();
 
-    return Flex(
+    return Center(
+      child: SingleChildScrollView(
+        scrollDirection: axis,
+        child: Flex(
       direction: axis,
-      mainAxisAlignment: .center,
+      mainAxisSize: MainAxisSize.min,
       spacing: 8,
       children: [
         SizePicker(axis: axis, pen: pen),
@@ -89,8 +93,28 @@ class _PenModalState<T extends Pen> extends State<PenModal<T>> {
             tooltip: t.editor.pens.shapePen,
             icon: const FaIcon(ShapePen.shapePenIcon),
           ),
+          if (Pen.currentPen.icon == CalligraphyPen.calligraphyIcon)
+            ToolSettingChips<int>(
+              label: 'Winkel',
+              pref: stows.calligraphyNibAngle,
+              options: [
+                (15, '15°'),
+                (30, '30°'),
+                (45, '45°'),
+                (60, '60°'),
+                (75, '75°'),
+              ],
+            ),
+          if (Pen.currentPen.icon == Pen.fountainPenIcon)
+            ToolSettingChips<int>(
+              label: 'Druck',
+              pref: stows.fountainThinning,
+              options: [(0, 'Aus'), (50, 'Normal'), (75, 'Stark'), (95, 'Max')],
+            ),
         ],
       ],
+        ),
+      ),
     );
   }
 }

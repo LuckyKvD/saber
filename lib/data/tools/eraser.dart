@@ -14,18 +14,22 @@ double sqrDistanceBetween(Offset p1, Offset p2) =>
     square(p1.dx - p2.dx) + square(p1.dy - p2.dy);
 
 class Eraser extends Tool {
-  final double size;
-  late final double sqrSize = square(size);
+  /// Radius; folgt live der Einstellung, damit die Leiste ihn sofort ändern
+  /// kann (außer er wurde im Konstruktor fest vorgegeben, z. B. in Tests).
+  final double? _sizeOverride;
+  double get size => _sizeOverride ?? stows.eraserSize.value.toDouble();
+  double get sqrSize => square(size);
 
   List<Stroke> _erased = [];
 
   /// true = nur den berührten Teil des Strichs entfernen (Teilstrich-Radierer),
   /// false = ganzen Strich löschen (Saber-Standard).
-  final bool partial;
+  final bool? _partialOverride;
+  bool get partial => _partialOverride ?? stows.eraserPartial.value;
 
   new({double? size, bool? partial})
-    : size = size ?? stows.eraserSize.value.toDouble(),
-      partial = partial ?? stows.eraserPartial.value;
+    : _sizeOverride = size,
+      _partialOverride = partial;
 
   final List<Stroke> _removedOriginals = [];
   final List<Stroke> _added = [];

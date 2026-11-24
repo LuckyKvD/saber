@@ -12,6 +12,7 @@ import 'package:saber/components/theming/adaptive_icon.dart';
 import 'package:saber/components/theming/dynamic_material_app.dart';
 import 'package:saber/components/theming/uni_icon.dart';
 import 'package:saber/components/toolbar/color_bar.dart';
+import 'package:saber/components/toolbar/eraser_modal.dart';
 import 'package:saber/components/toolbar/export_bar.dart';
 import 'package:saber/components/toolbar/pen_modal.dart';
 import 'package:saber/components/toolbar/selection_bar.dart';
@@ -90,7 +91,7 @@ class Toolbar extends StatefulWidget {
 
 class _ToolbarState extends State<Toolbar> {
   ValueNotifier<bool> showExportOptions = ValueNotifier(false);
-  ValueNotifier<bool> showColorOptions = ValueNotifier(false);
+  ValueNotifier<bool> showColorOptions = ValueNotifier(true);
   ValueNotifier<ToolOptions> toolOptionsType = ValueNotifier(ToolOptions.hide);
 
   @override
@@ -152,7 +153,8 @@ class _ToolbarState extends State<Toolbar> {
   }
 
   void toggleEraser() {
-    toolOptionsType.value = .hide;
+    final wasEraser = widget.currentTool is Eraser;
+    toolOptionsType.value = wasEraser ? .hide : .eraser;
     widget.setTool(Eraser()); // this toggles eraser
   }
 
@@ -239,6 +241,7 @@ class _ToolbarState extends State<Toolbar> {
                 getTool: () => Pencil.currentPencil,
                 setTool: widget.setTool,
               ),
+              .eraser => const EraserModal(),
               .select => SelectionBar(
                 duplicateSelection: widget.duplicateSelection,
                 deleteSelection: widget.deleteSelection,
@@ -331,7 +334,7 @@ class _ToolbarState extends State<Toolbar> {
                       toolOptionsType.value = .pen;
                     }
                   } else {
-                    toolOptionsType.value = .hide;
+                    toolOptionsType.value = .pen;
                     widget.setTool(Pen.currentPen);
                   }
                 },
@@ -350,7 +353,7 @@ class _ToolbarState extends State<Toolbar> {
                       toolOptionsType.value = .pencil;
                     }
                   } else {
-                    toolOptionsType.value = .hide;
+                    toolOptionsType.value = .pencil;
                     widget.setTool(Pencil.currentPencil);
                   }
                 },
@@ -369,7 +372,7 @@ class _ToolbarState extends State<Toolbar> {
                       toolOptionsType.value = .highlighter;
                     }
                   } else {
-                    toolOptionsType.value = .hide;
+                    toolOptionsType.value = .highlighter;
                     widget.setTool(Highlighter.currentHighlighter);
                   }
                 },
@@ -447,6 +450,20 @@ class _ToolbarState extends State<Toolbar> {
                 onPressed: toggleEraser,
                 padding: buttonPadding,
                 child: const FaIcon(FontAwesomeIcons.eraser, size: 16),
+              ),
+              ListenableBuilder(
+                listenable: stows.autoShape,
+                builder: (context, _) {
+                  return ToolbarIconButton(
+                    tooltip: 'Formen: Stift halten = gerade Linie, Dreieck, Viereck, Kreis',
+                    selected: stows.autoShape.value,
+                    enabled: !widget.readOnly,
+                    onPressed: () =>
+                        stows.autoShape.value = !stows.autoShape.value,
+                    padding: buttonPadding,
+                    child: const Icon(Icons.change_history, size: 18),
+                  );
+                },
               ),
               ToolbarIconButton(
                 tooltip: t.editor.toolbar.photo,
@@ -572,4 +589,4 @@ class _ToolbarState extends State<Toolbar> {
   }
 }
 
-enum ToolOptions { hide, pen, highlighter, pencil, select }
+enum ToolOptions { hide, pen, highlighter, pencil, eraser, select }

@@ -71,6 +71,19 @@ class ShapePen extends Pen {
     ShapePen.detectedShape = null;
 
     if (detectedShape == null) return rawStroke;
+    return convert(this, rawStroke, detectedShape);
+  }
+
+  /// Wandelt [rawStroke] anhand der erkannten Form [detectedShape] um.
+  /// Wird auch von anderen Stiften genutzt (Formen-Halten).
+  static Stroke convert(
+    Pen pen,
+    Stroke rawStroke,
+    RecognizedUnistroke detectedShape,
+  ) {
+    final color = pen.color;
+    final pressureEnabled = pen.pressureEnabled;
+    final toolId = pen.toolId;
 
     switch (detectedShape.name) {
       case null:
