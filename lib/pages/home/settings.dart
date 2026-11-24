@@ -404,6 +404,29 @@ class _SettingsPageState extends State<SettingsPage> {
                     ToggleButtonsOption(200, Text('Sehr hart')),
                   ],
                 ),
+                SettingsSelection(
+                  title: 'Druckempfindlichkeit des Füllers',
+                  icon: Icons.line_weight,
+                  pref: stows.fountainThinning,
+                  options: const [
+                    ToggleButtonsOption(0, Text('Keine')),
+                    ToggleButtonsOption(50, Text('Normal')),
+                    ToggleButtonsOption(75, Text('Stark')),
+                    ToggleButtonsOption(95, Text('Maximal')),
+                  ],
+                ),
+                SettingsSelection(
+                  title: 'Federwinkel der Kalligrafie-Feder',
+                  icon: Icons.rotate_right,
+                  pref: stows.calligraphyNibAngle,
+                  options: const [
+                    ToggleButtonsOption(15, Text('15°')),
+                    ToggleButtonsOption(30, Text('30°')),
+                    ToggleButtonsOption(45, Text('45°')),
+                    ToggleButtonsOption(60, Text('60°')),
+                    ToggleButtonsOption(75, Text('75°')),
+                  ],
+                ),
                 SettingsSwitch(
                   title: t.settings.prefLabels.disableEraserAfterUse,
                   subtitle: t.settings.prefDescriptions.disableEraserAfterUse,

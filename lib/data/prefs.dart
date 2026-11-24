@@ -224,6 +224,20 @@ class Stows {
     volatile: !_isOnMainIsolate,
   );
 
+  /// Federwinkel der Kalligrafie-Feder in Grad (Prototyp).
+  final calligraphyNibAngle = PlainStow(
+    'calligraphyNibAngle',
+    45,
+    volatile: !_isOnMainIsolate,
+  );
+
+  /// Druckempfindlichkeit des Füllers in Prozent (perfect_freehand `thinning`).
+  final fountainThinning = PlainStow(
+    'fountainThinning',
+    50,
+    volatile: !_isOnMainIsolate,
+  );
+
   final recentColorsChronological = PlainStow(
     'recentColorsChronological',
     <String>[],

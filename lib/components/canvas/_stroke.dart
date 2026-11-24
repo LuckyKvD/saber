@@ -8,6 +8,7 @@ import 'package:one_dollar_unistroke_recognizer/one_dollar_unistroke_recognizer.
 import 'package:perfect_freehand/perfect_freehand.dart';
 import 'package:saber/components/canvas/_circle_stroke.dart';
 import 'package:saber/components/canvas/_rectangle_stroke.dart';
+import 'package:saber/components/canvas/nib_geometry.dart';
 import 'package:saber/data/extensions/list_extensions.dart';
 import 'package:saber/data/extensions/point_extensions.dart';
 import 'package:sbn/has_size.dart';
@@ -33,6 +34,13 @@ class Stroke {
   Color color;
   bool pressureEnabled;
   final StrokeOptions options;
+
+  /// Federwinkel in Radiant für den Kalligrafie-Stift (null = normaler Stift).
+  ///
+  /// PROTOTYP: Wird als Zusatzschlüssel `na` gespeichert. Das Original-Saber
+  /// ignoriert ihn und zeigt den Strich als einfache Linie. Sauberes
+  /// Dateiformat folgt in Phase 4.
+  double? nibAngle;
 
   List<Offset>? _lowQualityPolygon, _highQualityPolygon;
   List<Offset> get lowQualityPolygon =>
@@ -69,6 +77,7 @@ class Stroke {
     required this.pageIndex,
     required this.page,
     required this.toolId,
+    this.nibAngle,
   });
 
   factory fromJson(
@@ -148,6 +157,7 @@ class Stroke {
       pageIndex: pageIndex,
       page: page,
       toolId: toolId,
+      nibAngle: (json['na'] as num?)?.toDouble(),
     )..points.addAll(points);
   }
   Map<String, dynamic> toJson() {
@@ -162,6 +172,7 @@ class Stroke {
       'ty': toolId.id,
       'pe': pressureEnabled,
       'c': color.toARGB32(),
+      if (nibAngle != null) 'na': nibAngle,
     }..addAll(options.toJson());
   }
 
@@ -221,6 +232,13 @@ class Stroke {
 
   @protected
   List<Offset> getPolygon({required StrokeQuality quality}) {
+    if (nibAngle != null) {
+      // Kalligrafie: Polygon = Mittellinie (für Radierer und Auswahl).
+      // Die sichtbare Form entsteht in [getPath].
+      return [
+        for (final p in skipPoints(points, quality.N)) Offset(p.dx, p.dy),
+      ];
+    }
     if (!pressureEnabled) {
       options.simulatePressure = false;
     }
@@ -258,6 +276,13 @@ class Stroke {
   /// in [polygon] for performance.
   @protected
   Path getPath(List<Offset> polygon, {bool smooth = true}) {
+    if (nibAngle != null) {
+      return nibPath(
+        smooth ? points : skipPoints(points, 2),
+        size: options.size,
+        angle: nibAngle!,
+      );
+    }
     if (smooth && options.isComplete) {
       return smoothPathFromPolygon(polygon);
     }
@@ -300,6 +325,14 @@ class Stroke {
     String toSvgPoint(Offset point) {
       return '${point.dx} '
           '${page.size.height - point.dy}';
+    }
+
+    if (nibAngle != null) {
+      final hulls = nibHulls(points, size: options.size, angle: nibAngle!);
+      return [
+        for (final hull in hulls)
+          'M${hull.map(toSvgPoint).join('L')}Z',
+      ].join();
     }
 
     // Remove NaN points, and convert to SVG coordinates
@@ -407,6 +440,7 @@ class Stroke {
     pageIndex: pageIndex,
     page: page,
     toolId: toolId,
+    nibAngle: nibAngle,
   )..points.addAll(points);
 }
 

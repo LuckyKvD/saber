@@ -84,7 +84,10 @@ class Pen extends Tool {
     currentStroke = Stroke(
       color: color,
       pressureEnabled: pressureEnabled,
-      options: options.copyWith(isComplete: false),
+      options: options.copyWith(isComplete: false)
+        ..thinning = toolId == .fountainPen
+            ? stows.fountainThinning.value / 100
+            : options.thinning,
       pageIndex: pageIndex,
       page: page,
       toolId: toolId,

@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:saber/components/toolbar/size_picker.dart';
 import 'package:saber/data/extensions/axis_extensions.dart';
 import 'package:saber/data/prefs.dart';
+import 'package:saber/data/tools/calligraphy_pen.dart';
 import 'package:saber/data/tools/highlighter.dart';
 import 'package:saber/data/tools/pen.dart';
 import 'package:saber/data/tools/pencil.dart';
@@ -54,6 +55,14 @@ class _PenModalState<T extends Pen> extends State<PenModal<T>> {
                     : ColorScheme.of(context).onSurface,
               ),
             ),
+          ),
+          _PenSelector(
+            isSelected: Pen.currentPen.icon == CalligraphyPen.calligraphyIcon,
+            onPressed: () => setState(() {
+              widget.setTool(CalligraphyPen.current);
+            }),
+            tooltip: 'Kalligrafie-Feder',
+            icon: const FaIcon(CalligraphyPen.calligraphyIcon),
           ),
           _PenSelector(
             isSelected: Pen.currentPen.icon == Pen.ballpointPenIcon,

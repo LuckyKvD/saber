@@ -102,3 +102,11 @@ Ohne diese Schritte baut der Workflow bewusst nicht (kein Fallback-Key).
 - Die Sperre schützt nicht die Dateien (siehe Abschnitt 3, lokale Verschlüsselung folgt in Phase 4).
 - Druckkurve: `lib/data/pressure_curve.dart`, Pref `pressureCurve` (Prozent, 100 = normal), Formel `druck^(prozent/100)`, angewendet in `canvas_gesture_detector.dart`. Dateiformat unverändert; gespeichert wird der bereits gekrümmte Druck. Wirkt nur bei Werkzeugen mit Druckauswertung (Füller), nicht beim Kugelschreiber. Pro-Stift-Kurve ist noch nicht umgesetzt.
 - Workflow: Analyze prüft nur `lib/` und bricht bei Fehlern ab.
+
+
+## 10. Prototyp Kalligrafie-Feder (Branch `feature/calligraphy`)
+
+- Neuer Stift „Kalligrafie-Feder“ (Federspitze flach, fester Winkel, einstellbar in den Einstellungen: 15–75°). Linienbreite hängt von der Strichrichtung ab, nicht vom Druck.
+- Gespeichert als Füller (`ty = fountainPen`) plus Zusatzschlüssel `na` (Winkel). Original-Saber ignoriert `na` und zeigt eine einfache Linie. **Nur Testdaten – sauberes Format folgt in Phase 4 (Format 20).**
+- Neu: Einstellung „Druckempfindlichkeit des Füllers“ (`thinning`: Keine / Normal 50 / Stark 75 / Maximal 95).
+- Bekannte Risiken (Vermutung): PDF-Export mehrerer Teilpfade, Leistung bei sehr langen Strichen auf dem Tab Active 5.
