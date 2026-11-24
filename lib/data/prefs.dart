@@ -224,6 +224,13 @@ class Stows {
     volatile: !_isOnMainIsolate,
   );
 
+  /// Radierer: false = ganzen Strich löschen, true = nur berührten Teil.
+  final eraserPartial = PlainStow(
+    'eraserPartial',
+    false,
+    volatile: !_isOnMainIsolate,
+  );
+
   /// Federwinkel der Kalligrafie-Feder in Grad (Prototyp).
   final calligraphyNibAngle = PlainStow(
     'calligraphyNibAngle',

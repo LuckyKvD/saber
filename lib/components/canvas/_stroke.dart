@@ -290,6 +290,94 @@ class Stroke {
     return Path()..addPolygon(polygon, true);
   }
 
+  /// Radiert den Bereich um [center] (Radius [radius]) aus diesem Strich.
+  ///
+  /// Gibt `null` zurück, wenn der Radierer den Strich nicht berührt.
+  /// Sonst die verbleibenden Teilstriche (evtl. leer = alles weg).
+  List<Stroke>? erasePartially(Offset center, double radius) {
+    if (points.isEmpty) return null;
+    final r2 = radius * radius;
+
+    double sqrDistToSegment(Offset a, Offset b) {
+      final abx = b.dx - a.dx, aby = b.dy - a.dy;
+      final len2 = abx * abx + aby * aby;
+      double t = len2 == 0
+          ? 0
+          : ((center.dx - a.dx) * abx + (center.dy - a.dy) * aby) / len2;
+      t = t.clamp(0.0, 1.0);
+      final dx = a.dx + abx * t - center.dx;
+      final dy = a.dy + aby * t - center.dy;
+      return dx * dx + dy * dy;
+    }
+
+    // Schnelltest: berührt der Radierer den Strich überhaupt?
+    bool hit = false;
+    if (points.length == 1) {
+      hit = (points.first - center).distanceSquared <= r2;
+    } else {
+      for (int i = 0; i < points.length - 1; i++) {
+        if (sqrDistToSegment(points[i], points[i + 1]) <= r2) {
+          hit = true;
+          break;
+        }
+      }
+    }
+    if (!hit) return null;
+
+    // Sehr kurze Striche (Punkte) werden ganz entfernt.
+    if (points.length <= 3) return [];
+
+    // Segmente im Radierbereich verfeinern, damit die Schnittkante passt.
+    final step = max(radius * 0.4, 0.5);
+    final dense = <PointVector>[points.first];
+    for (int i = 0; i < points.length - 1; i++) {
+      final a = points[i], b = points[i + 1];
+      if (sqrDistToSegment(a, b) <= r2) {
+        final len = (b - a).distance;
+        final n = (len / step).ceil();
+        for (int k = 1; k < n; k++) {
+          final t = k / n;
+          dense.add(
+            PointVector(
+              a.dx + (b.dx - a.dx) * t,
+              a.dy + (b.dy - a.dy) * t,
+              a.pressure == null || b.pressure == null
+                  ? null
+                  : a.pressure! + (b.pressure! - a.pressure!) * t,
+            ),
+          );
+        }
+      }
+      dense.add(b);
+    }
+
+    final runs = <List<PointVector>>[];
+    var current = <PointVector>[];
+    for (final p in dense) {
+      if ((p - center).distanceSquared <= r2) {
+        if (current.isNotEmpty) runs.add(current);
+        current = [];
+      } else {
+        current.add(p);
+      }
+    }
+    if (current.isNotEmpty) runs.add(current);
+
+    return [
+      for (final run in runs)
+        if (run.length >= 2)
+          Stroke(
+            color: color,
+            pressureEnabled: pressureEnabled,
+            options: options.copyWith(),
+            pageIndex: pageIndex,
+            page: page,
+            toolId: toolId,
+            nibAngle: nibAngle,
+          )..points.addAll(run),
+    ];
+  }
+
   /// Returns a list with every Nth point in [points].
   static List<PointVector> skipPoints(List<PointVector> points, int N) {
     // Nothing is being skipped, just return [points].

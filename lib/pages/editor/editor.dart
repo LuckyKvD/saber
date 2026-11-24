@@ -377,6 +377,17 @@ class EditorState extends State<Editor> {
           image.newImage = true;
         }
 
+      case (final HistoricReplace historic):
+        // Rückgängig: neue Teilstriche entfernen, alte Striche wieder einsetzen
+        for (final stroke in historic.added) {
+          coreInfo.pages[stroke.pageIndex].strokes.remove(stroke);
+        }
+        for (final stroke in historic.removed) {
+          createPage(stroke.pageIndex);
+          coreInfo.pages[stroke.pageIndex].insertStroke(stroke);
+        }
+        removeExcessPages();
+
       case (final HistoricPageDelete historic):
         // make sure we already have a (blank/otherwise) page at this index
         createPage(historic.pageIndex - 1);
@@ -546,11 +557,22 @@ class EditorState extends State<Editor> {
         currentPressure,
       );
     } else if (currentTool is Eraser) {
-      for (final stroke in (currentTool as Eraser).checkForOverlappingStrokes(
-        position,
-        page.strokes,
-      )) {
-        page.strokes.remove(stroke);
+      final eraser = currentTool as Eraser;
+      if (eraser.partial) {
+        for (final (old, pieces) in eraser.erasePartially(
+          position,
+          page.strokes,
+        )) {
+          page.strokes.remove(old);
+          pieces.forEach(page.insertStroke);
+        }
+      } else {
+        for (final stroke in eraser.checkForOverlappingStrokes(
+          position,
+          page.strokes,
+        )) {
+          page.strokes.remove(stroke);
+        }
       }
       removeExcessPages();
     } else if (currentTool is Select) {
@@ -590,11 +612,22 @@ class EditorState extends State<Editor> {
       (currentTool as Pen).onDragUpdate(position, currentPressure);
       page.redrawStrokes();
     } else if (currentTool is Eraser) {
-      for (final stroke in (currentTool as Eraser).checkForOverlappingStrokes(
-        position,
-        page.strokes,
-      )) {
-        page.strokes.remove(stroke);
+      final eraser = currentTool as Eraser;
+      if (eraser.partial) {
+        for (final (old, pieces) in eraser.erasePartially(
+          position,
+          page.strokes,
+        )) {
+          page.strokes.remove(old);
+          pieces.forEach(page.insertStroke);
+        }
+      } else {
+        for (final stroke in eraser.checkForOverlappingStrokes(
+          position,
+          page.strokes,
+        )) {
+          page.strokes.remove(stroke);
+        }
       }
       page.redrawStrokes();
       removeExcessPages();
@@ -752,14 +785,19 @@ class EditorState extends State<Editor> {
         page.insertStroke(newStroke);
         history.recordChange(HistoricAdd(strokes: [newStroke], images: []));
       } else if (currentTool is Eraser) {
+        final partialChange = (currentTool as Eraser).onDragEndPartial();
         final erased = (currentTool as Eraser).onDragEnd();
         if (stylusButtonWasPressed || stows.disableEraserAfterUse.value) {
           // restore previous tool
           stylusButtonWasPressed = false;
           currentTool = _lastNonEraserTool;
         }
-        if (erased.isEmpty) return;
-        history.recordChange(HistoricDelete(strokes: erased, images: []));
+        if (partialChange != null) {
+          history.recordChange(partialChange);
+        } else {
+          if (erased.isEmpty) return;
+          history.recordChange(HistoricDelete(strokes: erased, images: []));
+        }
       } else if (currentTool is Select) {
         if (moveOffset == .zero) return;
         final select = currentTool as Select;

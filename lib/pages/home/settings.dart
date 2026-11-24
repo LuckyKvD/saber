@@ -428,6 +428,13 @@ class _SettingsPageState extends State<SettingsPage> {
                   ],
                 ),
                 SettingsSwitch(
+                  title: 'Radierer löscht nur berührten Teil',
+                  subtitle:
+                      'Aus: ganze Linie wird gelöscht. An: nur die Stelle unter dem Radierer.',
+                  icon: FontAwesomeIcons.eraser,
+                  pref: stows.eraserPartial,
+                ),
+                SettingsSwitch(
                   title: t.settings.prefLabels.disableEraserAfterUse,
                   subtitle: t.settings.prefDescriptions.disableEraserAfterUse,
                   icon: FontAwesomeIcons.eraser,

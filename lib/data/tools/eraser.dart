@@ -1,6 +1,10 @@
 import 'dart:ui';
 
+import 'package:saber/components/canvas/_circle_stroke.dart';
+import 'package:saber/components/canvas/_rectangle_stroke.dart';
 import 'package:saber/components/canvas/_stroke.dart';
+import 'package:saber/data/editor/editor_history.dart';
+import 'package:saber/data/prefs.dart';
 
 import 'package:saber/data/tools/_tool.dart';
 import 'package:sbn/tool_id.dart';
@@ -15,7 +19,52 @@ class Eraser extends Tool {
 
   List<Stroke> _erased = [];
 
-  new({this.size = 10});
+  /// true = nur den berührten Teil des Strichs entfernen (Teilstrich-Radierer),
+  /// false = ganzen Strich löschen (Saber-Standard).
+  final bool partial;
+
+  new({this.size = 10, bool? partial})
+    : partial = partial ?? stows.eraserPartial.value;
+
+  final List<Stroke> _removedOriginals = [];
+  final List<Stroke> _added = [];
+
+  /// Teilstrich-Modus: Liefert (alter Strich, Reststücke) für alle berührten
+  /// Striche. Der Aufrufer ersetzt die alten Striche durch die Reststücke.
+  List<(Stroke, List<Stroke>)> erasePartially(
+    Offset eraserPos,
+    List<Stroke> strokes,
+  ) {
+    final result = <(Stroke, List<Stroke>)>[];
+    for (final stroke in strokes) {
+      final List<Stroke>? pieces;
+      if (stroke is CircleStroke || stroke is RectangleStroke) {
+        // Formen sind keine freien Linien: ganz löschen.
+        pieces = _shouldStrokeBeErased(eraserPos, stroke, sqrSize) ? [] : null;
+      } else {
+        pieces = stroke.erasePartially(eraserPos, size);
+      }
+      if (pieces == null) continue;
+
+      if (!_added.remove(stroke)) _removedOriginals.add(stroke);
+      _added.addAll(pieces);
+      result.add((stroke, pieces));
+    }
+    return result;
+  }
+
+  /// Beendet einen Radierzug im Teilstrich-Modus.
+  /// Gibt den Undo-Eintrag zurück oder `null`, wenn nichts geändert wurde.
+  HistoricReplace? onDragEndPartial() {
+    if (_removedOriginals.isEmpty && _added.isEmpty) return null;
+    final change = HistoricReplace(
+      removed: List.of(_removedOriginals),
+      added: List.of(_added),
+    );
+    _removedOriginals.clear();
+    _added.clear();
+    return change;
+  }
 
   @override
   ToolId get toolId => .eraser;

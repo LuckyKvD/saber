@@ -113,3 +113,10 @@ Ohne diese Schritte baut der Workflow bewusst nicht (kein Fallback-Key).
 
 - **Testergebnis (Kay, 24.11.2026):** Winkel, Strichbild, Druckempfindlichkeit und Latenz gut (auch lange Striche); Linkshänder- und Rechtshänder-Test (Ehefrau) ok; PDF-Export der Kalligrafie-Striche gefüllt und vollständig (Testseite PDFTestFeder.pdf). Prototyp damit bestanden.
 - **Wunsch für Phase 5 (GUI):** Stift-Einstellungen (Federwinkel, Druckempfindlichkeit u. a.) direkt im Dokument erreichbar machen (Stift-Leiste), nicht nur in den Einstellungen. Dazu gehört: Einstellungen pro Stift speichern, Kalligrafie-Feder nach Neustart wiederherstellen.
+
+## 11. Teilstrich-Radierer (Branch `feature/stroke-eraser`)
+
+- Einstellung „Radierer löscht nur berührten Teil“ (Standard: aus = altes Verhalten, ganze Linie). Bei „an“ wird der Strich an der Radierstelle aufgetrennt (Radius = Radierergröße).
+- Undo/Redo: ein Radierzug = ein Schritt (`HistoricReplace`). Formen (Kreis/Rechteck aus dem Form-Stift) werden weiter ganz gelöscht.
+- Kalligrafie-Striche behalten beim Teilen ihren Federwinkel.
+- Offen (Vermutung): Bei sehr schnellem Radieren können kleine Reste stehen bleiben; Radiergröße ist noch fest 10.

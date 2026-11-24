@@ -169,6 +169,16 @@ class const HistoricDelete({
   HistoricAdd reverse() => .new(strokes: strokes, images: images);
 }
 
+/// Strokes were replaced by other strokes (partial erasing):
+/// [removed] strokes disappeared, [added] strokes appeared.
+class const HistoricReplace({
+  required final List<Stroke> removed,
+  required final List<Stroke> added,
+}) extends Historic {
+  @override
+  HistoricReplace reverse() => .new(removed: added, added: removed);
+}
+
 /// A stroke or image was moved.
 ///
 /// If [pageIndex] does not equal [prevPageIndex],
