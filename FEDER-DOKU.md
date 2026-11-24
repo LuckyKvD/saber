@@ -156,3 +156,14 @@ Ohne diese Schritte baut der Workflow bewusst nicht (kein Fallback-Key).
 - **Befund defekte Quelldateien (Fakt):** Einzelne Dateien im alten Saber-Ordner sind auf dem Server abgeschnitten (Dateikopf nennt größere Länge als vorhanden; Größe glatt durch 4096 teilbar). Das ist kein Feder-Fehler. Der Import meldet sie mit Größe, Kopfwert und letztem Byte; Notizen daraus müssen aus der lokalen Saber-Kopie exportiert und per „+“ → Import übernommen werden (Unsicher, ob inklusive Bildern vollständig). Vorschaubilder (`.p`) werden von der App neu erzeugt (Vermutung).
 - **Offener Prüfpunkt:** Schneidet der Server große Uploads ab? Test: Größe einer großen `.fde`-Datei = lokale Größe + 44 Byte.
 - **Wunsch Phase 5:** Statt des Fortschrittskreises eine Prozentanzeige; die Anzeige braucht einen eigenen Takt, weil sie sich bisher nur bei Änderungen der Warteschlange oder beim Neuaufbau der Seite aktualisiert (Vermutung).
+
+## 16. Lokale Verschlüsselung (Branch `feature/local-crypto`, in `feder` übernommen)
+
+- **Umfang Stufe 1:** Notizdateien (`.sbn2`, `.sbn`), Vorschaubilder (`.sbn2.p`) und Anhänge (`.sbn2.N`: Fotos, SVG, PDF). Nicht verschlüsselt: Ordnerstruktur und Dateinamen (Klartext im App-Ordner), Einstellungen.
+- **Format:** `FDL1` + 24 Byte Nonce + Chiffretext + 16 Byte MAC (XChaCha20-Poly1305). Schlüssel per HKDF (`feder-local-file-v1`) aus dem Hauptschlüssel, getrennt vom Sync-Schlüssel. Pfad wird nicht gebunden (Umbenennen/Verschieben bleibt möglich).
+- **Wann:** Beim Schreiben (`FileManager.writeFile`), sobald der Schlüssel vorliegt. Lesen über `FileManager.readBytes` (entschlüsselt bei Bedarf, liest Klartext-Altdateien unverändert). Bilder über `DecryptedFileImage`, PDFs aus dem Speicher, SVGs als String.
+- **Automatische Umwandlung** beim Start nach der Anmeldung (`LocalMigration.encryptAll`): Zwischendatei, Rücktest, atomares Umbenennen, Zeitstempel bleibt erhalten, Änderung während der Umwandlung führt zum Überspringen. Fortschritt im Durchsuchen-Bildschirm.
+- **Abmelden** entschlüsselt vorher alles (zwei Durchläufe); schlägt eine Datei fehl, wird nicht abgemeldet.
+- **Anzeige:** Einstellungen → „Lokale Verschlüsselung" zählt verschlüsselte/unverschlüsselte Dateien; Antippen verschlüsselt Rest.
+- **Tests (Praxis):** Altdaten wurden automatisch verschlüsselt (Geschwindigkeit ok), Anzeige und Import ok, Foto-/PDF-/SVG-Anzeige ok.
+- **Offen/Grenzen (Vermutung/Unsicher):** Geht der Hauptschlüssel verloren (Gerät zurückgesetzt) und fehlen Passwort und Wiederherstellungsschlüssel, sind lokale Daten und die Nextcloud-Kopie nicht lesbar – so gewollt. Reines Dart-XChaCha20 im Hintergrund-Isolate; sehr große Dateien (> 50 MB) ungetestet. Dateinamen sind lokal und in Statusmeldungen lesbar.
