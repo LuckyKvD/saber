@@ -1,3 +1,4 @@
+import 'package:saber/data/file_manager/decrypted_file_image.dart';
 import 'dart:async';
 
 import 'package:animations/animations.dart';
@@ -59,7 +60,7 @@ class _PreviewCardState extends State<PreviewCard> {
           ? MemoryImage(imageFile.readAsBytesSync())
           : null;
     } else {
-      thumbnail.image = FileImage(imageFile);
+      thumbnail.image = DecryptedFileImage(imageFile);
     }
   }
 

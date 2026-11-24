@@ -5,6 +5,7 @@ import 'package:flutter/painting.dart';
 import 'package:logging/logging.dart';
 import 'package:saber/components/canvas/image/editor_image.dart';
 import 'package:saber/components/canvas/image/pdf_document_cache.dart';
+import 'package:saber/data/file_manager/file_manager.dart';
 import 'package:saber/data/list_eq.dart';
 
 /// A cache for assets that are loaded from disk.
@@ -160,7 +161,7 @@ class OrderedAssetCache {
     if (item is List<int>) {
       return item;
     } else if (item is File) {
-      return item.readAsBytes();
+      return FileManager.readBytes(item);
     } else if (item is String) {
       return utf8.encode(item);
     } else {

@@ -5,6 +5,7 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:path/path.dart' as p;
+import 'package:saber/components/home/local_migration_status.dart';
 import 'package:saber/components/home/delete_note_button.dart';
 import 'package:saber/components/home/export_note_button.dart';
 import 'package:saber/components/home/grid_folders.dart';
@@ -153,6 +154,7 @@ class _BrowsePageState extends State<BrowsePage> {
           SliverToBoxAdapter(
             child: PathComponents(path, onPathComponentTap: onPathComponentTap),
           ),
+          const SliverToBoxAdapter(child: LocalMigrationStatus()),
           const SliverPadding(padding: .only(bottom: 16)),
           GridFolders(
             isAtRoot: path?.isEmpty ?? true,

@@ -127,8 +127,19 @@ class SvgEditorImage extends EditorImage {
     ),
   };
 
+  /// Lokal verschlüsselte SVG-Dateien werden hier entschlüsselt und als
+  /// String-Loader weiterverwendet (SvgFileLoader liest direkt von der Platte).
+  Future<void> _decryptFileLoader() async {
+    final loader = svgLoader;
+    if (loader is SvgFileLoader) {
+      final bytes = await FileManager.readBytes(loader.file);
+      svgLoader = SvgStringLoader(utf8.decode(bytes));
+    }
+  }
+
   @override
   Future<void> firstLoad() async {
+    await _decryptFileLoader();
     if (srcRect.shortestSide == 0 || dstRect.shortestSide == 0) {
       final pictureInfo = await vg.loadPicture(svgLoader, null);
       naturalSize = pictureInfo.size;
@@ -158,6 +169,7 @@ class SvgEditorImage extends EditorImage {
 
   @override
   Future<void> precache(BuildContext context) async {
+    await _decryptFileLoader();
     final pictureInfo = await vg.loadPicture(svgLoader, null);
     pictureInfo.picture.dispose();
   }
