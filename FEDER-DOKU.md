@@ -121,3 +121,5 @@ Ohne diese Schritte baut der Workflow bewusst nicht (kein Fallback-Key).
 - Kalligrafie-Striche behalten beim Teilen ihren Federwinkel.
 - Offen (Vermutung): Bei sehr schnellem Radieren können kleine Reste stehen bleiben; Radiergröße jetzt einstellbar (Fein 5 … Riesig 60, Standard 10).
 - Test Teilstrich-Radierer (Kay, 24.11.2026): alle Tests erfolgreich; Wunsch Radiergröße einstellbar umgesetzt. Spätere GUI: Größe direkt in der Radierer-Leiste.
+
+- **Handflächen-Test (Kay, 24.11.2026):** Handfläche aufgelegt + Stift: keine Probleme, keine Latenz. Kein Code nötig. Phase 3 damit abgeschlossen.
