@@ -129,3 +129,11 @@ Ohne diese Schritte baut der Workflow bewusst nicht (kein Fallback-Key).
 - Fakt (Code): `Encrypter(AES(passwordKey))` ohne Modusangabe; Schlüssel = einmal SHA-256(Passwort + festes Salz im Quelltext); ein IV pro Konto, für alle Dateien wiederverwendet; der Dateischlüssel (`key`) wird mit demselben IV in `config.sbc` abgelegt.
 - Vermutung (Standard des `encrypt`-Pakets, vor Umsetzung gegen Paketquelltext zu prüfen): Standardmodus ist `AESMode.sic` (CTR-artig) – dann ohne Authentifizierung und mit Schlüsselstrom-Wiederverwendung: aus zwei verschlüsselten Dateien lässt sich die XOR-Verknüpfung der Klartexte gewinnen; Manipulation wäre unbemerkt.
 - Folge: Feder bekommt ein eigenes Schema (authentifizierte Verschlüsselung, eigenes Nonce pro Datei, echte Schlüsselableitung mit Zufalls-Salt) im eigenen Nextcloud-Ordner. Das alte Schema bleibt nur lesend für den Import aus dem Saber-Ordner.
+
+## 13. Entscheidungen Phase 4 (Kay, 24.11.2026)
+
+- Wiederherstellungsschlüssel beim Einrichten der Verschlüsselung: **ja**.
+- Nextcloud-Server: IONOS, `cloud.vondreger.eu` (nur für Kays eigene Tests; keine Zugangsdaten im Code oder Repo).
+- Lokale Verschlüsselung: **nach** der Nextcloud-Verschlüsselung.
+- Quantencomputer-Sicherheit: umgesetzt über AES-256 bzw. XChaCha20-Poly1305 mit 256-Bit-Schlüsseln und Argon2id; keine asymmetrische Kryptografie in Feder nötig.
+- Wunsch: allgemeine WebDAV-Anbindung (Nextcloud, IONOS HiDrive, Synology …); pCloud zunächst per WebDAV (EU: `ewebdav.pcloud.com`, nur Bezahltarif, ohne 2FA); natives pCloud-API später nur falls nötig.
