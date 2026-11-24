@@ -16,21 +16,25 @@ class const SyncingButton({super.key}) extends HookWidget {
   /// Returns a value between 0-1 representing the progress of the sync,
   /// or null if we're still refreshing.
   double? getPercentage() {
-    if (syncer.downloader.isRefreshing) return null;
+    if (syncer.downloader.isRefreshing || syncer.uploader.isRefreshing) {
+      return null;
+    }
+    final pending = syncer.downloader.numPending + syncer.uploader.numPending;
     return (0.2 + filesTransferred.value) /
-        (0.2 + filesTransferred.value + syncer.downloader.numPending);
+        (0.2 + filesTransferred.value + pending);
   }
 
   void onPressed() {
     assert(stows.loggedIn);
 
     // Don't refresh if we're already refreshing.
-    if (syncer.downloader.isRefreshing) return;
+    if (syncer.downloader.isRefreshing || syncer.uploader.isRefreshing) return;
 
     // Reset progress indicator
     filesTransferred.value = 0;
 
     syncer.downloader.refresh();
+    syncer.uploader.refresh();
   }
 
   @override
@@ -38,12 +42,18 @@ class const SyncingButton({super.key}) extends HookWidget {
     useListenable(filesTransferred);
 
     useStream(syncer.downloader.queueStream);
+    useStream(syncer.uploader.queueStream);
 
     final transferredFile = useStream(syncer.downloader.transferStream);
     useMemoized(() {
       // Increment count when a file is transferred
       if (transferredFile.data != null) filesTransferred.value++;
     }, [transferredFile.data]);
+
+    final uploadedFile = useStream(syncer.uploader.transferStream);
+    useMemoized(() {
+      if (uploadedFile.data != null) filesTransferred.value++;
+    }, [uploadedFile.data]);
 
     useOnListenableChange(stows.username, () {
       // Reset count when the username changes
