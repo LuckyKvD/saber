@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:saber/components/settings/local_encryption_tile.dart';
 import 'package:saber/components/navbar/responsive_navbar.dart';
 import 'package:saber/components/security/app_lock.dart';
 import 'package:saber/components/settings/app_info.dart';
@@ -214,6 +215,7 @@ class _SettingsPageState extends State<SettingsPage> {
               children: [
                 const NextcloudProfile(),
                 const SaberImportTile(),
+                const LocalEncryptionTile(),
                 const Padding(padding: .all(8), child: AppInfo()),
                 SettingsSubtitle(subtitle: t.settings.prefCategories.general),
                 SettingsSwitch(

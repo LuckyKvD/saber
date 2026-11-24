@@ -33,6 +33,34 @@ class LocalMigration {
   /// Entschlüsselt alle Dateien (vor dem Abmelden).
   static Future<int> decryptAll() => _convertAll(encrypt: false);
 
+  /// Zählt, wie viele lokale Notizdateien verschlüsselt/unverschlüsselt sind.
+  /// Liest nur die ersten Bytes jeder Datei. Leere Dateien (gelöscht) zählen
+  /// nicht mit.
+  static Future<({int encrypted, int plain})> countStatus() async {
+    var encrypted = 0;
+    var plain = 0;
+    await for (final entity in FileManager.getRootDirectory().list(
+      recursive: true,
+    )) {
+      if (entity is! File) continue;
+      if (!LocalCrypto.isEncryptablePath(entity.path)) continue;
+      final length = entity.lengthSync();
+      if (length == 0) continue;
+      final raf = await entity.open();
+      try {
+        final head = await raf.read(4);
+        if (length >= 44 && LocalCrypto.hasMagic(head)) {
+          encrypted++;
+        } else {
+          plain++;
+        }
+      } finally {
+        await raf.close();
+      }
+    }
+    return (encrypted: encrypted, plain: plain);
+  }
+
   static Future<int> _convertAll({required bool encrypt}) async {
     while (_running) {
       await Future<void>.delayed(const Duration(milliseconds: 200));

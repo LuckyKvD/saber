@@ -34,6 +34,12 @@ class LocalCrypto {
 
   static bool isEncrypted(List<int> data) {
     if (data.length < _overhead) return false;
+    return hasMagic(data);
+  }
+
+  /// Prüft nur die ersten 4 Bytes (Kennung "FDL1").
+  static bool hasMagic(List<int> data) {
+    if (data.length < _magic.length) return false;
     for (var i = 0; i < _magic.length; i++) {
       if (data[i] != _magic[i]) return false;
     }
