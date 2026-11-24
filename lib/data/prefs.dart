@@ -71,10 +71,13 @@ class Stows {
 
   /// Whether the user is logged in and has provided both passwords.
   /// Please ensure that the relevant Prefs are loaded before using this.
+  ///
+  /// Feder: Statt des Verschlüsselungspassworts wird nur der Hauptschlüssel
+  /// ([key]) gespeichert; das Passwort selbst nie.
   bool get loggedIn =>
       username.value.isNotEmpty &&
       ncPassword.value.isNotEmpty &&
-      encPassword.value.isNotEmpty;
+      key.value.isNotEmpty;
 
   final key = SecureStow('key', '', volatile: !_isOnMainIsolate);
   final iv = SecureStow('iv', '', volatile: !_isOnMainIsolate);

@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:saber/components/misc/faq.dart';
 import 'package:saber/data/extensions/string_extensions.dart';
 import 'package:saber/data/nextcloud/nextcloud_client_extension.dart';
+import 'package:saber/data/nextcloud/saber_syncer.dart';
 import 'package:saber/data/prefs.dart';
 import 'package:saber/data/quota.dart';
 import 'package:saber/i18n/strings.g.dart';
@@ -29,6 +30,7 @@ class DoneLoginStep extends StatelessWidget {
     stows.lastStorageQuota.value = null;
     stows.key.value = '';
     stows.iv.value = '';
+    SaberSyncInterface.clearPathCaches();
     recheckCurrentStep();
   }
 

@@ -3,17 +3,15 @@ import 'dart:io';
 
 import 'package:abstract_sync/abstract_sync.dart';
 import 'package:collection/collection.dart';
-import 'package:encrypt/encrypt.dart';
+import 'package:saber/data/crypto/feder_crypto.dart';
+import 'package:saber/data/crypto/feder_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 import 'package:nextcloud/nextcloud.dart';
 import 'package:nextcloud/webdav.dart';
 import 'package:saber/data/file_manager/file_manager.dart';
-import 'package:saber/data/nextcloud/errors.dart';
 import 'package:saber/data/nextcloud/nextcloud_client_extension.dart';
 import 'package:saber/data/prefs.dart';
-import 'package:saber/pages/editor/editor.dart';
-import 'package:worker_manager/worker_manager.dart';
 
 final syncer = Syncer<SaberSyncInterface, SaberSyncFile, File, WebDavFile>(
   const SaberSyncInterface(),
@@ -70,7 +68,13 @@ class const SaberSyncInterface()
     if (remoteFiles.isEmpty) return const [];
 
     final List<SaberSyncFile> changedFiles = await Future.wait(
-      remoteFiles.map((remoteFile) async {
+      remoteFiles
+          .where(
+            (f) => !f.path.path.endsWith(
+              NextcloudClientExtension.vaultFileName,
+            ),
+          )
+          .map((remoteFile) async {
         final SaberSyncFile syncFile;
         try {
           syncFile = await getSyncFileFromRemoteFile(remoteFile);
@@ -142,7 +146,7 @@ class const SaberSyncInterface()
     assert(relativePath.startsWith('/'));
     final encryptedName = await encryptPath(client, relativePath);
     final remotePath =
-        '${FileManager.appRootDirectoryPrefix}/'
+        '${NextcloudClientExtension.appRootDirectoryPrefix}/'
         '$encryptedName'
         '$encExtension';
 
@@ -167,18 +171,7 @@ class const SaberSyncInterface()
 
   @override
   Future<Uint8List> downloadRemoteFile(SaberSyncFile file) async {
-    if (file.localFile.path.endsWith(NextcloudClientExtension.configFileName)) {
-      // Config file changed
-      try {
-        _client!.loadEncryptionKey(generateKeyIfMissing: false);
-      } on EncLoginFailure {
-        // enc password has changed since the user last logged in, so log out
-        stows.encPassword.value = '';
-        stows.key.value = '';
-        stows.iv.value = '';
-      }
-      return Uint8List(0);
-    } else if (file.remoteFile?.size == 0) {
+    if (file.remoteFile?.size == 0) {
       // Deleted file, handle in [writeLocalFile]
       return Uint8List(0);
     }
@@ -197,11 +190,6 @@ class const SaberSyncInterface()
     Uint8List encryptedBytes, {
     @visibleForTesting bool awaitWrite = false,
   }) async {
-    if (file.localFile.path == NextcloudClientExtension.configFileName) {
-      // Config file changed, already handled in [downloadRemoteFile]
-      return;
-    }
-
     if (encryptedBytes.isEmpty) {
       // Remote file was deleted
       await FileManager.deleteFile(file.relativeLocalPath, alsoUpload: false);
@@ -214,27 +202,18 @@ class const SaberSyncInterface()
     if (client == null)
       throw Exception('Tried to decrypt file without being logged in');
 
-    final encrypter = client.encrypter;
-    final iv = IV.fromBase64(stows.iv.value);
-
-    final decryptedData = await workerManager.execute(
-      file.localFile.path.endsWith(Editor.extensionOldJson)
-          ? () async {
-              final encrypted = utf8.decode(encryptedBytes.cast<int>());
-              final decrypted = encrypter.decrypt64(encrypted, iv: iv);
-              return utf8.encode(decrypted);
-            }
-          : () async {
-              final encrypted = Encrypted(encryptedBytes);
-              final decrypted = encrypter.decryptBytes(encrypted, iv: iv);
-              return Uint8List.fromList(decrypted);
-            },
-      priority: WorkPriority.highRegular,
-    );
-    assert(
-      decryptedData.isNotEmpty,
-      'Decrypted data is empty but encryptedBytes.length is ${encryptedBytes.length}',
-    );
+    final Uint8List decryptedData;
+    try {
+      decryptedData = await FederCrypto.decryptFile(
+        FederSession.masterKey,
+        encryptedBytes,
+        path: _logicalPath(file),
+      );
+    } on FederCryptoException catch (e, st) {
+      // Manipulierte oder fremde Datei: NICHT überschreiben.
+      log.severe('Entschlüsselung fehlgeschlagen für ${file.remotePath}', e, st);
+      return;
+    }
     await FileManager.writeFile(
       file.relativeLocalPath,
       decryptedData,
@@ -259,22 +238,10 @@ class const SaberSyncInterface()
     if (client == null)
       throw Exception('Tried to encrypt file without being logged in');
 
-    final encrypter = client.encrypter;
-    final iv = IV.fromBase64(stows.iv.value);
-
-    final encryptedData = await workerManager.execute(
-      file.localFile.path.endsWith(Editor.extensionOldJson)
-          ? () async {
-              final decrypted = utf8.decode(decryptedBytes);
-              final encrypted = encrypter.encrypt(decrypted, iv: iv);
-              return utf8.encode(encrypted.base64);
-            }
-          : () async {
-              final decrypted = decryptedBytes;
-              final encrypted = encrypter.encryptBytes(decrypted, iv: iv);
-              return encrypted.bytes;
-            },
-      priority: WorkPriority.highRegular,
+    final encryptedData = await FederCrypto.encryptFile(
+      FederSession.masterKey,
+      decryptedBytes,
+      path: _logicalPath(file),
     );
 
     return encryptedData;
@@ -334,6 +301,13 @@ class const SaberSyncInterface()
   /// Use [decryptPath] to decrypt a path instead of accessing this directly.
   static final _decryptMap = <String, String>{};
 
+  /// Leert die Namens-Caches (nach Anmeldung/Abmeldung mit anderem Schlüssel).
+  static void clearPathCaches() {
+    _encryptMap.clear();
+    _decryptMap.clear();
+    remoteFiles = <WebDavFile>{};
+  }
+
   static Future<Set<WebDavFile>> findRemoteFiles() async {
     final client = SaberSyncInterface.client;
     if (client == null) return {};
@@ -341,7 +315,7 @@ class const SaberSyncInterface()
     try {
       return await client.webdav
           .propfind(
-            PathUri.parse(FileManager.appRootDirectoryPrefix),
+            PathUri.parse(NextcloudClientExtension.appRootDirectoryPrefix),
             prop: const WebDavPropWithoutValues.fromBools(
               davGetcontentlength: true,
               davGetlastmodified: true,
@@ -354,7 +328,7 @@ class const SaberSyncInterface()
                 .where(
                   (file) =>
                       file.path.path !=
-                      '${FileManager.appRootDirectoryPrefix}/',
+                      '${NextcloudClientExtension.appRootDirectoryPrefix}/',
                 )
                 .toSet(),
           );
@@ -362,13 +336,8 @@ class const SaberSyncInterface()
       if (e.statusCode == HttpStatus.notFound) {
         log.info('findRemoteFiles: Creating app directory', e, st);
         await client.webdav.mkcol(
-          PathUri.parse(FileManager.appRootDirectoryPrefix),
+          PathUri.parse(NextcloudClientExtension.appRootDirectoryPrefix),
         );
-        log.info('findRemoteFiles: Generating config');
-        await client
-            .getConfig()
-            .then((config) => client.generateConfig(config: config))
-            .then((config) => client.setConfig(config));
         return {};
       } else {
         log.severe('Failed to get list of remote files: $e', e, st);
@@ -394,12 +363,9 @@ class const SaberSyncInterface()
     if (client == null)
       throw Exception('Tried to encrypt path without being logged in');
 
-    final encrypter = client.encrypter;
-    final iv = IV.fromBase64(stows.iv.value);
-
-    final encrypted = await workerManager.execute(
-      () => encrypter.encrypt(path, iv: iv).base16,
-      priority: WorkPriority.veryHigh,
+    final encrypted = await FederCrypto.encryptPath(
+      FederSession.masterKey,
+      path,
     );
 
     _encryptMap[path] = encrypted;
@@ -413,21 +379,16 @@ class const SaberSyncInterface()
   ) async {
     // Ignore README.md and other ignored files
     if (_ignoredFiles.any(path.endsWith)) return null;
-
-    final String encryptedName;
-    if (path.endsWith(encExtension)) {
-      // File name without extension
-      encryptedName = path.substring(
-        path.lastIndexOf('/') + 1,
-        path.length - encExtension.length,
-      );
-    } else if (path.endsWith(NextcloudClientExtension.configFileUri.path)) {
-      // Config file is a special case, it's not encrypted
-      return '/${NextcloudClientExtension.configFileName}';
-    } else {
+    if (!path.endsWith(encExtension)) {
       log.info('remote file not in recognised encrypted format: $path');
       return null;
     }
+
+    // File name without extension
+    final encryptedName = path.substring(
+      path.lastIndexOf('/') + 1,
+      path.length - encExtension.length,
+    );
 
     if (_decryptMap.containsKey(encryptedName))
       return _decryptMap[encryptedName]!;
@@ -435,17 +396,15 @@ class const SaberSyncInterface()
     if (client == null)
       throw Exception('Tried to decrypt path without being logged in');
 
-    final encrypter = client.encrypter;
-    final iv = IV.fromBase64(stows.iv.value);
-
-    var decrypted = await workerManager.execute(
-      () => encrypter.decrypt16(encryptedName, iv: iv),
-      priority: WorkPriority.veryHigh,
-    );
-
-    // Mitigates a bug where files got imported starting with `null/` instead of `/`.
-    if (decrypted.startsWith('null/')) {
-      decrypted = decrypted.substring('null/'.length - 1);
+    final String decrypted;
+    try {
+      decrypted = await FederCrypto.decryptPath(
+        FederSession.masterKey,
+        encryptedName,
+      );
+    } on FederCryptoException catch (e) {
+      log.warning('Dateiname nicht entschlüsselbar: $path ($e)');
+      return null;
     }
 
     _encryptMap[decrypted] = encryptedName;
@@ -549,12 +508,20 @@ class const SaberSyncInterface()
   }
 
   /// the file extension of an encrypted base64 note
-  static const encExtension = '.sbe';
+  static const encExtension = '.fde';
 
   /// List of files to ignore on the server.
   /// Prefixed with a slash so we can use [filePath.endsWith]
-  static const _ignoredFiles = <String>['/Readme.md'];
+  static const _ignoredFiles = <String>[
+    '/Readme.md',
+    '/${NextcloudClientExtension.vaultFileName}',
+  ];
 }
+
+/// Logischer Pfad einer Datei (mit führendem `/`), an den die Verschlüsselung
+/// gebunden ist. Auf beiden Seiten identisch berechnet.
+String _logicalPath(SaberSyncFile file) =>
+    file.relativeLocalPath.replaceAll(Platform.pathSeparator, '/');
 
 class SaberSyncFile extends AbstractSyncFile<File, WebDavFile> {
   late final relativeLocalPath = localFile.path.substring(

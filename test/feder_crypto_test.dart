@@ -97,4 +97,34 @@ void main() {
     final key = await FederCrypto.unlockWithPassword(back, 'pw');
     expect(await key.extractBytes(), await v.masterKey.extractBytes());
   });
+
+  test('Dateiname: deterministisch, umkehrbar, nur Kleinbuchstaben/Ziffern', () async {
+    final v = await FederCrypto.createVault('pw', kdf: _fast);
+    final a = await FederCrypto.encryptPath(v.masterKey, '/Schule/Mathe äöü.sbn2');
+    final b = await FederCrypto.encryptPath(v.masterKey, '/Schule/Mathe äöü.sbn2');
+    final c = await FederCrypto.encryptPath(v.masterKey, '/Schule/Mathe2.sbn2');
+    expect(a, b);
+    expect(a, isNot(c));
+    expect(RegExp(r'^[a-z2-7]+$').hasMatch(a), isTrue);
+    expect(await FederCrypto.decryptPath(v.masterKey, a), '/Schule/Mathe äöü.sbn2');
+  });
+
+  test('Dateiname: falscher Schlüssel oder Manipulation wird erkannt', () async {
+    final v = await FederCrypto.createVault('pw', kdf: _fast);
+    final w = await FederCrypto.createVault('pw', kdf: _fast);
+    final a = await FederCrypto.encryptPath(v.masterKey, '/x.sbn2');
+    expect(
+      () => FederCrypto.decryptPath(w.masterKey, a),
+      throwsA(isA<FederCryptoException>()),
+    );
+    final tampered = '${a.substring(0, a.length - 1)}${a.endsWith('a') ? 'b' : 'a'}';
+    expect(
+      () => FederCrypto.decryptPath(v.masterKey, tampered),
+      throwsA(isA<FederCryptoException>()),
+    );
+    expect(
+      () => FederCrypto.decryptPath(v.masterKey, '!!!'),
+      throwsA(isA<FederCryptoException>()),
+    );
+  });
 }

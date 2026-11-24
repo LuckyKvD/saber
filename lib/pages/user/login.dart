@@ -32,18 +32,14 @@ class NcLoginPage extends StatefulWidget {
     if (!stows.url.loaded ||
         !stows.username.loaded ||
         !stows.ncPassword.loaded ||
-        !stows.encPassword.loaded ||
-        !stows.key.loaded ||
-        !stows.iv.loaded) {
+        !stows.key.loaded) {
       return .waitingForPrefs;
     }
 
     if (stows.username.value.isEmpty || stows.ncPassword.value.isEmpty) {
       return .nc;
     }
-    if (stows.encPassword.value.isEmpty ||
-        stows.key.value.isEmpty ||
-        stows.iv.value.isEmpty) {
+    if (stows.key.value.isEmpty) {
       return .enc;
     }
     return .done;
@@ -72,16 +68,12 @@ class _NcLoginPageState extends State<NcLoginPage> {
     if (!stows.url.loaded ||
         !stows.username.loaded ||
         !stows.ncPassword.loaded ||
-        !stows.encPassword.loaded ||
-        !stows.key.loaded ||
-        !stows.iv.loaded)
+        !stows.key.loaded)
       await Future.wait([
         stows.url.waitUntilRead(),
         stows.username.waitUntilRead(),
         stows.ncPassword.waitUntilRead(),
-        stows.encPassword.waitUntilRead(),
         stows.key.waitUntilRead(),
-        stows.iv.waitUntilRead(),
       ]);
 
     recheckCurrentStep();

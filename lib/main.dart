@@ -130,14 +130,14 @@ Future<void> appRunner(List<String> args) async {
 
 void startSyncAfterLoaded() async {
   await stows.username.waitUntilRead();
-  await stows.encPassword.waitUntilRead();
+  await stows.key.waitUntilRead();
 
   stows.username.removeListener(startSyncAfterLoaded);
-  stows.encPassword.removeListener(startSyncAfterLoaded);
+  stows.key.removeListener(startSyncAfterLoaded);
   if (!stows.loggedIn) {
     // try again when logged in
     stows.username.addListener(startSyncAfterLoaded);
-    stows.encPassword.addListener(startSyncAfterLoaded);
+    stows.key.addListener(startSyncAfterLoaded);
     return;
   }
 

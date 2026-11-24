@@ -96,12 +96,6 @@ class NcLoginStep extends HookWidget {
                     mainAxisSize: .min,
                     spacing: 48,
                     children: [
-                      _LoginWithSaber(
-                        login: () => loginFlow.value = _createLoginFlow(
-                          context,
-                          NextcloudClientExtension.defaultNextcloudUri,
-                        ),
-                      ),
                       _LoginWithNextcloud(
                         login: (url) => loginFlow.value = _createLoginFlow(
                           context,
@@ -133,13 +127,6 @@ class NcLoginStep extends HookWidget {
           children: [
             const SizedBox(height: 16),
             _Header(shouldUseTwoColumns: shouldUseTwoColumns),
-            const SizedBox(height: 32),
-            _LoginWithSaber(
-              login: () => loginFlow.value = _createLoginFlow(
-                context,
-                NextcloudClientExtension.defaultNextcloudUri,
-              ),
-            ),
             const SizedBox(height: 32),
             _LoginWithNextcloud(
               login: (url) =>

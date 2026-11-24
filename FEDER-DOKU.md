@@ -137,3 +137,11 @@ Ohne diese Schritte baut der Workflow bewusst nicht (kein Fallback-Key).
 - Lokale Verschlüsselung: **nach** der Nextcloud-Verschlüsselung.
 - Quantencomputer-Sicherheit: umgesetzt über AES-256 bzw. XChaCha20-Poly1305 mit 256-Bit-Schlüsseln und Argon2id; keine asymmetrische Kryptografie in Feder nötig.
 - Wunsch: allgemeine WebDAV-Anbindung (Nextcloud, IONOS HiDrive, Synology …); pCloud zunächst per WebDAV (EU: `ewebdav.pcloud.com`, nur Bezahltarif, ohne 2FA); natives pCloud-API später nur falls nötig.
+
+## 14. Schritt 2: eigener Nextcloud-Ordner + Tresor (Branch `feature/crypto`)
+
+- Server-Ordner: `Feder/` (der Ordner `Saber/` wird nie berührt). Tresor-Datei `Feder/feder-vault.json` (nur eingepackter Schlüssel + Argon2id-Parameter + Salz; ohne Passwort wertlos).
+- Dateien: `<verschlüsselter Name>.fde`; Dateiname = deterministisch verschlüsselter Pfad (authentifiziert, Base32 klein), Inhalt mit XChaCha20-Poly1305, Pfad als zugehörige Daten.
+- Lokal gespeichert wird nur der Hauptschlüssel (sicherer Speicher); das Passwort nie. Der „Login mit Saber-Server“ wurde entfernt.
+- Einrichtung: Passwort (min. 12 Zeichen) → Wiederherstellungsschlüssel anzeigen → erst nach Bestätigung wird der Tresor hochgeladen.
+- Bekannte Grenzen (Vermutung/Unsicher): gleichzeitige Ersteinrichtung auf zwei Geräten (wird per Prüfung vor dem Upload abgefangen, aber nicht atomar); Passwortwechsel noch ohne Oberfläche; Dateien werden im Hauptprozess ver-/entschlüsselt (große PDFs könnten kurz ruckeln); Pfadlänge: sehr lange Pfade können das 255-Zeichen-Limit der Dateinamen sprengen.

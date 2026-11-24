@@ -216,12 +216,54 @@ class FederCrypto {
     }
   }
 
+  // ---- Dateinamen ---------------------------------------------------------
+
+  /// Deterministische, authentifizierte Verschlüsselung eines Pfads
+  /// (SIV-Konstruktion: Nonce = HMAC(Pfad)). Gleicher Pfad -> gleicher Name
+  /// (nötig, damit alle Geräte dieselbe Datei finden), verschiedene Pfade ->
+  /// verschiedene Nonces. Ergebnis: Kleinbuchstaben-Base32, ohne Padding.
+  static Future<String> encryptPath(SecretKey masterKey, String path) async {
+    final nonceKey = await _subKey(masterKey, 'feder-name-nonce-v1');
+    final nameKey = await _subKey(masterKey, 'feder-name-v1');
+    final pathBytes = utf8.encode(path);
+    final mac = await Hmac.sha256().calculateMac(
+      pathBytes,
+      secretKey: nonceKey,
+    );
+    final box = await _cipher.encrypt(
+      pathBytes,
+      secretKey: nameKey,
+      nonce: mac.bytes.sublist(0, _nonceLength),
+      aad: utf8.encode('feder-name-v1'),
+    );
+    return _b32Encode(box.concatenation()).toLowerCase();
+  }
+
+  static Future<String> decryptPath(SecretKey masterKey, String name) async {
+    try {
+      final box = SecretBox.fromConcatenation(
+        _b32Decode(name),
+        nonceLength: _nonceLength,
+        macLength: _macLength,
+      );
+      final clear = await _cipher.decrypt(
+        box,
+        secretKey: await _subKey(masterKey, 'feder-name-v1'),
+        aad: utf8.encode('feder-name-v1'),
+      );
+      return utf8.decode(clear);
+    } on SecretBoxAuthenticationError {
+      throw const FederCryptoException('Dateiname ungültig oder manipuliert.');
+    } on FormatException {
+      throw const FederCryptoException('Dateiname ungültig.');
+    }
+  }
+
   // ---- Wiederherstellungsschlüssel ---------------------------------------
 
   static const _b32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 
-  /// 32 Bytes -> 52 Zeichen Base32 in Fünfergruppen, getrennt durch `-`.
-  static String encodeRecoveryKey(List<int> bytes) {
+  static String _b32Encode(List<int> bytes) {
     final sb = StringBuffer();
     int buffer = 0, bits = 0;
     for (final b in bytes) {
@@ -234,24 +276,15 @@ class FederCrypto {
       buffer &= (1 << bits) - 1;
     }
     if (bits > 0) sb.write(_b32[(buffer << (5 - bits)) & 31]);
-    final raw = sb.toString();
-    return [
-      for (int i = 0; i < raw.length; i += 5)
-        raw.substring(i, i + 5 > raw.length ? raw.length : i + 5),
-    ].join('-');
+    return sb.toString();
   }
 
-  static Uint8List decodeRecoveryKey(String key) {
-    final cleaned = key.toUpperCase().replaceAll(RegExp(r'[\s-]'), '');
+  static Uint8List _b32Decode(String input) {
     final out = <int>[];
     int buffer = 0, bits = 0;
-    for (final ch in cleaned.split('')) {
+    for (final ch in input.toUpperCase().split('')) {
       final v = _b32.indexOf(ch);
-      if (v < 0) {
-        throw const FederCryptoException(
-          'Ungültiges Zeichen im Wiederherstellungsschlüssel.',
-        );
-      }
+      if (v < 0) throw const FormatException('Ungültiges Base32-Zeichen');
       buffer = (buffer << 5) | v;
       bits += 5;
       if (bits >= 8) {
@@ -260,12 +293,34 @@ class FederCrypto {
         buffer &= (1 << bits) - 1;
       }
     }
+    return Uint8List.fromList(out);
+  }
+
+  /// 32 Bytes -> 52 Zeichen Base32 in Fünfergruppen, getrennt durch `-`.
+  static String encodeRecoveryKey(List<int> bytes) {
+    final raw = _b32Encode(bytes);
+    return [
+      for (int i = 0; i < raw.length; i += 5)
+        raw.substring(i, i + 5 > raw.length ? raw.length : i + 5),
+    ].join('-');
+  }
+
+  static Uint8List decodeRecoveryKey(String key) {
+    final cleaned = key.replaceAll(RegExp(r'[\s-]'), '');
+    final Uint8List out;
+    try {
+      out = _b32Decode(cleaned);
+    } on FormatException {
+      throw const FederCryptoException(
+        'Ungültiges Zeichen im Wiederherstellungsschlüssel.',
+      );
+    }
     if (out.length != 32) {
       throw const FederCryptoException(
         'Wiederherstellungsschlüssel hat die falsche Länge.',
       );
     }
-    return Uint8List.fromList(out);
+    return out;
   }
 
   // ---- intern -------------------------------------------------------------
@@ -285,11 +340,14 @@ class FederCrypto {
 
   static List<int> _fileAad(String path) => [..._magic, ...utf8.encode(path)];
 
-  static Future<SecretKey> _fileKey(SecretKey master) {
+  static Future<SecretKey> _fileKey(SecretKey master) =>
+      _subKey(master, 'feder-file-v1');
+
+  static Future<SecretKey> _subKey(SecretKey master, String info) {
     return Hkdf(hmac: Hmac.sha256(), outputLength: 32).deriveKey(
       secretKey: master,
       nonce: const <int>[],
-      info: utf8.encode('feder-file-v1'),
+      info: utf8.encode(info),
     );
   }
 
