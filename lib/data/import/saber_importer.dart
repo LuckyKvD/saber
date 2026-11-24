@@ -95,12 +95,16 @@ class SaberImporter {
       onProgress(path, done, remoteFiles.length);
 
       final target = '$targetFolder$path';
+      var diag = 'Server: ${remote.size} B';
       try {
         if (FileManager.getFile(target).existsSync()) {
           result.skippedExisting++;
           continue;
         }
         final encrypted = await client.webdav.get(PathUri.parse(remotePath));
+        diag = 'Server: ${remote.size} B, geladen: ${encrypted.length} B '
+            '(Rest mod 16: ${encrypted.length % 16}), '
+            'geändert: ${remote.lastModified?.toIso8601String()}';
         final decrypted = await crypto.decryptFile(
           encrypted,
           isOldJson: path.endsWith('.sbn'),
@@ -118,7 +122,7 @@ class SaberImporter {
       } catch (e, st) {
         log.warning('Import fehlgeschlagen für $path: $e', e, st);
         result.failed++;
-        result.errors.add('$path: $e');
+        result.errors.add('$path: $e [$diag]');
       }
     }
     onProgress('Fertig', remoteFiles.length, remoteFiles.length);
