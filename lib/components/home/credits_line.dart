@@ -27,6 +27,11 @@ class CreditsLine extends StatelessWidget {
             'Basiert auf Saber von Adil Hanney und Mitwirkenden (GPL-3.0)',
             style: style,
           ),
+          const SizedBox(height: 2),
+          Text(
+            const String.fromEnvironment('FEDER_BUILD', defaultValue: 'lokaler Build'),
+            style: style,
+          ),
         ],
       ),
     );

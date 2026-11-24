@@ -62,7 +62,9 @@ jobs:
         run: flutter analyze lib --no-fatal-infos --no-fatal-warnings
 
       - name: Build apk
-        run: flutter build apk
+        run: |
+          BUILD_NR=$((200000 + GITHUB_RUN_NUMBER))
+          flutter build apk --build-number=$BUILD_NR --dart-define=FEDER_BUILD="Build ${GITHUB_RUN_NUMBER} (${GITHUB_SHA::7})"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
