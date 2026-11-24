@@ -119,4 +119,5 @@ Ohne diese Schritte baut der Workflow bewusst nicht (kein Fallback-Key).
 - Einstellung „Radierer löscht nur berührten Teil“ (Standard: aus = altes Verhalten, ganze Linie). Bei „an“ wird der Strich an der Radierstelle aufgetrennt (Radius = Radierergröße).
 - Undo/Redo: ein Radierzug = ein Schritt (`HistoricReplace`). Formen (Kreis/Rechteck aus dem Form-Stift) werden weiter ganz gelöscht.
 - Kalligrafie-Striche behalten beim Teilen ihren Federwinkel.
-- Offen (Vermutung): Bei sehr schnellem Radieren können kleine Reste stehen bleiben; Radiergröße ist noch fest 10.
+- Offen (Vermutung): Bei sehr schnellem Radieren können kleine Reste stehen bleiben; Radiergröße jetzt einstellbar (Fein 5 … Riesig 60, Standard 10).
+- Test Teilstrich-Radierer (Kay, 24.11.2026): alle Tests erfolgreich; Wunsch Radiergröße einstellbar umgesetzt. Spätere GUI: Größe direkt in der Radierer-Leiste.

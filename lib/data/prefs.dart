@@ -231,6 +231,13 @@ class Stows {
     volatile: !_isOnMainIsolate,
   );
 
+  /// Radiergröße (Radius in Punkten).
+  final eraserSize = PlainStow(
+    'eraserSize',
+    10,
+    volatile: !_isOnMainIsolate,
+  );
+
   /// Federwinkel der Kalligrafie-Feder in Grad (Prototyp).
   final calligraphyNibAngle = PlainStow(
     'calligraphyNibAngle',

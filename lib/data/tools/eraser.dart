@@ -23,8 +23,9 @@ class Eraser extends Tool {
   /// false = ganzen Strich löschen (Saber-Standard).
   final bool partial;
 
-  new({this.size = 10, bool? partial})
-    : partial = partial ?? stows.eraserPartial.value;
+  new({double? size, bool? partial})
+    : size = size ?? stows.eraserSize.value.toDouble(),
+      partial = partial ?? stows.eraserPartial.value;
 
   final List<Stroke> _removedOriginals = [];
   final List<Stroke> _added = [];

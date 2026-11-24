@@ -427,6 +427,18 @@ class _SettingsPageState extends State<SettingsPage> {
                     ToggleButtonsOption(75, Text('75°')),
                   ],
                 ),
+                SettingsSelection(
+                  title: 'Radierergröße',
+                  icon: FontAwesomeIcons.eraser,
+                  pref: stows.eraserSize,
+                  options: const [
+                    ToggleButtonsOption(5, Text('Fein')),
+                    ToggleButtonsOption(10, Text('Normal')),
+                    ToggleButtonsOption(20, Text('Groß')),
+                    ToggleButtonsOption(35, Text('Sehr groß')),
+                    ToggleButtonsOption(60, Text('Riesig')),
+                  ],
+                ),
                 SettingsSwitch(
                   title: 'Radierer löscht nur berührten Teil',
                   subtitle:
