@@ -1,8 +1,10 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:cryptography/cryptography.dart';
+import 'package:flutter/services.dart';
 
 /// Fehler der Feder-Verschlüsselung (falsches Passwort, manipulierte Daten …).
 class FederCryptoException implements Exception {
@@ -362,13 +364,34 @@ class FederCrypto {
     );
   }
 
-  /// Argon2id im Hintergrund-Isolate, damit die Oberfläche nicht einfriert.
+  static const _nativeChannel = MethodChannel('de.luckykvd.feder/crypto');
+
+  /// Argon2id. Auf Android nativ (Java, schnell); sonst reines Dart im
+  /// Hintergrund-Isolate (nur für Tests/Desktop, auf dem Handy viel zu langsam).
   static Future<SecretKey> _deriveKek(
     String password,
     List<int> salt,
     KdfParams p,
   ) async {
     final pw = utf8.encode(password);
+    if (Platform.isAndroid) {
+      try {
+        final out = await _nativeChannel.invokeMethod<Uint8List>('argon2id', {
+          'password': Uint8List.fromList(pw),
+          'salt': Uint8List.fromList(salt),
+          'memoryKiB': p.memoryKiB,
+          'iterations': p.iterations,
+          'parallelism': p.parallelism,
+          'length': 32,
+        });
+        if (out == null || out.length != 32) {
+          throw const FederCryptoException('Argon2id lieferte kein Ergebnis.');
+        }
+        return SecretKey(out);
+      } on PlatformException catch (e) {
+        throw FederCryptoException('Argon2id fehlgeschlagen: ${e.message}');
+      }
+    }
     final bytes = await Isolate.run(() async {
       final key = await Argon2id(
         parallelism: p.parallelism,

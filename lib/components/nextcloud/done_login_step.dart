@@ -1,9 +1,11 @@
 import 'dart:math';
 
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:logging/logging.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:saber/components/misc/faq.dart';
+import 'package:saber/components/settings/nextcloud_profile.dart';
 import 'package:saber/data/extensions/string_extensions.dart';
 import 'package:saber/data/nextcloud/nextcloud_client_extension.dart';
 import 'package:saber/data/nextcloud/saber_syncer.dart';
@@ -12,7 +14,7 @@ import 'package:saber/data/quota.dart';
 import 'package:saber/i18n/strings.g.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-class DoneLoginStep extends StatelessWidget {
+class DoneLoginStep extends HookWidget {
   const new({super.key, required this.recheckCurrentStep});
 
   final void Function() recheckCurrentStep;
@@ -43,7 +45,12 @@ class DoneLoginStep extends StatelessWidget {
     final horizontalPadding = screenWidth > width
         ? (screenWidth - width) / 2
         : 16.0;
-    final quota = stows.lastStorageQuota.value;
+    // Speicherplatz sofort laden (sonst steht dort nur der Platzhalter).
+    useEffect(() {
+      NextcloudProfile.getStorageQuota().catchError((_) => null);
+      return null;
+    }, const []);
+    final quota = useValueListenable(stows.lastStorageQuota);
     final serverName =
         stows.url.value.ifNotEmpty ?? t.login.ncLoginStep.saberNcServer;
     late final serverUri = stows.url.value.isEmpty
