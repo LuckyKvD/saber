@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:http/io_client.dart';
 import 'package:nextcloud/nextcloud.dart';
+import 'package:nextcloud/provisioning_api.dart';
 import 'package:nextcloud/webdav.dart';
 import 'package:saber/data/prefs.dart';
 import 'package:saber/data/version.dart';
@@ -70,6 +71,11 @@ extension NextcloudClientExtension on NextcloudClient {
     stows.username.addListener(deAuth);
 
     return client;
+  }
+
+  Future<String> getUsername() async {
+    final user = await provisioningApi.users.getCurrentUser();
+    return user.body.ocs.data.id;
   }
 
   /// Lädt den Tresor (eingepackter Hauptschlüssel) vom Server.
