@@ -293,6 +293,9 @@ class FederCrypto {
         buffer &= (1 << bits) - 1;
       }
     }
+    // Nur kanonische Kodierung zulassen (übrige Bits müssen 0 sein), sonst
+    // gäbe es mehrere Namen für dieselbe Datei.
+    if (buffer != 0) throw const FormatException('Nicht kanonisches Base32');
     return Uint8List.fromList(out);
   }
 
