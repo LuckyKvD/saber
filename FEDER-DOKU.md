@@ -34,7 +34,7 @@ Jede Aussage ist als **Fakt** (im Code/Build geprüft), **Vermutung** oder **Uns
 - **Nextcloud (neu):** eigenes Verfahren mit authentifizierter Verschlüsselung, Zufallswert pro Datei und echter Schlüsselableitung. Das alte Saber-Verfahren wird nur **lesend** für den Import unterstützt.
 - **Vermutung:** Der Import aus Saber läuft über dessen Nextcloud-Ordner (nur lesen), weil eine App den privaten Ordner einer anderen App nicht lesen kann.
 
-## 4. Signing (einmalig einzurichten, durch Kay)
+## 4. Signing (einmalig einzurichten, durch den Projektinhaber)
 
 Ohne diese Schritte baut der Workflow bewusst nicht (kein Fallback-Key).
 
@@ -111,7 +111,7 @@ Ohne diese Schritte baut der Workflow bewusst nicht (kein Fallback-Key).
 - Neu: Einstellung „Druckempfindlichkeit des Füllers“ (`thinning`: Keine / Normal 50 / Stark 75 / Maximal 95).
 - Bekannte Risiken (Vermutung): PDF-Export mehrerer Teilpfade, Leistung bei sehr langen Strichen auf dem Tab Active 5.
 
-- **Testergebnis (Kay, 24.11.2026):** Winkel, Strichbild, Druckempfindlichkeit und Latenz gut (auch lange Striche); Linkshänder- und Rechtshänder-Test (Ehefrau) ok; PDF-Export der Kalligrafie-Striche gefüllt und vollständig (Testseite PDFTestFeder.pdf). Prototyp damit bestanden.
+- **Testergebnis (Test):** Winkel, Strichbild, Druckempfindlichkeit und Latenz gut (auch lange Striche); Linkshänder- und Rechtshänder-Test ok; PDF-Export der Kalligrafie-Striche gefüllt und vollständig. Prototyp damit bestanden.
 - **Wunsch für Phase 5 (GUI):** Stift-Einstellungen (Federwinkel, Druckempfindlichkeit u. a.) direkt im Dokument erreichbar machen (Stift-Leiste), nicht nur in den Einstellungen. Dazu gehört: Einstellungen pro Stift speichern, Kalligrafie-Feder nach Neustart wiederherstellen.
 
 ## 11. Teilstrich-Radierer (Branch `feature/stroke-eraser`)
@@ -120,9 +120,9 @@ Ohne diese Schritte baut der Workflow bewusst nicht (kein Fallback-Key).
 - Undo/Redo: ein Radierzug = ein Schritt (`HistoricReplace`). Formen (Kreis/Rechteck aus dem Form-Stift) werden weiter ganz gelöscht.
 - Kalligrafie-Striche behalten beim Teilen ihren Federwinkel.
 - Offen (Vermutung): Bei sehr schnellem Radieren können kleine Reste stehen bleiben; Radiergröße jetzt einstellbar (Fein 5 … Riesig 60, Standard 10).
-- Test Teilstrich-Radierer (Kay, 24.11.2026): alle Tests erfolgreich; Wunsch Radiergröße einstellbar umgesetzt. Spätere GUI: Größe direkt in der Radierer-Leiste.
+- Test Teilstrich-Radierer (Test): alle Tests erfolgreich; Wunsch Radiergröße einstellbar umgesetzt. Spätere GUI: Größe direkt in der Radierer-Leiste.
 
-- **Handflächen-Test (Kay, 24.11.2026):** Handfläche aufgelegt + Stift: keine Probleme, keine Latenz. Kein Code nötig. Phase 3 damit abgeschlossen.
+- **Handflächen-Test (Test):** Handfläche aufgelegt + Stift: keine Probleme, keine Latenz. Kein Code nötig. Phase 3 damit abgeschlossen.
 
 ## 12. Phase 4 – Befund Saber-Verschlüsselung (Code gelesen, 24.11.2026)
 
@@ -130,10 +130,10 @@ Ohne diese Schritte baut der Workflow bewusst nicht (kein Fallback-Key).
 - Vermutung (Standard des `encrypt`-Pakets, vor Umsetzung gegen Paketquelltext zu prüfen): Standardmodus ist `AESMode.sic` (CTR-artig) – dann ohne Authentifizierung und mit Schlüsselstrom-Wiederverwendung: aus zwei verschlüsselten Dateien lässt sich die XOR-Verknüpfung der Klartexte gewinnen; Manipulation wäre unbemerkt.
 - Folge: Feder bekommt ein eigenes Schema (authentifizierte Verschlüsselung, eigenes Nonce pro Datei, echte Schlüsselableitung mit Zufalls-Salt) im eigenen Nextcloud-Ordner. Das alte Schema bleibt nur lesend für den Import aus dem Saber-Ordner.
 
-## 13. Entscheidungen Phase 4 (Kay, 24.11.2026)
+## 13. Entscheidungen Phase 4 (Test)
 
 - Wiederherstellungsschlüssel beim Einrichten der Verschlüsselung: **ja**.
-- Nextcloud-Server: IONOS, `cloud.vondreger.eu` (nur für Kays eigene Tests; keine Zugangsdaten im Code oder Repo).
+- Nextcloud-Server: privat gehostet, nur für eigene Tests (keine Server-Adresse und keine Zugangsdaten im Repo).
 - Lokale Verschlüsselung: **nach** der Nextcloud-Verschlüsselung.
 - Quantencomputer-Sicherheit: umgesetzt über AES-256 bzw. XChaCha20-Poly1305 mit 256-Bit-Schlüsseln und Argon2id; keine asymmetrische Kryptografie in Feder nötig.
 - Wunsch: allgemeine WebDAV-Anbindung (Nextcloud, IONOS HiDrive, Synology …); pCloud zunächst per WebDAV (EU: `ewebdav.pcloud.com`, nur Bezahltarif, ohne 2FA); natives pCloud-API später nur falls nötig.
@@ -146,4 +146,4 @@ Ohne diese Schritte baut der Workflow bewusst nicht (kein Fallback-Key).
 - Einrichtung: Passwort (min. 12 Zeichen) → Wiederherstellungsschlüssel anzeigen → erst nach Bestätigung wird der Tresor hochgeladen.
 - Bekannte Grenzen (Vermutung/Unsicher): gleichzeitige Ersteinrichtung auf zwei Geräten (wird per Prüfung vor dem Upload abgefangen, aber nicht atomar); Passwortwechsel noch ohne Oberfläche; Dateien werden im Hauptprozess ver-/entschlüsselt (große PDFs könnten kurz ruckeln); Pfadlänge: sehr lange Pfade können das 255-Zeichen-Limit der Dateinamen sprengen.
 
-- **Test Schritt 2 (Kay, 24.11.2026):** Anmeldung, Tresor, Wiederherstellungsschlüssel, Sync nach `Feder/` ok. Reines Dart-Argon2id brauchte >20 Minuten auf dem Tab Active 5; ersetzt durch Argon2id in Java (BouncyCastle 1.78.1, MethodChannel `de.luckykvd.feder/crypto`) – danach „rasend schnell“, bestehender Tresor blieb entsperrbar (Dart und Java liefern dasselbe Ergebnis). Speicherplatz-Anzeige lädt jetzt beim Öffnen. Krypto-Schritte 1+2 in `feder` übernommen.
+- **Test Schritt 2 (Test):** Anmeldung, Tresor, Wiederherstellungsschlüssel, Sync nach `Feder/` ok. Reines Dart-Argon2id brauchte >20 Minuten auf dem Tab Active 5; ersetzt durch Argon2id in Java (BouncyCastle 1.78.1, MethodChannel `de.luckykvd.feder/crypto`) – danach „rasend schnell“, bestehender Tresor blieb entsperrbar (Dart und Java liefern dasselbe Ergebnis). Speicherplatz-Anzeige lädt jetzt beim Öffnen. Krypto-Schritte 1+2 in `feder` übernommen.
