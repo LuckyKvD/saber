@@ -13,6 +13,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:saber/components/home/sort_button.dart';
+import 'package:saber/data/crypto/local_crypto.dart';
 import 'package:saber/data/nextcloud/saber_syncer.dart';
 import 'package:saber/data/prefs.dart';
 import 'package:saber/i18n/strings.g.dart';
@@ -186,6 +187,21 @@ class FileManager {
     fileWriteStream.add(FileOperation(type, path));
   }
 
+  /// Liest [file] von der Platte und entschlüsselt sie, falls sie lokal
+  /// verschlüsselt ist. Unverschlüsselte (alte) Dateien werden unverändert
+  /// geliefert, damit die automatische Umwandlung gefahrlos laufen kann.
+  static Future<Uint8List> readBytes(File file) async {
+    final raw = await file.readAsBytes();
+    if (!LocalCrypto.isEncrypted(raw)) return raw;
+    await LocalCrypto.ensureReady();
+    if (!LocalCrypto.isActive) {
+      throw StateError(
+        'Datei ist lokal verschlüsselt, aber nicht entsperrt: ${file.path}',
+      );
+    }
+    return LocalCrypto.decrypt(raw);
+  }
+
   /// Returns the contents of the file at [filePath].
   static Future<Uint8List?> readFile(String filePath, {int retries = 3}) async {
     filePath = _sanitisePath(filePath);
@@ -193,7 +209,7 @@ class FileManager {
     Uint8List? result;
     final file = getFile(filePath);
     if (file.existsSync()) {
-      result = await file.readAsBytes();
+      result = await readBytes(file);
       if (result.isEmpty) result = null;
     } else {
       retries = 0; // don't retry if the file doesn't exist
@@ -248,8 +264,15 @@ class FileManager {
 
     final file = getFile(filePath);
     await _createFileDirectory(filePath);
+    await LocalCrypto.ensureReady();
+    final List<int> toDisk =
+        (toWrite.isNotEmpty &&
+            LocalCrypto.isActive &&
+            LocalCrypto.isEncryptablePath(filePath))
+        ? await LocalCrypto.encrypt(toWrite)
+        : toWrite;
     Future writeFuture = Future.wait([
-      file.writeAsBytes(toWrite).then((file) async {
+      file.writeAsBytes(toDisk).then((file) async {
         if (lastModified != null) await file.setLastModified(lastModified);
       }),
       // if we're using a new format, also delete the old file

@@ -62,7 +62,7 @@ class PngEditorImage extends EditorImage {
       extension: json['e'] ?? '.jpg',
       imageProvider: bytes != null
           ? MemoryImage(bytes) as ImageProvider
-          : FileImage(imageFile!),
+          : DecryptedFileImage(imageFile!),
       pageIndex: json['i'] ?? 0,
       pageSize: .infinite,
       invertible: json['v'] ?? true,
@@ -108,7 +108,9 @@ class PngEditorImage extends EditorImage {
       if (imageProvider is MemoryImage) {
         bytes = (imageProvider as MemoryImage).bytes;
       } else if (imageProvider is FileImage) {
-        bytes = await (imageProvider as FileImage).file.readAsBytes();
+        bytes = await FileManager.readBytes(
+          (imageProvider as FileImage).file,
+        );
       } else {
         throw Exception(
           'EditorImage.getImage: imageProvider is ${imageProvider.runtimeType}',

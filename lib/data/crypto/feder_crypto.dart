@@ -348,6 +348,12 @@ class FederCrypto {
   static Future<SecretKey> _fileKey(SecretKey master) =>
       _subKey(master, 'feder-file-v1');
 
+  /// Schlüssel für die lokale Dateiverschlüsselung (getrennt vom Sync-Schlüssel).
+  static Future<List<int>> localFileKeyBytes(SecretKey master) async {
+    final key = await _subKey(master, 'feder-local-file-v1');
+    return key.extractBytes();
+  }
+
   static Future<SecretKey> _subKey(SecretKey master, String info) {
     return Hkdf(hmac: Hmac.sha256(), outputLength: 32).deriveKey(
       secretKey: master,

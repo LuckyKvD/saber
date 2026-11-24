@@ -4,7 +4,9 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:logging/logging.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:saber/components/home/local_migration_status.dart';
 import 'package:saber/components/misc/faq.dart';
+import 'package:saber/data/crypto/local_migration.dart';
 import 'package:saber/components/settings/nextcloud_profile.dart';
 import 'package:saber/data/extensions/string_extensions.dart';
 import 'package:saber/data/nextcloud/nextcloud_client_extension.dart';
@@ -23,7 +25,25 @@ class DoneLoginStep extends HookWidget {
 
   static final log = Logger('DoneLoginStep');
 
-  void _logout() {
+  Future<void> _logout(BuildContext context) async {
+    // Lokale Dateien zuerst wieder entschlüsseln (zwei Durchläufe, falls der
+    // Sync währenddessen noch etwas geschrieben hat). Nur wenn alles geklappt
+    // hat, wird der Schlüssel entfernt.
+    var failed = await LocalMigration.decryptAll();
+    failed += await LocalMigration.decryptAll();
+    if (failed > 0) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Abmelden abgebrochen: $failed Dateien konnten nicht '
+              'entschlüsselt werden.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
     stows.url.value = '';
     stows.username.value = '';
     stows.ncPassword.value = '';
@@ -107,7 +127,11 @@ class DoneLoginStep extends HookWidget {
             borderRadius: _elevatedButtonBorderRadiusOf(context),
           ),
           const SizedBox(height: 4),
-          ElevatedButton(onPressed: _logout, child: Text(t.profile.logout)),
+          const LocalMigrationStatus(),
+          ElevatedButton(
+            onPressed: () => _logout(context),
+            child: Text(t.profile.logout),
+          ),
           const SizedBox(height: 32),
           Text(t.profile.connectedTo, style: const TextStyle(height: 0.8)),
           Text(serverName, style: textTheme.headlineSmall),

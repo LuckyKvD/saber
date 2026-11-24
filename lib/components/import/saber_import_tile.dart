@@ -83,6 +83,11 @@ class _ImportDialog extends HookWidget {
                 'Die Dateien werden jetzt verschlüsselt in den Feder-Ordner '
                 'synchronisiert.',
               ),
+              if (res.largest.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                const Text('Größte Dateien:'),
+                Text(res.largest.join('\n')),
+              ],
               if (res.errors.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Text(

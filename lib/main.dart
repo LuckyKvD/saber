@@ -1,3 +1,4 @@
+import 'package:saber/data/crypto/local_migration.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -143,6 +144,9 @@ void startSyncAfterLoaded() async {
 
   // wait for other prefs to load
   await Future.delayed(const Duration(milliseconds: 100));
+
+  // lokale Dateien automatisch verschlüsseln (einmalig, danach nur Neues)
+  await LocalMigration.encryptAll();
 
   // start syncing
   syncer.downloader.refresh();

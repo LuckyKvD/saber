@@ -13,6 +13,8 @@ class SaberImportResult {
   int imported = 0;
   int skippedExisting = 0;
   int recovered = 0;
+  /// Die größten Dateien im Saber-Ordner (Pfad und Größe), größte zuerst.
+  final List<String> largest = [];
   int failed = 0;
   final List<String> errors = [];
 }
@@ -80,6 +82,7 @@ class SaberImporter {
         .toList();
 
     var done = 0;
+    final sizes = <({String path, int size})>[];
     for (final remote in remoteFiles) {
       done++;
       final remotePath = remote.path.path;
@@ -94,6 +97,7 @@ class SaberImporter {
         continue;
       }
       onProgress(path, done, remoteFiles.length);
+      sizes.add((path: path, size: remote.size ?? 0));
 
       final target = '$targetFolder$path';
       var diag = 'Server: ${remote.size} B';
@@ -145,6 +149,10 @@ class SaberImporter {
         result.failed++;
         result.errors.add('$path: $e [$diag]');
       }
+    }
+    sizes.sort((a, b) => b.size.compareTo(a.size));
+    for (final e in sizes.take(10)) {
+      result.largest.add('${(e.size / 1048576).toStringAsFixed(2)} MB  ${e.path}');
     }
     onProgress('Fertig', remoteFiles.length, remoteFiles.length);
     return result;

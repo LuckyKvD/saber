@@ -75,7 +75,9 @@ class _CanvasImageDialogState extends State<CanvasImageDialog> {
             case final PdfEditorImage image:
               bytes =
                   image.pdfBytes ??
-                  await image.pdfFile?.readAsBytes() ??
+                  (image.pdfFile != null
+                      ? await FileManager.readBytes(image.pdfFile!)
+                      : null) ??
                   (throw ArgumentError.value(
                     image,
                     'image',
@@ -86,7 +88,7 @@ class _CanvasImageDialogState extends State<CanvasImageDialog> {
                 (final SvgStringLoader loader) => utf8.encode(
                   loader.provideSvg(null),
                 ),
-                (final SvgFileLoader loader) => await loader.file.readAsBytes(),
+                (final SvgFileLoader loader) => await FileManager.readBytes(loader.file),
                 (_) => throw ArgumentError.value(
                   image.svgLoader,
                   'svgLoader',
@@ -97,8 +99,9 @@ class _CanvasImageDialogState extends State<CanvasImageDialog> {
               if (image.imageProvider is MemoryImage) {
                 bytes = (image.imageProvider as MemoryImage).bytes;
               } else if (image.imageProvider is FileImage) {
-                bytes = await (image.imageProvider as FileImage).file
-                    .readAsBytes();
+                bytes = await FileManager.readBytes(
+                  (image.imageProvider as FileImage).file,
+                );
               } else {
                 throw ArgumentError.value(
                   image.imageProvider,

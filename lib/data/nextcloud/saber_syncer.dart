@@ -40,6 +40,7 @@ class const SaberSyncInterface()
       recursive: true,
     )) {
       if (localFile is! File) continue;
+      if (localFile.path.endsWith('.feder-tmp')) continue;
 
       final syncFile = await getSyncFileFromLocalFile(localFile);
 
@@ -227,7 +228,7 @@ class const SaberSyncInterface()
   @override
   Future<Uint8List> readLocalFile(SaberSyncFile file) async {
     final decryptedBytes = file.localFile.existsSync()
-        ? await file.localFile.readAsBytes()
+        ? await FileManager.readBytes(file.localFile)
         : Uint8List(0);
     if (decryptedBytes.isEmpty) {
       // deleted file, handle in [uploadRemoteFile]
