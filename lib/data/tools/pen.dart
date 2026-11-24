@@ -10,6 +10,7 @@ import 'package:saber/data/tools/_tool.dart';
 import 'package:saber/data/tools/highlighter.dart';
 import 'package:saber/data/tools/pencil.dart';
 import 'package:saber/data/tools/shape_pen.dart';
+import 'package:saber/data/tools/shape_recognizer.dart';
 import 'package:saber/i18n/strings.g.dart';
 import 'package:sbn/tool_id.dart';
 
@@ -95,6 +96,7 @@ class Pen extends Tool {
       page: page,
       toolId: toolId,
     );
+    if (holdToShape) _resetHold();
     onDragUpdate(position, pressure);
   }
 
@@ -104,32 +106,53 @@ class Pen extends Tool {
   /// (der erkennt immer).
   bool get holdToShape => stows.autoShape.value && this is! ShapePen;
 
-  static const holdToShapeDelay = Duration(milliseconds: 600);
+  static const holdToShapeDelay = Duration(milliseconds: 400);
+
+  /// Bewegung unterhalb dieser Strecke (in Seitenpunkten) gilt als "Stillhalten".
+  /// Wichtig: Stifte liefern auch im Stillstand winzige Bewegungs-Ereignisse.
+  static const holdMoveTolerance = 4.0;
   static Timer? _holdTimer;
+  static Offset? _holdAnchor;
+
+  /// Beim Halten erkannte Form (Vorschau und Übernahme beim Abheben).
+  static HeldShape? heldShape;
 
   /// Wird aufgerufen, wenn eine Form im Halten erkannt wurde (Editor zeichnet neu).
   static VoidCallback? onHoldShapeDetected;
+
+  static void _resetHold() {
+    _holdTimer?.cancel();
+    _holdTimer = null;
+    _holdAnchor = null;
+    heldShape = null;
+  }
 
   void onDragUpdate(Offset position, double? pressure) {
     currentStroke?.addPoint(position, pressure);
 
     if (holdToShape) {
-      ShapePen.detectedShape = null;
-      _holdTimer?.cancel();
-      _holdTimer = Timer(holdToShapeDelay, () {
-        ShapePen.detectedShape = Pen.currentStroke?.detectShape();
-        onHoldShapeDetected?.call();
-      });
+      final anchor = _holdAnchor;
+      if (anchor == null || (position - anchor).distance > holdMoveTolerance) {
+        _holdAnchor = position;
+        final hadShape = heldShape != null;
+        heldShape = null;
+        _holdTimer?.cancel();
+        _holdTimer = Timer(holdToShapeDelay, () {
+          final stroke = Pen.currentStroke;
+          if (stroke == null) return;
+          heldShape = ShapeRecognizer.recognize([
+            for (final p in stroke.points) Offset(p.dx, p.dy),
+          ]);
+          onHoldShapeDetected?.call();
+        });
+        if (hadShape) onHoldShapeDetected?.call();
+      }
     }
   }
 
   Stroke? onDragEnd() {
-    final heldShape = holdToShape ? ShapePen.detectedShape : null;
-    if (holdToShape) {
-      _holdTimer?.cancel();
-      _holdTimer = null;
-      ShapePen.detectedShape = null;
-    }
+    final held = holdToShape ? heldShape : null;
+    if (holdToShape) _resetHold();
 
     final stroke = currentStroke;
     currentStroke = null;
@@ -138,7 +161,7 @@ class Pen extends Tool {
     stroke
       ..options.isComplete = true
       ..markPolygonNeedsUpdating();
-    if (heldShape != null) return ShapePen.convert(this, stroke, heldShape);
+    if (held != null) return held.applyTo(this, stroke);
     return stroke;
   }
 

@@ -500,6 +500,26 @@ class _ToolbarState extends State<Toolbar> {
                     );
                   },
                 ),
+              ListenableBuilder(
+                listenable: stows.editorToolbarAlignment,
+                builder: (context, _) {
+                  final isTop = stows.editorToolbarAlignment.value == .up;
+                  return ToolbarIconButton(
+                    tooltip: isTop
+                        ? 'Leiste nach unten'
+                        : 'Leiste nach oben',
+                    enabled: true,
+                    onPressed: () => stows.editorToolbarAlignment.value =
+                        isTop ? .down : .up,
+                    padding: buttonPadding,
+                    child: Icon(
+                      isTop
+                          ? Icons.vertical_align_bottom
+                          : Icons.vertical_align_top,
+                    ),
+                  );
+                },
+              ),
               ToolbarIconButton(
                 tooltip: t.editor.toolbar.fullscreen,
                 selected: DynamicMaterialApp.isFullscreen,

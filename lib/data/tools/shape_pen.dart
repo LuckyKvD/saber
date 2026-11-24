@@ -9,6 +9,7 @@ import 'package:saber/components/canvas/_rectangle_stroke.dart';
 import 'package:saber/components/canvas/_stroke.dart';
 import 'package:saber/data/prefs.dart';
 import 'package:saber/data/tools/pen.dart';
+import 'package:saber/data/tools/shape_recognizer.dart';
 import 'package:saber/i18n/strings.g.dart';
 
 class ShapePen extends Pen {
@@ -129,6 +130,48 @@ class ShapePen extends Pen {
           page: rawStroke.page,
           toolId: toolId,
         )..addPoints(polygon);
+    }
+  }
+}
+
+extension HeldShapeApply on HeldShape {
+  /// Ersetzt [rawStroke] durch die erkannte Form (Stiftfarbe, -dicke, -art bleiben).
+  Stroke applyTo(Pen pen, Stroke rawStroke) {
+    switch (kind) {
+      case HeldShapeKind.line:
+        return rawStroke..convertToLine();
+      case HeldShapeKind.rectangle:
+        return RectangleStroke(
+          color: pen.color,
+          pressureEnabled: pen.pressureEnabled,
+          options: rawStroke.options,
+          pageIndex: rawStroke.pageIndex,
+          page: rawStroke.page,
+          toolId: pen.toolId,
+          rect: rect!,
+        );
+      case HeldShapeKind.circle:
+        return CircleStroke(
+          color: pen.color,
+          pressureEnabled: pen.pressureEnabled,
+          options: rawStroke.options,
+          pageIndex: rawStroke.pageIndex,
+          page: rawStroke.page,
+          toolId: pen.toolId,
+          radius: radius!,
+          center: center!,
+        );
+      case HeldShapeKind.ellipse:
+      case HeldShapeKind.polygon:
+        return Stroke(
+          color: pen.color,
+          pressureEnabled: pen.pressureEnabled,
+          options: rawStroke.options.copyWith(smoothing: 0, streamline: 0),
+          pageIndex: rawStroke.pageIndex,
+          page: rawStroke.page,
+          toolId: pen.toolId,
+          nibAngle: rawStroke.nibAngle,
+        )..addPoints(densePolyline());
     }
   }
 }
