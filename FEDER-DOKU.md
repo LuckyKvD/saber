@@ -110,3 +110,6 @@ Ohne diese Schritte baut der Workflow bewusst nicht (kein Fallback-Key).
 - Gespeichert als Füller (`ty = fountainPen`) plus Zusatzschlüssel `na` (Winkel). Original-Saber ignoriert `na` und zeigt eine einfache Linie. **Nur Testdaten – sauberes Format folgt in Phase 4 (Format 20).**
 - Neu: Einstellung „Druckempfindlichkeit des Füllers“ (`thinning`: Keine / Normal 50 / Stark 75 / Maximal 95).
 - Bekannte Risiken (Vermutung): PDF-Export mehrerer Teilpfade, Leistung bei sehr langen Strichen auf dem Tab Active 5.
+
+- **Testergebnis (Kay, 24.11.2026):** Winkel, Strichbild, Druckempfindlichkeit und Latenz gut (auch lange Striche); Linkshänder- und Rechtshänder-Test (Ehefrau) ok; PDF-Export der Kalligrafie-Striche gefüllt und vollständig (Testseite PDFTestFeder.pdf). Prototyp damit bestanden.
+- **Wunsch für Phase 5 (GUI):** Stift-Einstellungen (Federwinkel, Druckempfindlichkeit u. a.) direkt im Dokument erreichbar machen (Stift-Leiste), nicht nur in den Einstellungen. Dazu gehört: Einstellungen pro Stift speichern, Kalligrafie-Feder nach Neustart wiederherstellen.
