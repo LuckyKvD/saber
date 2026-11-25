@@ -31,7 +31,7 @@ class _FederSplashState extends State<FederSplash> {
     } else {
       FederSplash._shown = true;
       visible = true;
-      timer = Timer(const Duration(milliseconds: 3800), _hide);
+      timer = Timer(const Duration(milliseconds: 4800), _hide);
     }
   }
 
@@ -45,7 +45,7 @@ class _FederSplashState extends State<FederSplash> {
     if (FederSplash._shown || !mounted) return;
     FederSplash._shown = true;
     setState(() => visible = true);
-    timer = Timer(const Duration(milliseconds: 3800), _hide);
+    timer = Timer(const Duration(milliseconds: 4800), _hide);
   }
 
   void _hide() {
