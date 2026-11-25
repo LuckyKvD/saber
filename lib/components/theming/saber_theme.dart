@@ -6,6 +6,47 @@ import 'package:sbn/font_fallbacks.dart';
 import 'package:yaru/yaru.dart';
 
 abstract class SaberTheme {
+  /// Feder: Nachtblau und Gold.
+  static final ColorScheme federDark =
+      ColorScheme.fromSeed(
+        seedColor: const Color(0xFF14284B),
+        brightness: Brightness.dark,
+      ).copyWith(
+        primary: const Color(0xFFE3B84B),
+        onPrimary: const Color(0xFF1A1405),
+        primaryContainer: const Color(0xFF5A4410),
+        onPrimaryContainer: const Color(0xFFF7E1A0),
+        secondary: const Color(0xFFC9972B),
+        onSecondary: const Color(0xFF1A1405),
+        surface: const Color(0xFF0B1A33),
+        surfaceContainerLowest: const Color(0xFF071225),
+        surfaceContainerLow: const Color(0xFF0E2040),
+        surfaceContainer: const Color(0xFF112549),
+        surfaceContainerHigh: const Color(0xFF162C54),
+        surfaceContainerHighest: const Color(0xFF1B345F),
+        onSurface: const Color(0xFFEDE6D3),
+      );
+
+  static final ColorScheme federLight =
+      ColorScheme.fromSeed(
+        seedColor: const Color(0xFF14284B),
+        brightness: Brightness.light,
+      ).copyWith(
+        primary: const Color(0xFF14284B),
+        onPrimary: const Color(0xFFFFFFFF),
+        primaryContainer: const Color(0xFFF3E3B0),
+        onPrimaryContainer: const Color(0xFF3A2A05),
+        secondary: const Color(0xFFB8841F),
+        onSecondary: const Color(0xFFFFFFFF),
+        surface: const Color(0xFFFBF8F1),
+        surfaceContainerLowest: const Color(0xFFFFFFFF),
+        surfaceContainerLow: const Color(0xFFF6F1E4),
+        surfaceContainer: const Color(0xFFF0EAD8),
+        surfaceContainerHigh: const Color(0xFFEAE3CE),
+        surfaceContainerHighest: const Color(0xFFE4DCC4),
+        onSurface: const Color(0xFF0B1A33),
+      );
+
   static ThemeData createTheme(
     ColorScheme colorScheme,
     TargetPlatform platform,
