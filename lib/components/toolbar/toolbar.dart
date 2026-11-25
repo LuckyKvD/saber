@@ -28,6 +28,7 @@ import 'package:saber/data/tools/laser_pointer.dart';
 import 'package:saber/data/tools/pen.dart';
 import 'package:saber/data/tools/pencil.dart';
 import 'package:saber/data/tools/select.dart';
+import 'package:saber/data/tools/shape_pen.dart';
 import 'package:saber/i18n/strings.g.dart';
 
 class Toolbar extends StatefulWidget {
@@ -93,6 +94,14 @@ class _ToolbarState extends State<Toolbar> {
   ValueNotifier<bool> showExportOptions = ValueNotifier(false);
   ValueNotifier<bool> showColorOptions = ValueNotifier(true);
   ValueNotifier<ToolOptions> toolOptionsType = ValueNotifier(ToolOptions.hide);
+
+  /// Zuletzt benutzter normaler Stift (Füller, Kugelschreiber, Kalligrafie),
+  /// damit der Formen-Stift den Stift-Knopf nicht überschreibt.
+  Pen? _lastRegularPen;
+  Pen get _regularPen {
+    if (Pen.currentPen is! ShapePen) _lastRegularPen = Pen.currentPen;
+    return _lastRegularPen ??= Pen.fountainPen();
+  }
 
   @override
   void initState() {
@@ -323,11 +332,14 @@ class _ToolbarState extends State<Toolbar> {
             runSpacing: 8,
             children: [
               ToolbarIconButton(
-                tooltip: Pen.currentPen.name,
-                selected: widget.currentTool == Pen.currentPen,
+                tooltip: _regularPen.name,
+                selected:
+                    widget.currentTool == Pen.currentPen &&
+                    Pen.currentPen is! ShapePen,
                 enabled: !widget.readOnly,
                 onPressed: () {
-                  if (widget.currentTool == Pen.currentPen) {
+                  if (widget.currentTool == Pen.currentPen &&
+                      Pen.currentPen is! ShapePen) {
                     if (toolOptionsType.value == .pen) {
                       toolOptionsType.value = .hide;
                     } else {
@@ -335,11 +347,11 @@ class _ToolbarState extends State<Toolbar> {
                     }
                   } else {
                     toolOptionsType.value = .pen;
-                    widget.setTool(Pen.currentPen);
+                    widget.setTool(_regularPen);
                   }
                 },
                 padding: buttonPadding,
-                child: UniIcon(Pen.currentPen.icon, size: 16),
+                child: UniIcon(_regularPen.icon, size: 16),
               ),
               ToolbarIconButton(
                 tooltip: t.editor.pens.pencil,
@@ -451,19 +463,22 @@ class _ToolbarState extends State<Toolbar> {
                 padding: buttonPadding,
                 child: const FaIcon(FontAwesomeIcons.eraser, size: 16),
               ),
-              ListenableBuilder(
-                listenable: stows.autoShape,
-                builder: (context, _) {
-                  return ToolbarIconButton(
-                    tooltip: 'Formen: Stift halten = gerade Linie, Dreieck, Viereck, Kreis',
-                    selected: stows.autoShape.value,
-                    enabled: !widget.readOnly,
-                    onPressed: () =>
-                        stows.autoShape.value = !stows.autoShape.value,
-                    padding: buttonPadding,
-                    child: const Icon(Icons.change_history, size: 18),
-                  );
+              ToolbarIconButton(
+                tooltip: t.editor.pens.shapePen,
+                selected: widget.currentTool is ShapePen,
+                enabled: !widget.readOnly,
+                onPressed: () {
+                  if (widget.currentTool is ShapePen) {
+                    toolOptionsType.value = toolOptionsType.value == .pen
+                        ? .hide
+                        : .pen;
+                  } else {
+                    toolOptionsType.value = .pen;
+                    widget.setTool(ShapePen());
+                  }
                 },
+                padding: buttonPadding,
+                child: const FaIcon(ShapePen.shapePenIcon, size: 16),
               ),
               ToolbarIconButton(
                 tooltip: t.editor.toolbar.photo,
@@ -500,26 +515,6 @@ class _ToolbarState extends State<Toolbar> {
                     );
                   },
                 ),
-              ListenableBuilder(
-                listenable: stows.editorToolbarAlignment,
-                builder: (context, _) {
-                  final isTop = stows.editorToolbarAlignment.value == .up;
-                  return ToolbarIconButton(
-                    tooltip: isTop
-                        ? 'Leiste nach unten'
-                        : 'Leiste nach oben',
-                    enabled: true,
-                    onPressed: () => stows.editorToolbarAlignment.value =
-                        isTop ? .down : .up,
-                    padding: buttonPadding,
-                    child: Icon(
-                      isTop
-                          ? Icons.vertical_align_bottom
-                          : Icons.vertical_align_top,
-                    ),
-                  );
-                },
-              ),
               ToolbarIconButton(
                 tooltip: t.editor.toolbar.fullscreen,
                 selected: DynamicMaterialApp.isFullscreen,
