@@ -34,6 +34,8 @@ import 'package:saber/components/theming/saber_theme.dart';
 import 'package:saber/components/toolbar/color_bar.dart';
 import 'package:saber/components/toolbar/editor_bottom_sheet.dart';
 import 'package:saber/components/toolbar/editor_page_manager.dart';
+import 'package:saber/components/toolbar/pick_notebook_dialog.dart';
+import 'package:saber/data/page_transfer.dart';
 import 'package:saber/components/toolbar/toolbar.dart';
 import 'package:saber/data/editor/editor_core_info.dart';
 import 'package:saber/data/editor/editor_exporter.dart';
@@ -2682,9 +2684,60 @@ class EditorState extends State<Editor> {
     );
   }
 
+  /// Kopiert oder verschiebt Seiten in ein anderes Notizbuch.
+  Future<bool> transferPages(
+    BuildContext context,
+    List<int> pageIndexes,
+    bool move,
+  ) async {
+    if (coreInfo.readOnly && move) return false;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final target = await pickNotebook(
+      context,
+      title: move ? 'Seiten verschieben nach' : 'Seiten kopieren nach',
+      excludePath: coreInfo.filePath,
+    );
+    if (target == null) return false;
+
+    try {
+      final count = await copyPagesToNote(
+        source: coreInfo,
+        pageIndexes: pageIndexes,
+        targetPath: target,
+      );
+      if (move && mounted) {
+        setState(() {
+          for (final pageIndex in [...pageIndexes]..sort((a, b) => b - a)) {
+            final page = coreInfo.pages.removeAt(pageIndex);
+            createPage(pageIndex - 1);
+            history.recordChange(
+              HistoricPageDelete(pageIndex: pageIndex, page: page),
+            );
+          }
+          autosaveAfterDelay();
+        });
+      }
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Text(
+            move ? '$count Seite(n) verschoben' : '$count Seite(n) kopiert',
+          ),
+        ),
+      );
+      return true;
+    } catch (e, st) {
+      log.severe('Seiten übertragen fehlgeschlagen: $e', e, st);
+      messenger?.showSnackBar(
+        const SnackBar(content: Text('Übertragen fehlgeschlagen')),
+      );
+      return false;
+    }
+  }
+
   Widget pageManager(BuildContext context) {
     return EditorPageManager(
       coreInfo: coreInfo,
+      onTransfer: (pages, move) => transferPages(context, pages, move),
       scrollToPageOverride: scrollToPageIndex,
       currentPageIndex: currentPageIndex,
       redrawAndSave: () => setState(() {
