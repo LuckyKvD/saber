@@ -17,7 +17,7 @@ import 'package:saber/data/extensions/matrix4_extensions.dart';
 import 'package:saber/data/prefs.dart';
 import 'package:saber/data/pressure_curve.dart';
 import 'package:saber/pages/editor/editor.dart';
-import 'package:vector_math/vector_math_64.dart';
+import 'package:vector_math/vector_math_64.dart' hide Colors;
 
 class CanvasGestureDetector extends StatefulWidget {
   new({
