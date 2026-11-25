@@ -9,7 +9,6 @@ import 'package:saber/data/tools/calligraphy_pen.dart';
 import 'package:saber/data/tools/highlighter.dart';
 import 'package:saber/data/tools/pen.dart';
 import 'package:saber/data/tools/pencil.dart';
-import 'package:saber/data/tools/shape_pen.dart';
 import 'package:saber/i18n/strings.g.dart';
 
 class PenModal<T extends Pen> extends StatefulWidget {
@@ -84,14 +83,6 @@ class _PenModalState<T extends Pen> extends State<PenModal<T>> {
                     : ColorScheme.of(context).onSurface,
               ),
             ),
-          ),
-          _PenSelector(
-            isSelected: Pen.currentPen.icon == ShapePen.shapePenIcon,
-            onPressed: () => setState(() {
-              widget.setTool(ShapePen());
-            }),
-            tooltip: t.editor.pens.shapePen,
-            icon: const FaIcon(ShapePen.shapePenIcon),
           ),
           if (Pen.currentPen.icon == CalligraphyPen.calligraphyIcon)
             ToolSettingChips<int>(
