@@ -124,18 +124,28 @@ class CanvasGestureDetector extends StatefulWidget {
     );
   }
 
-  static double _fittedWidth(EditorPage page, double containerWidth) =>
-      min(page.size.width, containerWidth);
+  /// Horizontal: die Seite passt komplett ins Bild (Breite und Höhe).
+  static double _fittedWidth(
+    EditorPage page,
+    double containerWidth, [
+    double containerHeight = double.infinity,
+  ]) => min(
+    min(page.size.width, containerWidth),
+    (containerHeight - Editor.gapBetweenPages * 2) *
+        page.size.width /
+        page.size.height,
+  );
 
   /// Linke Kante der Seite im Inhalt (horizontales Blättern).
   static double getLeftOfPage({
     required int pageIndex,
     required List<EditorPage> pages,
     required double containerWidth,
+    double containerHeight = double.infinity,
   }) {
     var left = Editor.gapBetweenPages * 2;
     for (var i = 0; i < pageIndex && i < pages.length; i++) {
-      left += _fittedWidth(pages[i], containerWidth) + Editor.gapBetweenPages;
+      left += _fittedWidth(pages[i], containerWidth, containerHeight) + Editor.gapBetweenPages;
     }
     return left;
   }
@@ -145,14 +155,16 @@ class CanvasGestureDetector extends StatefulWidget {
     required int pageIndex,
     required List<EditorPage> pages,
     required double containerWidth,
+    double containerHeight = double.infinity,
   }) {
     if (pages.isEmpty) return 0;
     final index = pageIndex.clamp(0, pages.length - 1).toInt();
-    final width = _fittedWidth(pages[index], containerWidth);
+    final width = _fittedWidth(pages[index], containerWidth, containerHeight);
     final left = getLeftOfPage(
       pageIndex: index,
       pages: pages,
       containerWidth: containerWidth,
+      containerHeight: containerHeight,
     );
     return (containerWidth - width) / 2 - left;
   }
@@ -161,6 +173,7 @@ class CanvasGestureDetector extends StatefulWidget {
     required int pageIndex,
     required List<EditorPage> pages,
     required double containerWidth,
+    double containerHeight = double.infinity,
     required TransformationController transformationController,
   }) {
     transformationController.value = Matrix4.translationValues(
@@ -168,6 +181,7 @@ class CanvasGestureDetector extends StatefulWidget {
         pageIndex: pageIndex,
         pages: pages,
         containerWidth: containerWidth,
+        containerHeight: containerHeight,
       ),
       0,
       0,
@@ -179,10 +193,11 @@ class CanvasGestureDetector extends StatefulWidget {
     required double contentX,
     required List<EditorPage> pages,
     required double containerWidth,
+    double containerHeight = double.infinity,
   }) {
     var left = Editor.gapBetweenPages * 2;
     for (var i = 0; i < pages.length; i++) {
-      final right = left + _fittedWidth(pages[i], containerWidth);
+      final right = left + _fittedWidth(pages[i], containerWidth, containerHeight);
       if (contentX < right + Editor.gapBetweenPages / 2) return i;
       left = right + Editor.gapBetweenPages;
     }
@@ -265,8 +280,36 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
     _endGesture();
   }
 
+  static const _soundChannel = MethodChannel('de.luckykvd.feder/sound');
+  void _playFlipSound() {
+    try {
+      _soundChannel.invokeMethod<void>('pageFlip').catchError((_) {});
+    } catch (_) {}
+  }
+
+  /// Blättert per Tipp um [delta] Seiten (1 = vor, -1 = zurück).
+  void turnBy(int delta) {
+    if (!widget.horizontal || widget.pages.isEmpty || _flipImage != null) {
+      return;
+    }
+    final start = horizontalPageIndex;
+    final page = (start + delta).clamp(0, widget.pages.length - 1).toInt();
+    if (page == start) return;
+    _turnPage(
+      start,
+      page,
+      CanvasGestureDetector.getTranslationXOfPage(
+        pageIndex: page,
+        pages: widget.pages,
+        containerWidth: containerBounds.maxWidth,
+        containerHeight: containerBounds.maxHeight,
+      ),
+    );
+  }
+
   Future<void> _turnPage(int from, int to, double targetX) async {
     final forward = to > from;
+    _playFlipSound();
     final image = await _capturePage(forward ? from : to);
     if (!mounted) {
       image?.dispose();
@@ -324,6 +367,7 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
       contentX: (-transformation.getTranslation().x + width / 2) / scale,
       pages: widget.pages,
       containerWidth: width,
+      containerHeight: containerBounds.maxHeight,
     );
   }
 
@@ -355,6 +399,7 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
       pageIndex: start,
       pages: widget.pages,
       containerWidth: width,
+      containerHeight: containerBounds.maxHeight,
     );
     // Umblättern, wenn mehr als ein Siebtel der Breite gezogen wurde.
     final moved = controller.value.getTranslation().x - startX;
@@ -366,6 +411,7 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
       pageIndex: page,
       pages: widget.pages,
       containerWidth: containerBounds.maxWidth,
+      containerHeight: containerBounds.maxHeight,
     );
     _snapFrom = controller.value.getTranslation().x;
     _snapTo = target
@@ -388,7 +434,11 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
     var width = Editor.gapBetweenPages * 3;
     for (final page in widget.pages) {
       width +=
-          min(page.size.width, containerBounds.maxWidth) +
+          CanvasGestureDetector._fittedWidth(
+            page,
+            containerBounds.maxWidth,
+            containerBounds.maxHeight,
+          ) +
           Editor.gapBetweenPages;
     }
     return width;
@@ -596,6 +646,7 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
         pageIndex: widget.initialPageIndex!,
         pages: widget.pages,
         containerWidth: MediaQuery.sizeOf(context).width,
+        containerHeight: MediaQuery.sizeOf(context).height * 0.85,
         transformationController: widget._transformationController,
       );
     } else if (widget.initialPageIndex != null) {
@@ -629,7 +680,12 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
       } else if (translation.x < minX) {
         adjustmentX = minX - translation.x;
       }
-      if (translation.y > 0) adjustmentY = -translation.y;
+      // Eine Seite füllt das Bild: senkrecht festhalten, solange nicht gezoomt.
+      if ((scale - 1).abs() < 0.06) {
+        adjustmentY = -translation.y;
+      } else if (translation.y > 0) {
+        adjustmentY = -translation.y;
+      }
 
       // Blättern: während einer Geste höchstens eine Seite weit ziehen.
       if (_gestureActive &&
@@ -641,11 +697,13 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
           pageIndex: min(start + 1, last),
           pages: widget.pages,
           containerWidth: containerBounds.maxWidth,
+      containerHeight: containerBounds.maxHeight,
         );
         final hi = CanvasGestureDetector.getTranslationXOfPage(
           pageIndex: max(start - 1, 0),
           pages: widget.pages,
           containerWidth: containerBounds.maxWidth,
+      containerHeight: containerBounds.maxHeight,
         );
         final x = translation.x + adjustmentX;
         if (x < lo) {
@@ -716,10 +774,12 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
   }
 
   void _listenerPointerEvent(PointerEvent event) {
+    if (event is PointerMoveEvent) _tapMove(event);
     final isStylus =
         event.kind == PointerDeviceKind.stylus ||
         event.kind == PointerDeviceKind.invertedStylus;
     if (event is PointerDownEvent) {
+      _tapDown(event);
       _stopSnap();
       if (widget.horizontal) {
         _gestureActive = true;
@@ -759,6 +819,49 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
 
   var stylusButtonWasPressed = false;
 
+  // Tipp mit dem Finger an den Seitenrand = umblättern (nur horizontal).
+  int? _tapPointer;
+  Offset _tapStart = Offset.zero;
+  DateTime _tapTime = DateTime.now();
+
+  void _tapDown(PointerDownEvent event) {
+    if (!widget.horizontal ||
+        event.kind != PointerDeviceKind.touch ||
+        stows.editorFingerDrawing.value ||
+        _tapPointer != null) {
+      _tapPointer = null;
+      return;
+    }
+    _tapPointer = event.pointer;
+    _tapStart = event.position;
+    _tapTime = DateTime.now();
+  }
+
+  void _tapMove(PointerMoveEvent event) {
+    if (event.pointer == _tapPointer &&
+        (event.position - _tapStart).distance > 14) {
+      _tapPointer = null;
+    }
+  }
+
+  void _tapUp(PointerUpEvent event) {
+    if (event.pointer != _tapPointer) return;
+    _tapPointer = null;
+    if (DateTime.now().difference(_tapTime).inMilliseconds > 300) return;
+    if ((widget._transformationController.value.approxScale - 1).abs() > 0.06) {
+      return;
+    }
+    final box = context.findRenderObject() as RenderBox?;
+    if (box == null) return;
+    final x = box.globalToLocal(event.position).dx;
+    final width = box.size.width;
+    if (x > width * 0.82) {
+      turnBy(1);
+    } else if (x < width * 0.18) {
+      turnBy(-1);
+    }
+  }
+
   void _listenerPointerHoverEvent(PointerEvent event) {
     if (event.kind != .stylus && event.kind != .invertedStylus) return;
 
@@ -783,6 +886,7 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
   }
 
   void _listenerPointerUpEvent(PointerEvent event) {
+    if (event is PointerUpEvent) _tapUp(event);
     _scheduleSnap();
     widget.updatePointerData(event.kind, null);
     if (stylusButtonWasPressed) {
@@ -842,6 +946,7 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
                       placeholderPageBuilder: widget.placeholderPageBuilder,
                       boundingBox: _axisAlignedBoundingBox(viewport),
                       containerWidth: containerBounds.maxWidth,
+                      containerHeight: containerBounds.maxHeight,
                       horizontal: widget.horizontal,
                       pageKeyFor: _pageKeyFor,
                     );
@@ -953,6 +1058,7 @@ class _PagesBuilder extends StatelessWidget {
     required this.placeholderPageBuilder,
     required this.boundingBox,
     required this.containerWidth,
+    this.containerHeight = double.infinity,
     this.horizontal = false,
     this.pageKeyFor,
   });
@@ -964,6 +1070,7 @@ class _PagesBuilder extends StatelessWidget {
   placeholderPageBuilder;
   final Rect boundingBox;
   final double containerWidth;
+  final double containerHeight;
   final bool horizontal;
 
   Widget _buildHorizontal(BuildContext context) {
@@ -975,7 +1082,11 @@ class _PagesBuilder extends StatelessWidget {
     double leftOfPage = Editor.gapBetweenPages * 2;
     for (int pageIndex = 0; pageIndex < pages.length; pageIndex++) {
       final page = pages[pageIndex];
-      final pageWidth = min(page.size.width, containerWidth);
+      final pageWidth = CanvasGestureDetector._fittedWidth(
+        page,
+        containerWidth,
+        containerHeight,
+      );
       final pageHeight = pageWidth / page.size.width * page.size.height;
       final rightOfPage = leftOfPage + pageWidth;
 

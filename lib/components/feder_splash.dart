@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:saber/components/security/app_lock.dart';
 
 /// Kurze Einblendung beim Start: Feder, Fork von Saber, Urheber und Mitwirkende.
 /// Verschwindet nach ein paar Sekunden oder per Tipp. Nur einmal pro Start.
@@ -17,16 +18,34 @@ class FederSplash extends StatefulWidget {
 }
 
 class _FederSplashState extends State<FederSplash> {
-  late bool visible = !FederSplash._shown;
+  var visible = false;
   Timer? timer;
 
   @override
   void initState() {
     super.initState();
-    FederSplash._shown = true;
-    if (visible) {
+    if (FederSplash._shown) return;
+    if (AppLock.isLocked.value) {
+      // Erst nach dem Entsperren (Fingerabdruck) zeigen.
+      AppLock.isLocked.addListener(_onLockChanged);
+    } else {
+      FederSplash._shown = true;
+      visible = true;
       timer = Timer(const Duration(milliseconds: 3800), _hide);
     }
+  }
+
+  void _onLockChanged() {
+    if (AppLock.isLocked.value) return;
+    AppLock.isLocked.removeListener(_onLockChanged);
+    _show();
+  }
+
+  void _show() {
+    if (FederSplash._shown || !mounted) return;
+    FederSplash._shown = true;
+    setState(() => visible = true);
+    timer = Timer(const Duration(milliseconds: 3800), _hide);
   }
 
   void _hide() {
@@ -35,6 +54,7 @@ class _FederSplashState extends State<FederSplash> {
 
   @override
   void dispose() {
+    AppLock.isLocked.removeListener(_onLockChanged);
     timer?.cancel();
     super.dispose();
   }

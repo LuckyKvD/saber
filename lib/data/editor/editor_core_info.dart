@@ -352,7 +352,9 @@ class EditorCoreInfo {
     String path, {
     bool onlyFirstPage = false,
   }) async {
+    final timer = Stopwatch()..start();
     final bsonBytes = await FileManager.readFile(path + Editor.extension);
+    final readMs = timer.elapsedMilliseconds;
 
     final String? jsonString;
     if (bsonBytes != null) {
@@ -368,12 +370,19 @@ class EditorCoreInfo {
       return EditorCoreInfo(filePath: path);
     }
 
-    return loadFromFileContents(
+    final loaded = await loadFromFileContents(
       jsonString: jsonString,
       bsonBytes: bsonBytes,
       path: path,
       onlyFirstPage: onlyFirstPage,
     );
+    // Feder: Ladezeiten fuer die Fehlersuche (steht im Protokoll, ohne Namen).
+    log.info(
+      'Notiz geladen: lesen/entschluesseln $readMs ms, '
+      'auswerten ${timer.elapsedMilliseconds - readMs} ms, '
+      '${bsonBytes?.length ?? 0} Bytes, ${loaded.pages.length} Seiten',
+    );
+    return loaded;
   }
 
   @visibleForTesting

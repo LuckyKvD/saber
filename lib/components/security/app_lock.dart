@@ -25,6 +25,9 @@ class AppLock extends StatefulWidget {
 
   static const gracePeriod = Duration(seconds: 30);
 
+  /// Feder: für die Startgrafik, die erst nach dem Entsperren erscheint.
+  static final isLocked = ValueNotifier<bool>(false);
+
   static final _log = Logger('AppLock');
   static final _auth = LocalAuthentication();
   static const _secureChannel = MethodChannel('de.luckykvd.feder/secure');
@@ -65,7 +68,12 @@ class AppLock extends StatefulWidget {
 }
 
 class _AppLockState extends State<AppLock> with WidgetsBindingObserver {
-  var _locked = false;
+  var _lockedValue = false;
+  bool get _locked => _lockedValue;
+  set _locked(bool value) {
+    _lockedValue = value;
+    AppLock.isLocked.value = value;
+  }
   var _authenticating = false;
   DateTime? _backgroundedAt;
 

@@ -142,6 +142,9 @@ class EditorState extends State<Editor> {
         containerWidth:
             _canvasGestureDetectorKey.currentState?.containerBounds.maxWidth ??
             MediaQuery.sizeOf(context).width,
+        containerHeight:
+            _canvasGestureDetectorKey.currentState?.containerBounds.maxHeight ??
+            MediaQuery.sizeOf(context).height * 0.85,
         transformationController: _transformationController,
       );
     } else {

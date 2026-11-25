@@ -42,6 +42,23 @@ class MainActivity: FlutterFragmentActivity() {
         super.configureFlutterEngine(flutterEngine)
         registerCryptoChannel(flutterEngine)
         registerPhotoChannel(flutterEngine)
+        // Feder: Blaettergeraeusch (res/raw/page_flip.wav)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "de.luckykvd.feder/sound")
+            .setMethodCallHandler { call, result ->
+                if (call.method == "pageFlip") {
+                    try {
+                        val id = resources.getIdentifier("page_flip", "raw", packageName)
+                        if (id != 0) {
+                            val player = android.media.MediaPlayer.create(this, id)
+                            player?.setOnCompletionListener { it.release() }
+                            player?.start()
+                        }
+                    } catch (e: Throwable) {}
+                    result.success(null)
+                } else {
+                    result.notImplemented()
+                }
+            }
         // Feder-App-Sperre: FLAG_SECURE verbirgt den Inhalt in der App-Übersicht.
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "de.luckykvd.feder/secure")
             .setMethodCallHandler { call, result ->
