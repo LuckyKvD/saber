@@ -48,6 +48,8 @@ class Toolbar extends StatefulWidget {
     required this.isRedoPossible,
     required this.toggleFingerDrawing,
     required this.pickPhoto,
+    required this.toggleWritingPad,
+    required this.writingPadVisible,
     required this.paste,
     required this.duplicateSelection,
     required this.deleteSelection,
@@ -57,6 +59,10 @@ class Toolbar extends StatefulWidget {
   });
 
   final bool readOnly;
+
+  /// Schreibfeld (Easy-Writing) ein-/ausblenden.
+  final VoidCallback toggleWritingPad;
+  final bool writingPadVisible;
 
   final ValueChanged<Tool> setTool;
   final Tool currentTool;
@@ -501,6 +507,14 @@ class _ToolbarState extends State<Toolbar> {
                 },
                 padding: buttonPadding,
                 child: const FaIcon(ShapePen.shapePenIcon, size: 16),
+              ),
+              ToolbarIconButton(
+                tooltip: 'Schreibfeld (groß schreiben, klein einfügen)',
+                selected: widget.writingPadVisible,
+                enabled: !widget.readOnly,
+                onPressed: widget.toggleWritingPad,
+                padding: buttonPadding,
+                child: const Icon(Icons.edit_note),
               ),
               ToolbarIconButton(
                 tooltip: t.editor.toolbar.photo,

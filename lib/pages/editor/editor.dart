@@ -44,6 +44,7 @@ import 'package:saber/data/tools/_tool.dart';
 import 'package:saber/data/tools/eraser.dart';
 import 'package:saber/data/tools/highlighter.dart';
 import 'package:saber/data/tools/tape_pen.dart';
+import 'package:saber/components/toolbar/writing_pad.dart';
 import 'package:saber/data/tools/laser_pointer.dart';
 import 'package:saber/data/tools/pen.dart';
 import 'package:saber/data/tools/pencil.dart';
@@ -121,6 +122,44 @@ class EditorState extends State<Editor> {
   }
 
   var history = EditorHistory();
+
+  /// Schreibfeld (Easy-Writing) sichtbar?
+  bool showWritingPad = false;
+
+  /// Stift für das Schreibfeld: der aktuelle Stift, sonst der letzte normale.
+  Pen get _writingPadPen {
+    final tool = currentTool;
+    if (tool is Pen &&
+        tool is! Highlighter &&
+        tool is! TapePen &&
+        tool is! ShapePen) {
+      return tool;
+    }
+    final pen = Pen.currentPen;
+    return pen is ShapePen ? Pen.fountainPen() : pen;
+  }
+
+  void _writingPadAddStroke(Stroke stroke) {
+    setState(() {
+      createPage(stroke.pageIndex);
+      coreInfo.pages[stroke.pageIndex].insertStroke(stroke);
+      history.recordChange(HistoricAdd(strokes: [stroke], images: []));
+    });
+    autosaveAfterDelay();
+  }
+
+  Widget _buildWritingPad() {
+    return WritingPad(
+      key: const ValueKey('writingPad'),
+      pen: _writingPadPen,
+      pages: coreInfo.pages,
+      startPageIndex: currentPageIndex,
+      ensurePage: createPage,
+      addStroke: _writingPadAddStroke,
+      undo: undo,
+      close: () => setState(() => showWritingPad = false),
+    );
+  }
 
   late bool needsNaming = widget.needsNaming && stows.editorPromptRename.value;
 
@@ -1700,6 +1739,9 @@ class EditorState extends State<Editor> {
             lastSeenPointerCount = 0;
           },
           pickPhoto: _pickPhotos,
+          toggleWritingPad: () =>
+              setState(() => showWritingPad = !showWritingPad),
+          writingPadVisible: showWritingPad,
           paste: paste,
           exportAsSba: exportAsSba,
           exportAsPdf: exportAsPdf,
@@ -1725,6 +1767,7 @@ class EditorState extends State<Editor> {
                     child: canvas,
                   ),
                 ),
+                if (showWritingPad) _buildWritingPad(),
                 readonlyBanner,
               ],
             ),
@@ -1743,6 +1786,7 @@ class EditorState extends State<Editor> {
               child: canvas,
             ),
           ),
+          if (showWritingPad) _buildWritingPad(),
           toolbar,
           readonlyBanner,
         ],

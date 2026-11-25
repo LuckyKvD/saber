@@ -356,6 +356,13 @@ class Stows {
         Colors.black.toARGB32(),
         volatile: !_isOnMainIsolate,
       );
+  /// Schreibfeld: Verkleinerung in Prozent (Schrift in der Notiz).
+  final easyWritingScale = PlainStow(
+    'easyWritingScale',
+    40,
+    volatile: !_isOnMainIsolate,
+  );
+
   /// Muster des Klebebands (-1 = einfarbig).
   final lastTapePattern = PlainStow(
     'lastTapePattern',
