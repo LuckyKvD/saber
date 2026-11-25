@@ -114,7 +114,7 @@ class _NewNotebookDialog extends StatefulWidget {
 
 class _NewNotebookDialogState extends State<_NewNotebookDialog> {
   final controller = TextEditingController();
-  NoteCover cover = const NoteCover(color: 0xFF14284B, style: 0);
+  NoteCover cover = const NoteCover(color: 0xFF14284B, material: 0, motif: 3);
   CanvasBackgroundPattern pattern = stows.lastBackgroundPattern.value;
   int lineHeight = stows.lastLineHeight.value;
 

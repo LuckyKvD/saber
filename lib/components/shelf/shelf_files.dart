@@ -12,7 +12,7 @@ import 'package:saber/pages/editor/editor.dart';
 
 const double _spineWidth = 74;
 const double _gap = 6;
-const double _rowHeight = 268;
+const double _rowHeight = 290;
 
 /// Regal: Notizbuecher stehen als Buchruecken auf Regalbrettern.
 class ShelfFiles extends StatefulWidget {
@@ -180,84 +180,81 @@ class _BookSpineState extends State<BookSpine> {
   Widget build(BuildContext context) {
     final colorScheme = ColorScheme.of(context);
     final disableAnimations = MediaQuery.disableAnimationsOf(context);
-    final height = 190.0 + (NoteCover.nameHash(widget.filePath) % 6) * 12;
-    final base = cover.colorValue;
+    final height = 210.0 + (NoteCover.nameHash(widget.filePath) % 6) * 12;
     const gold = NoteCover.gold;
-
-    final bool hasBands = cover.style == 0;
-    final bool hasLines = cover.style == 1;
-    final bool hasFeather = cover.style == 3;
+    const spineRadius = BorderRadius.vertical(
+      top: Radius.circular(5),
+      bottom: Radius.circular(2),
+    );
+    final hasMotif = cover.motif != 0;
+    final textMotif = cover.motif == 3;
 
     final spine = Container(
       width: _spineWidth,
       height: height,
-      foregroundDecoration: widget.selected
-          ? BoxDecoration(
-              border: Border.all(color: gold, width: 3),
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(5),
-                bottom: Radius.circular(2),
-              ),
-            )
-          : null,
-      decoration: BoxDecoration(
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(5),
-          bottom: Radius.circular(2),
-        ),
-        gradient: LinearGradient(
-          colors: [lighten(base, 0.07), base, darken(base, 0.16)],
-        ),
-        boxShadow: const [
+      decoration: const BoxDecoration(
+        borderRadius: spineRadius,
+        boxShadow: [
           BoxShadow(color: Color(0x55000000), blurRadius: 4, offset: Offset(2, 0)),
         ],
       ),
-      child: Stack(
-        children: [
-          if (hasBands) ...[
-            for (final top in [14.0, 22.0])
-              Positioned(left: 0, right: 0, top: top, height: 2, child: const ColoredBox(color: gold)),
-            for (final bottom in [14.0, 22.0])
-              Positioned(left: 0, right: 0, bottom: bottom, height: 2, child: const ColoredBox(color: gold)),
-          ],
-          if (hasLines) ...[
-            Positioned(left: 9, top: 0, bottom: 0, width: 2, child: const ColoredBox(color: gold)),
-            Positioned(right: 9, top: 0, bottom: 0, width: 2, child: const ColoredBox(color: gold)),
-          ],
-          if (hasFeather)
-            Positioned(
-              bottom: 14,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: CustomPaint(
-                  size: const Size(24, 24),
-                  painter: const FeatherPainter(gold),
+      foregroundDecoration: widget.selected
+          ? BoxDecoration(
+              border: Border.all(color: gold, width: 3),
+              borderRadius: spineRadius,
+            )
+          : null,
+      child: ClipRRect(
+        borderRadius: spineRadius,
+        child: RepaintBoundary(
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: CustomPaint(painter: CoverMaterialPainter(cover)),
+              ),
+              for (final top in [12.0, 19.0])
+                Positioned(left: 0, right: 0, top: top, height: 2, child: const ColoredBox(color: gold)),
+              for (final bottom in [12.0, 19.0])
+                Positioned(left: 0, right: 0, bottom: bottom, height: 2, child: const ColoredBox(color: gold)),
+              Positioned.fill(
+                top: 28,
+                bottom: 28,
+                left: 8,
+                right: 8,
+                child: Column(
+                  children: [
+                    if (hasMotif)
+                      SizedBox(
+                        height: textMotif ? 62 : 40,
+                        width: double.infinity,
+                        child: textMotif
+                            ? RotatedBox(
+                                quarterTurns: 3,
+                                child: CustomPaint(
+                                  painter: CoverMotifPainter(cover.motif, cover.ink),
+                                ),
+                              )
+                            : CustomPaint(
+                                painter: CoverMotifPainter(cover.motif, cover.ink),
+                              ),
+                      ),
+                    if (hasMotif) const SizedBox(height: 6),
+                    Expanded(
+                      child: RotatedBox(
+                        quarterTurns: 3,
+                        child: CoverNamePlate(
+                          title: title,
+                          fontSize: 15,
+                          maxLines: 1,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
-          Positioned.fill(
-            top: hasBands ? 34 : 18,
-            bottom: hasBands ? 34 : (hasFeather ? 46 : 18),
-            left: hasLines ? 16 : 6,
-            right: hasLines ? 16 : 6,
-            child: RotatedBox(
-              quarterTurns: 3,
-              child: Center(
-                child: Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: cover.ink,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
 
