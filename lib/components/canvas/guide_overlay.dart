@@ -233,6 +233,8 @@ class _GuidePainter extends CustomPainter {
       }
     }
 
+    _brand(canvas, 'LuckyKvD', Offset(-len / 2 + 5.5 * ppc, 0.2 * ppc), ppc * 1.15);
+
     final h = Offset(len / 2 - 1.8 * ppc, 0);
     final hr = 1.2 * ppc;
     canvas.drawCircle(h, hr, Paint()..color = const Color(0x55FFFFFF));
@@ -337,9 +339,26 @@ class _GuidePainter extends CustomPainter {
       ..color = _ink
       ..strokeWidth = 1.5;
     canvas.drawLine(Offset(-r, 0), Offset(r, 0), line);
-    canvas.drawLine(Offset(0, -ri), Offset(0, full ? ri : strip), line);
-    if (full) canvas.drawLine(Offset(-ri, 0), Offset(ri, 0), line);
+    canvas.drawLine(Offset(0, -ppc * 0.8), Offset(0, full ? ppc * 0.8 : strip), line);
+    _brand(canvas, 'Claude', Offset(0, -ri * 0.55), ppc * 0.95);
     return recorder.endRecording();
+  }
+
+  /// Kleiner Schriftzug auf dem Hilfsmittel (Schreibschrift-artige Schrift).
+  void _brand(Canvas canvas, String text, Offset center, double fontSize) {
+    final tp = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          color: _ink.withValues(alpha: 0.75),
+          fontFamily: 'Dekko',
+          fontSize: fontSize,
+          fontStyle: FontStyle.italic,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, center - Offset(tp.width / 2, tp.height / 2));
   }
 
   /// Zahl, die mit dem Fuß zur Mitte zeigt (wie auf dem echten Winkelmesser).

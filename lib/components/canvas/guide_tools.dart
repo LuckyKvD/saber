@@ -96,7 +96,8 @@ class GuideEdge {
 
   final GuideShape shape;
 
-  /// 0 Lineal oben, 1 Lineal unten, 2 Winkelmesser-Grundlinie, 3 Winkelmesser-Bogen.
+  /// 0 Lineal oben, 1 Lineal unten, 2 Winkelmesser-Grundlinie,
+  /// 3 Winkelmesser-Außenbogen, 4 Winkelmesser-Innenbogen.
   final int type;
 }
 
@@ -233,6 +234,13 @@ class Guides {
         bestDistance = d;
         best = GuideEdge(pr, 3);
       }
+      // Innenkante des Ausschnitts.
+      final inner = GuideShape.protractorInnerCm * ppc;
+      final di = (dist - inner).abs();
+      if (di < bestDistance && (pr.full || v <= reach)) {
+        bestDistance = di;
+        best = GuideEdge(pr, 4);
+      }
     }
     return best;
   }
@@ -254,7 +262,11 @@ class Guides {
         final r = GuideShape.protractorRadiusCm * ppc;
         return s.toPage(u.clamp(-r, r).toDouble(), 0);
       default:
-        final r = GuideShape.protractorRadiusCm * ppc;
+        final r =
+            (edge.type == 4
+                ? GuideShape.protractorInnerCm
+                : GuideShape.protractorRadiusCm) *
+            ppc;
         var uu = u;
         var vv = v;
         if (!s.full && vv > 0) {
