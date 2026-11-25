@@ -268,29 +268,46 @@ class _GuidePainter extends CustomPainter {
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
     final r = GuideShape.protractorRadiusCm * ppc;
+    final ri = GuideShape.protractorInnerCm * ppc;
+    final strip = GuideShape.protractorStripCm * ppc;
 
-    final fill = Paint()..color = const Color(0x66FFD54F);
-    final outline = Paint()
-      ..color = const Color(0xFF8D6E00)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
+    // Körper wie ein echter Winkelmesser: Außenform mit Ausschnitt in der Mitte.
+    final outerCircle = Rect.fromCircle(center: Offset.zero, radius: r);
+    final innerCircle = Rect.fromCircle(center: Offset.zero, radius: ri);
+    Path outer;
+    Path inner;
     if (full) {
-      canvas.drawCircle(Offset.zero, r, fill);
-      canvas.drawCircle(Offset.zero, r, outline);
+      outer = Path()..addOval(outerCircle);
+      inner = Path()..addOval(innerCircle);
     } else {
-      final path = Path()
-        ..moveTo(-r, 0)
-        ..arcTo(Rect.fromCircle(center: Offset.zero, radius: r), math.pi, math.pi, false)
+      outer = Path()
+        ..moveTo(-r, strip)
+        ..lineTo(-r, 0)
+        ..arcTo(outerCircle, math.pi, math.pi, false)
+        ..lineTo(r, strip)
         ..close();
-      canvas.drawPath(path, fill);
-      canvas.drawPath(path, outline);
+      inner = Path()
+        ..moveTo(-ri, -ppc * 0.05)
+        ..arcTo(innerCircle, math.pi, math.pi, false)
+        ..lineTo(ri, -ppc * 0.05)
+        ..close();
     }
+    final body = Path.combine(PathOperation.difference, outer, inner);
+    canvas.drawPath(body, Paint()..color = const Color(0x66FFD54F));
+    canvas.drawPath(
+      body,
+      Paint()
+        ..color = const Color(0xFF8D6E00)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
 
     final tick = Paint()
       ..color = _ink
       ..strokeWidth = 1;
     final steps = full ? 360 : 180;
-    for (var d = 0; d < steps + (full ? 0 : 1); d++) {
+    for (var d = 0; d <= steps; d++) {
+      if (full && d == 360) break;
       final a = d * math.pi / 180;
       // Winkel gegen den Uhrzeigersinn ab der rechten Grundlinie.
       final dir = Offset(math.cos(a), -math.sin(a));
@@ -300,43 +317,54 @@ class _GuidePainter extends CustomPainter {
           ? ppc * 0.35
           : ppc * 0.2;
       canvas.drawLine(dir * r, dir * (r - tl), tick);
-      if (d % 10 == 0 && (full || d <= 180)) {
-        final tp = TextPainter(
-          text: TextSpan(
-            text: '$d',
-            style: TextStyle(color: _ink, fontSize: ppc * 0.32),
-          ),
-          textDirection: TextDirection.ltr,
-        )..layout();
-        final c = dir * (r - ppc * 0.95);
-        tp.paint(canvas, c - Offset(tp.width / 2, tp.height / 2));
+      if (d % 10 == 0) {
+        _radialNumber(canvas, '$d', dir * (r - ppc * 0.95), a, ppc * 0.32, 1);
         if (!full) {
-          // Innere Zahlenreihe von links nach rechts.
-          final tp2 = TextPainter(
-            text: TextSpan(
-              text: '${180 - d}',
-              style: TextStyle(
-                color: _ink.withValues(alpha: 0.7),
-                fontSize: ppc * 0.28,
-              ),
-            ),
-            textDirection: TextDirection.ltr,
-          )..layout();
-          final c2 = dir * (r - ppc * 1.5);
-          tp2.paint(canvas, c2 - Offset(tp2.width / 2, tp2.height / 2));
+          _radialNumber(
+            canvas,
+            '${180 - d}',
+            dir * (r - ppc * 1.5),
+            a,
+            ppc * 0.28,
+            0.7,
+          );
         }
       }
     }
 
-    // Mittelpunkt und Grundlinie.
-    final cross = Paint()
+    // Grundlinie, Mittellinie und Mittelpunkt.
+    final line = Paint()
       ..color = _ink
       ..strokeWidth = 1.5;
-    canvas.drawLine(Offset(-ppc * 0.4, 0), Offset(ppc * 0.4, 0), cross);
-    canvas.drawLine(Offset(0, -ppc * 0.4), Offset(0, ppc * 0.4), cross);
-    if (!full) {
-      canvas.drawLine(Offset(-r, 0), Offset(r, 0), cross);
-    }
+    canvas.drawLine(Offset(-r, 0), Offset(r, 0), line);
+    canvas.drawLine(Offset(0, -ri), Offset(0, full ? ri : strip), line);
+    if (full) canvas.drawLine(Offset(-ri, 0), Offset(ri, 0), line);
     return recorder.endRecording();
+  }
+
+  /// Zahl, die mit dem Fuß zur Mitte zeigt (wie auf dem echten Winkelmesser).
+  void _radialNumber(
+    Canvas canvas,
+    String text,
+    Offset at,
+    double angle,
+    double fontSize,
+    double alpha,
+  ) {
+    final tp = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          color: _ink.withValues(alpha: alpha),
+          fontSize: fontSize,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    canvas.save();
+    canvas.translate(at.dx, at.dy);
+    canvas.rotate(math.pi / 2 - angle);
+    tp.paint(canvas, Offset(-tp.width / 2, -tp.height / 2));
+    canvas.restore();
   }
 }

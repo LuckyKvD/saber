@@ -21,6 +21,10 @@ class GuideShape {
   static const rulerLengthCm = 30.0;
   static const rulerWidthCm = 4.0;
   static const protractorRadiusCm = 6.0;
+  static const protractorInnerCm = 3.4;
+
+  /// Streifen unter der Grundlinie des Halbkreis-Winkelmessers.
+  static const protractorStripCm = 1.0;
 
   /// Angezeigter Winkel: rastet nahe an Vielfachen von 45 Grad ein,
   /// sonst frei.
@@ -68,8 +72,9 @@ class GuideShape {
             v.abs() <= rulerWidthCm * ppc / 2;
       case GuideKind.protractor:
         final r = protractorRadiusCm * ppc;
-        if (math.sqrt(u * u + v * v) > r) return false;
-        return full || v <= 0.4 * ppc;
+        if (full) return math.sqrt(u * u + v * v) <= r;
+        if (v <= 0) return math.sqrt(u * u + v * v) <= r;
+        return v <= protractorStripCm * ppc && u.abs() <= r;
     }
   }
 

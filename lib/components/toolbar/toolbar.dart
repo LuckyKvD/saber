@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:io';
 
 import 'package:collapsible/collapsible.dart';
@@ -546,10 +547,15 @@ class _ToolbarState extends State<Toolbar> {
                 enabled: !widget.readOnly,
                 onPressed: widget.toggleProtractor,
                 padding: buttonPadding,
-                child: Icon(
-                  widget.protractorMode == 2
-                      ? Icons.circle_outlined
-                      : Icons.architecture,
+                child: Builder(
+                  builder: (context) => CustomPaint(
+                    size: const Size(24, 24),
+                    painter: _ProtractorIconPainter(
+                      IconTheme.of(context).color ??
+                          Theme.of(context).colorScheme.onSurface,
+                      full: widget.protractorMode == 2,
+                    ),
+                  ),
                 ),
               ),
               ToolbarIconButton(
@@ -677,3 +683,39 @@ class _ToolbarState extends State<Toolbar> {
 }
 
 enum ToolOptions { hide, pen, highlighter, tape, pencil, eraser, select }
+
+/// Kleines Winkelmesser-Symbol (Halbkreis oder Vollkreis mit Skalenstrichen).
+class _ProtractorIconPainter extends CustomPainter {
+  _ProtractorIconPainter(this.color, {required this.full});
+
+  final Color color;
+  final bool full;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.8
+      ..strokeCap = StrokeCap.round;
+    final c = full
+        ? Offset(size.width / 2, size.height / 2)
+        : Offset(size.width / 2, size.height * 0.75);
+    final r = size.width * 0.45;
+    if (full) {
+      canvas.drawCircle(c, r, paint);
+    } else {
+      canvas.drawArc(Rect.fromCircle(center: c, radius: r), 3.14159265, 3.14159265, false, paint);
+      canvas.drawLine(Offset(c.dx - r, c.dy), Offset(c.dx + r, c.dy), paint);
+    }
+    for (var d = 0; d <= (full ? 330 : 180); d += 30) {
+      final a = d * 3.14159265 / 180;
+      final dir = Offset(math.cos(a), -math.sin(a));
+      canvas.drawLine(c + dir * (r - 4), c + dir * r, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_ProtractorIconPainter old) =>
+      old.color != color || old.full != full;
+}
