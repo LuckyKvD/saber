@@ -18,6 +18,7 @@ class EditorPageManager extends StatefulWidget {
     required this.clearPage,
     required this.deletePage,
     required this.transformationController,
+    this.scrollToPageOverride,
   });
 
   final EditorCoreInfo coreInfo;
@@ -31,17 +32,27 @@ class EditorPageManager extends StatefulWidget {
 
   final TransformationController transformationController;
 
+  /// Feder: Scrollen je nach Blätter-Richtung (vertikal/horizontal).
+  final void Function(int)? scrollToPageOverride;
+
   @override
   State<EditorPageManager> createState() => _EditorPageManagerState();
 }
 
 class _EditorPageManagerState extends State<EditorPageManager> {
-  void scrollToPage(int pageIndex) => CanvasGestureDetector.scrollToPage(
-    pageIndex: pageIndex,
-    pages: widget.coreInfo.pages,
-    screenWidth: MediaQuery.sizeOf(context).width,
-    transformationController: widget.transformationController,
-  );
+  void scrollToPage(int pageIndex) {
+    final override = widget.scrollToPageOverride;
+    if (override != null) {
+      override(pageIndex);
+      return;
+    }
+    CanvasGestureDetector.scrollToPage(
+      pageIndex: pageIndex,
+      pages: widget.coreInfo.pages,
+      screenWidth: MediaQuery.sizeOf(context).width,
+      transformationController: widget.transformationController,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {

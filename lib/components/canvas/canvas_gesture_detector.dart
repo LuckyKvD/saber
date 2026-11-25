@@ -37,6 +37,7 @@ class CanvasGestureDetector extends StatefulWidget {
     required this.pageBuilder,
     required this.placeholderPageBuilder,
     required this.isTextEditing,
+    this.horizontal = false,
     TransformationController? transformationController,
   }) : _transformationController =
            transformationController ?? TransformationController();
@@ -67,6 +68,9 @@ class CanvasGestureDetector extends StatefulWidget {
   placeholderPageBuilder;
 
   final bool Function() isTextEditing;
+
+  /// Feder: Seiten nebeneinander statt untereinander (Blättern wie im Buch).
+  final bool horizontal;
 
   late final TransformationController _transformationController;
 
@@ -118,6 +122,71 @@ class CanvasGestureDetector extends StatefulWidget {
     );
   }
 
+  static double _fittedWidth(EditorPage page, double containerWidth) =>
+      min(page.size.width, containerWidth);
+
+  /// Linke Kante der Seite im Inhalt (horizontales Blättern).
+  static double getLeftOfPage({
+    required int pageIndex,
+    required List<EditorPage> pages,
+    required double containerWidth,
+  }) {
+    var left = Editor.gapBetweenPages * 2;
+    for (var i = 0; i < pageIndex && i < pages.length; i++) {
+      left += _fittedWidth(pages[i], containerWidth) + Editor.gapBetweenPages;
+    }
+    return left;
+  }
+
+  /// Verschiebung, bei der die Seite mittig im Bild steht (Zoom 1.0).
+  static double getTranslationXOfPage({
+    required int pageIndex,
+    required List<EditorPage> pages,
+    required double containerWidth,
+  }) {
+    if (pages.isEmpty) return 0;
+    final index = pageIndex.clamp(0, pages.length - 1).toInt();
+    final width = _fittedWidth(pages[index], containerWidth);
+    final left = getLeftOfPage(
+      pageIndex: index,
+      pages: pages,
+      containerWidth: containerWidth,
+    );
+    return (containerWidth - width) / 2 - left;
+  }
+
+  static void scrollToPageHorizontal({
+    required int pageIndex,
+    required List<EditorPage> pages,
+    required double containerWidth,
+    required TransformationController transformationController,
+  }) {
+    transformationController.value = Matrix4.translationValues(
+      getTranslationXOfPage(
+        pageIndex: pageIndex,
+        pages: pages,
+        containerWidth: containerWidth,
+      ),
+      0,
+      0,
+    );
+  }
+
+  /// Index der Seite, die an der Inhalts-Position [contentX] liegt.
+  static int getPageIndexAtX({
+    required double contentX,
+    required List<EditorPage> pages,
+    required double containerWidth,
+  }) {
+    var left = Editor.gapBetweenPages * 2;
+    for (var i = 0; i < pages.length; i++) {
+      final right = left + _fittedWidth(pages[i], containerWidth);
+      if (contentX < right + Editor.gapBetweenPages / 2) return i;
+      left = right + Editor.gapBetweenPages;
+    }
+    return max(0, pages.length - 1);
+  }
+
   static int getPageIndex({
     required double scrollY,
     required List<EditorPage> pages,
@@ -144,8 +213,80 @@ class CanvasGestureDetector extends StatefulWidget {
   }
 }
 
-class CanvasGestureDetectorState extends State<CanvasGestureDetector> {
+class CanvasGestureDetectorState extends State<CanvasGestureDetector>
+    with SingleTickerProviderStateMixin {
   late var containerBounds = const BoxConstraints();
+
+  Timer? _pageSnapTimer;
+  late final AnimationController _snapAnim = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 220),
+  )..addListener(_onSnapTick);
+  double _snapFrom = 0;
+  double _snapTo = 0;
+
+  /// Index der Seite in der Bildmitte (nur horizontales Blättern).
+  int get horizontalPageIndex {
+    final transformation = widget._transformationController.value;
+    final scale = transformation.approxScale;
+    final width = containerBounds.maxWidth;
+    if (!width.isFinite || width <= 0) return 0;
+    return CanvasGestureDetector.getPageIndexAtX(
+      contentX: (-transformation.getTranslation().x + width / 2) / scale,
+      pages: widget.pages,
+      containerWidth: width,
+    );
+  }
+
+  void _scheduleSnap() {
+    if (!widget.horizontal) return;
+    _pageSnapTimer?.cancel();
+    _pageSnapTimer = Timer(const Duration(milliseconds: 450), _snapToPage);
+  }
+
+  void _stopSnap() {
+    _pageSnapTimer?.cancel();
+    _snapAnim.stop();
+  }
+
+  void _snapToPage() {
+    if (!mounted || !widget.horizontal || widget.pages.isEmpty) return;
+    final controller = widget._transformationController;
+    if ((controller.value.approxScale - 1).abs() > 0.06) return;
+    final target = CanvasGestureDetector.getTranslationXOfPage(
+      pageIndex: horizontalPageIndex,
+      pages: widget.pages,
+      containerWidth: containerBounds.maxWidth,
+    );
+    _snapFrom = controller.value.getTranslation().x;
+    _snapTo = target
+        .clamp(min(0.0, containerBounds.maxWidth - _contentWidth), 0.0)
+        .toDouble();
+    if ((_snapTo - _snapFrom).abs() < 1) return;
+    _snapAnim
+      ..reset()
+      ..forward();
+  }
+
+  double get _contentWidth {
+    var width = Editor.gapBetweenPages * 3;
+    for (final page in widget.pages) {
+      width +=
+          min(page.size.width, containerBounds.maxWidth) +
+          Editor.gapBetweenPages;
+    }
+    return width;
+  }
+
+  void _onSnapTick() {
+    final controller = widget._transformationController;
+    final x =
+        _snapFrom +
+        (_snapTo - _snapFrom) * Curves.easeOutCubic.transform(_snapAnim.value);
+    final matrix = controller.value.clone();
+    matrix.setTranslationRaw(x, matrix.getTranslation().y, 0);
+    controller.value = matrix;
+  }
 
   /// If zooming is locked, this is the zoom level.
   /// Otherwise, this is null.
@@ -334,6 +475,13 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector> {
       if (zoomLockedValue != null) {
         zoomLockedValue = transformCacheItem.transform.approxScale;
       }
+    } else if (widget.initialPageIndex != null && widget.horizontal) {
+      CanvasGestureDetector.scrollToPageHorizontal(
+        pageIndex: widget.initialPageIndex!,
+        pages: widget.pages,
+        containerWidth: MediaQuery.sizeOf(context).width,
+        transformationController: widget._transformationController,
+      );
     } else if (widget.initialPageIndex != null) {
       // if we're opening a different note, scroll to the last recorded page
       CanvasGestureDetector.scrollToPage(
@@ -356,6 +504,26 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector> {
 
     double adjustmentX = 0;
     double adjustmentY = 0;
+
+    if (widget.horizontal) {
+      final contentWidth = _contentWidth * scale;
+      final minX = min(0.0, containerBounds.maxWidth - contentWidth);
+      if (translation.x > 0) {
+        adjustmentX = -translation.x;
+      } else if (translation.x < minX) {
+        adjustmentX = minX - translation.x;
+      }
+      if (translation.y > 0) adjustmentY = -translation.y;
+      if (adjustmentX.abs() > 0.1 || adjustmentY.abs() > 0.1) {
+        widget._transformationController.value.leftTranslateByDouble(
+          adjustmentX,
+          adjustmentY,
+          0,
+          1,
+        );
+      }
+      return;
+    }
 
     // snap to 1.0x zoom
     _snapZoomTimer?.cancel();
@@ -411,6 +579,7 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector> {
     final isStylus =
         event.kind == PointerDeviceKind.stylus ||
         event.kind == PointerDeviceKind.invertedStylus;
+    if (event is PointerDownEvent) _stopSnap();
     if (isStylus && event is PointerDownEvent) {
       _detectStylusButton(event);
     }
@@ -510,7 +679,11 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector> {
                   transformationController: widget._transformationController,
 
                   isDrawGesture: widget.isDrawGesture,
-                  onInteractionEnd: widget.onInteractionEnd,
+                  unboundedWidth: widget.horizontal,
+                  onInteractionEnd: (details) {
+                    widget.onInteractionEnd?.call(details);
+                    _scheduleSnap();
+                  },
                   onDrawStart: widget.onDrawStart,
                   onDrawUpdate: widget.onDrawUpdate,
                   onDrawEnd: widget.onDrawEnd,
@@ -522,6 +695,7 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector> {
                       placeholderPageBuilder: widget.placeholderPageBuilder,
                       boundingBox: _axisAlignedBoundingBox(viewport),
                       containerWidth: containerBounds.maxWidth,
+                      horizontal: widget.horizontal,
                     );
                   },
                 );
@@ -562,6 +736,8 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector> {
       widget.filePath,
       widget._transformationController.value,
     );
+    _pageSnapTimer?.cancel();
+    _snapAnim.dispose();
     widget._transformationController.removeListener(onTransformChanged);
     widget._transformationController.dispose();
     _removeKeybindings();
@@ -595,6 +771,7 @@ class _PagesBuilder extends StatelessWidget {
     required this.placeholderPageBuilder,
     required this.boundingBox,
     required this.containerWidth,
+    this.horizontal = false,
   });
 
   final List<EditorPage> pages;
@@ -603,9 +780,51 @@ class _PagesBuilder extends StatelessWidget {
   placeholderPageBuilder;
   final Rect boundingBox;
   final double containerWidth;
+  final bool horizontal;
+
+  Widget _buildHorizontal(BuildContext context) {
+    final children = <Widget>[
+      const SizedBox.square(dimension: Editor.gapBetweenPages),
+      const SizedBox.square(dimension: Editor.gapBetweenPages),
+    ];
+
+    double leftOfPage = Editor.gapBetweenPages * 2;
+    for (int pageIndex = 0; pageIndex < pages.length; pageIndex++) {
+      final page = pages[pageIndex];
+      final pageWidth = min(page.size.width, containerWidth);
+      final pageHeight = pageWidth / page.size.width * page.size.height;
+      final rightOfPage = leftOfPage + pageWidth;
+
+      final isFocused = page.quill.focusNode.hasFocus;
+      final isInViewport =
+          boundingBox.right >= leftOfPage - containerWidth * 0.2 &&
+          boundingBox.left <= rightOfPage + containerWidth * 0.2;
+      final shouldRender = isFocused || isInViewport;
+
+      page.isRendered = shouldRender;
+      children.add(
+        SizedBox(
+          width: pageWidth,
+          height: pageHeight,
+          child: shouldRender
+              ? pageBuilder(context, pageIndex)
+              : placeholderPageBuilder(context, pageIndex),
+        ),
+      );
+      children.add(const SizedBox.square(dimension: Editor.gapBetweenPages));
+      leftOfPage = rightOfPage + Editor.gapBetweenPages;
+    }
+
+    children.add(const SizedBox.square(dimension: Editor.gapBetweenPages));
+    return Padding(
+      padding: const .only(top: Editor.gapBetweenPages),
+      child: Row(crossAxisAlignment: .start, children: children),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (horizontal) return _buildHorizontal(context);
     final List<Widget> children = [
       const SizedBox.square(dimension: Editor.gapBetweenPages),
       const SizedBox.square(dimension: Editor.gapBetweenPages),

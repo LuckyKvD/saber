@@ -126,6 +126,44 @@ class EditorState extends State<Editor> {
     }
   }
 
+  /// Feder: Blättern wie im Buch (Seiten nebeneinander) für dieses Notizbuch.
+  bool get horizontalPaging =>
+      coreInfo.filePath.isNotEmpty &&
+      stows.horizontalPagingFiles.value.contains(coreInfo.filePath);
+
+  /// Scrollt zur Seite, egal ob vertikal oder horizontal geblättert wird.
+  void scrollToPageIndex(int pageIndex) {
+    if (horizontalPaging) {
+      CanvasGestureDetector.scrollToPageHorizontal(
+        pageIndex: pageIndex,
+        pages: coreInfo.pages,
+        containerWidth:
+            _canvasGestureDetectorKey.currentState?.containerBounds.maxWidth ??
+            MediaQuery.sizeOf(context).width,
+        transformationController: _transformationController,
+      );
+    } else {
+      CanvasGestureDetector.scrollToPage(
+        pageIndex: pageIndex,
+        pages: coreInfo.pages,
+        screenWidth: MediaQuery.sizeOf(context).width,
+        transformationController: _transformationController,
+      );
+    }
+  }
+
+  void toggleHorizontalPaging() {
+    final pageIndex = currentPageIndex;
+    final files = [...stows.horizontalPagingFiles.value];
+    if (!files.remove(coreInfo.filePath)) files.add(coreInfo.filePath);
+    stows.horizontalPagingFiles.value = files;
+    _transformationController.value = Matrix4.identity();
+    setState(() {});
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) scrollToPageIndex(pageIndex);
+    });
+  }
+
   var history = EditorHistory();
 
   /// Schreibfeld (Easy-Writing) sichtbar?
@@ -267,12 +305,7 @@ class EditorState extends State<Editor> {
         // Seite ist noch nicht aufgebaut (z. B. neue Seite): dorthin scrollen
         // und es danach noch einmal versuchen.
         if (retry && viewBox != null) {
-          CanvasGestureDetector.scrollToPage(
-            pageIndex: controller.pageIndex,
-            pages: coreInfo.pages,
-            screenWidth: MediaQuery.sizeOf(context).width,
-            transformationController: _transformationController,
-          );
+          scrollToPageIndex(controller.pageIndex);
           _revealWritingWindow(retry: false);
         }
         return;
@@ -511,7 +544,7 @@ class EditorState extends State<Editor> {
       }
     }
 
-    if (removedAPage) {
+    if (removedAPage && !horizontalPaging) {
       // scroll to the last page (only if we're below the last page)
 
       final scrollY = this.scrollY;
@@ -2135,6 +2168,7 @@ class EditorState extends State<Editor> {
       undo: undo,
       redo: redo,
       pages: coreInfo.pages,
+      horizontal: horizontalPaging,
       initialPageIndex: coreInfo.initialPageIndex,
       pageBuilder: pageBuilder,
       isTextEditing: () => currentTool == Tool.textEditing,
@@ -2455,13 +2489,17 @@ class EditorState extends State<Editor> {
                     onPressed: () => setState(() {
                       final currentPageIndex = this.currentPageIndex;
                       insertPageAfter(currentPageIndex);
-                      CanvasGestureDetector.scrollToPage(
-                        pageIndex: currentPageIndex + 1,
-                        pages: coreInfo.pages,
-                        screenWidth: MediaQuery.sizeOf(context).width,
-                        transformationController: _transformationController,
-                      );
+                      scrollToPageIndex(currentPageIndex + 1);
                     }),
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      horizontalPaging ? Icons.swap_vert : Icons.swap_horiz,
+                    ),
+                    tooltip: horizontalPaging
+                        ? 'Seiten untereinander (vertikal blättern)'
+                        : 'Seiten nebeneinander (wie ein Buch blättern)',
+                    onPressed: toggleHorizontalPaging,
                   ),
                   IconButton(
                     icon: const AdaptiveIcon(
@@ -2647,6 +2685,7 @@ class EditorState extends State<Editor> {
   Widget pageManager(BuildContext context) {
     return EditorPageManager(
       coreInfo: coreInfo,
+      scrollToPageOverride: scrollToPageIndex,
       currentPageIndex: currentPageIndex,
       redrawAndSave: () => setState(() {
         if (coreInfo.readOnly) return;
@@ -2778,6 +2817,14 @@ class EditorState extends State<Editor> {
     if (!mounted) return _lastCurrentPageIndex;
 
     final screenWidth = MediaQuery.sizeOf(context).width;
+
+    if (horizontalPaging) {
+      final detector = _canvasGestureDetectorKey.currentState;
+      if (detector == null) return _lastCurrentPageIndex;
+      return _lastCurrentPageIndex = detector.horizontalPageIndex
+          .clamp(0, math.max(0, coreInfo.pages.length - 1))
+          .toInt();
+    }
 
     return _lastCurrentPageIndex = getPageIndexFromScrollPosition(
       scrollY: -scrollY,

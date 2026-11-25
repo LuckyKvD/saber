@@ -424,6 +424,12 @@ class Stows {
     codec: SortMetric.codec,
     volatile: !_isOnMainIsolate,
   );
+  /// Feder: Notizbücher, die horizontal (wie ein Buch) geblättert werden.
+  final horizontalPagingFiles = PlainStow(
+    'horizontalPagingFiles',
+    <String>[],
+    volatile: !_isOnMainIsolate,
+  );
   final recentFiles = PlainStow(
     'recentFiles',
     <String>[],
