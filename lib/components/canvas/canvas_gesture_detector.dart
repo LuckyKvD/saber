@@ -220,10 +220,23 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
   Timer? _pageSnapTimer;
   late final AnimationController _snapAnim = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 220),
-  )..addListener(_onSnapTick);
+    duration: const Duration(milliseconds: 260),
+  )..addListener(_onSnapTick)
+   ..addStatusListener((status) {
+      if (status == AnimationStatus.completed) _endGesture();
+    });
   double _snapFrom = 0;
   double _snapTo = 0;
+
+  /// Blättern: Seite, auf der die aktuelle Geste begonnen hat. Pro Geste
+  /// kann nur eine Seite vor oder zurück geblättert werden.
+  bool _gestureActive = false;
+  int? _startPage;
+
+  void _endGesture() {
+    _gestureActive = false;
+    _startPage = null;
+  }
 
   /// Index der Seite in der Bildmitte (nur horizontales Blättern).
   int get horizontalPageIndex {
@@ -241,7 +254,7 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
   void _scheduleSnap() {
     if (!widget.horizontal) return;
     _pageSnapTimer?.cancel();
-    _pageSnapTimer = Timer(const Duration(milliseconds: 450), _snapToPage);
+    _pageSnapTimer = Timer(const Duration(milliseconds: 140), _snapToPage);
   }
 
   void _stopSnap() {
@@ -250,11 +263,30 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
   }
 
   void _snapToPage() {
-    if (!mounted || !widget.horizontal || widget.pages.isEmpty) return;
+    if (!mounted || !widget.horizontal || widget.pages.isEmpty) {
+      _endGesture();
+      return;
+    }
     final controller = widget._transformationController;
-    if ((controller.value.approxScale - 1).abs() > 0.06) return;
+    if ((controller.value.approxScale - 1).abs() > 0.06) {
+      _endGesture();
+      return;
+    }
+    final width = containerBounds.maxWidth;
+    final start = _startPage ?? horizontalPageIndex;
+    final startX = CanvasGestureDetector.getTranslationXOfPage(
+      pageIndex: start,
+      pages: widget.pages,
+      containerWidth: width,
+    );
+    // Umblättern, wenn mehr als ein Siebtel der Breite gezogen wurde.
+    final moved = controller.value.getTranslation().x - startX;
+    var page = start;
+    if (moved < -width / 7) page = start + 1;
+    if (moved > width / 7) page = start - 1;
+    page = page.clamp(0, widget.pages.length - 1).toInt();
     final target = CanvasGestureDetector.getTranslationXOfPage(
-      pageIndex: horizontalPageIndex,
+      pageIndex: page,
       pages: widget.pages,
       containerWidth: containerBounds.maxWidth,
     );
@@ -262,7 +294,10 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
     _snapTo = target
         .clamp(min(0.0, containerBounds.maxWidth - _contentWidth), 0.0)
         .toDouble();
-    if ((_snapTo - _snapFrom).abs() < 1) return;
+    if ((_snapTo - _snapFrom).abs() < 1) {
+      _endGesture();
+      return;
+    }
     _snapAnim
       ..reset()
       ..forward();
@@ -514,6 +549,30 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
         adjustmentX = minX - translation.x;
       }
       if (translation.y > 0) adjustmentY = -translation.y;
+
+      // Blättern: während einer Geste höchstens eine Seite weit ziehen.
+      if (_gestureActive &&
+          widget.pages.isNotEmpty &&
+          (scale - 1).abs() < 0.06) {
+        final start = _startPage ??= horizontalPageIndex;
+        final last = widget.pages.length - 1;
+        final lo = CanvasGestureDetector.getTranslationXOfPage(
+          pageIndex: min(start + 1, last),
+          pages: widget.pages,
+          containerWidth: containerBounds.maxWidth,
+        );
+        final hi = CanvasGestureDetector.getTranslationXOfPage(
+          pageIndex: max(start - 1, 0),
+          pages: widget.pages,
+          containerWidth: containerBounds.maxWidth,
+        );
+        final x = translation.x + adjustmentX;
+        if (x < lo) {
+          adjustmentX += lo - x;
+        } else if (x > hi) {
+          adjustmentX += hi - x;
+        }
+      }
       if (adjustmentX.abs() > 0.1 || adjustmentY.abs() > 0.1) {
         widget._transformationController.value.leftTranslateByDouble(
           adjustmentX,
@@ -579,7 +638,13 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
     final isStylus =
         event.kind == PointerDeviceKind.stylus ||
         event.kind == PointerDeviceKind.invertedStylus;
-    if (event is PointerDownEvent) _stopSnap();
+    if (event is PointerDownEvent) {
+      _stopSnap();
+      if (widget.horizontal) {
+        _gestureActive = true;
+        _startPage = null;
+      }
+    }
     if (isStylus && event is PointerDownEvent) {
       _detectStylusButton(event);
     }
@@ -637,6 +702,7 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
   }
 
   void _listenerPointerUpEvent(PointerEvent event) {
+    _scheduleSnap();
     widget.updatePointerData(event.kind, null);
     if (stylusButtonWasPressed) {
       stylusButtonWasPressed = false;

@@ -23,7 +23,6 @@ class HomePage extends StatefulWidget {
   static const settingsSubpage = 'settings';
   static const List<String> subpages = [
     browseSubpage,
-    whiteboardSubpage,
     settingsSubpage,
   ];
 }

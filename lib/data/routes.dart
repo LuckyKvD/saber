@@ -48,16 +48,6 @@ abstract class HomeRoutes {
       ),
     ),
     HomeRoute._(
-      _homeFunction({'subpage': HomePage.whiteboardSubpage}),
-      destination: NavigationDestination(
-        label: t.home.tabs.whiteboard,
-        icon: const AdaptiveIcon(
-          icon: Icons.draw,
-          cupertinoIcon: CupertinoIcons.pencil_outline,
-        ),
-      ),
-    ),
-    HomeRoute._(
       _homeFunction({'subpage': HomePage.settingsSubpage}),
       destination: NavigationDestination(
         label: t.home.tabs.settings,
