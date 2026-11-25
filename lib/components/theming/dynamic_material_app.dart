@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:cupertino_ui/cupertino_ui.dart';
-import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_localizations/flutter_localizations.dart'
@@ -98,7 +97,8 @@ class DynamicMaterialAppState extends State<DynamicMaterialApp>
     useListenable(stows.hyperlegibleFont);
 
     // Use Yaru theme, with or without [chosenAccentColor]
-    if (platform == .linux) {
+    // Feder: ohne eigene Akzentfarbe gilt auch hier das Nachtblau/Gold-Schema.
+    if (platform == .linux && chosenAccentColor != null) {
       return YaruBuilder(
         primary: chosenAccentColor, // if null, falls back to system color
         platform: platform,
@@ -135,29 +135,13 @@ class DynamicMaterialAppState extends State<DynamicMaterialApp>
       );
     }
 
-    // Try and use device's accent color, or fall back to defaultSwatch
-    return DynamicColorBuilder(
-      builder: (ColorScheme? lightColorScheme, ColorScheme? darkColorScheme) {
-        return ExplicitlyThemedApp(
-          title: widget.title,
-          router: widget.router,
-          themeMode: themeMode,
-          theme: (platform.isMaterialNative && lightColorScheme != null)
-              ? SaberTheme.createTheme(lightColorScheme, platform)
-              : SaberTheme.createThemeFromSeed(
-                  lightColorScheme?.primary ?? widget.defaultSwatch,
-                  .light,
-                  platform,
-                ),
-          darkTheme: (platform.isMaterialNative && darkColorScheme != null)
-              ? SaberTheme.createTheme(darkColorScheme, platform)
-              : SaberTheme.createThemeFromSeed(
-                  darkColorScheme?.primary ?? widget.defaultSwatch,
-                  .dark,
-                  platform,
-                ),
-        );
-      },
+    // Feder: festes Farbschema Nachtblau und Gold (keine Geraetefarben).
+    return ExplicitlyThemedApp(
+      title: widget.title,
+      router: widget.router,
+      themeMode: themeMode,
+      theme: SaberTheme.createTheme(SaberTheme.federLight, platform),
+      darkTheme: SaberTheme.createTheme(SaberTheme.federDark, platform),
     );
   }
 
@@ -184,7 +168,7 @@ class const _WindowsTitleBarWrapper({required final Widget? child})
               child: SvgPicture.asset('assets/icon/icon.svg'),
             ),
             const SizedBox(width: 8),
-            const Text('Saber'),
+            const Text('Feder'),
           ],
         ),
         centerTitle: false,

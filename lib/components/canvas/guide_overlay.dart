@@ -233,7 +233,7 @@ class _GuidePainter extends CustomPainter {
       }
     }
 
-    _brand(canvas, 'LuckyKvD', Offset(-len / 2 + 5.5 * ppc, 0.2 * ppc), ppc * 1.15);
+    _brand(canvas, 'LuckyKvD', Offset(-len / 2 + 9.5 * ppc, 0.2 * ppc), ppc * 1.15);
 
     final h = Offset(len / 2 - 1.8 * ppc, 0);
     final hr = 1.2 * ppc;
@@ -340,8 +340,42 @@ class _GuidePainter extends CustomPainter {
       ..strokeWidth = 1.5;
     canvas.drawLine(Offset(-r, 0), Offset(r, 0), line);
     canvas.drawLine(Offset(0, -ppc * 0.8), Offset(0, full ? ppc * 0.8 : strip), line);
-    _brand(canvas, 'Claude', Offset(0, -ri * 0.55), ppc * 0.95);
+    // Schriftzug rund auf dem Bogen, direkt am Innenrand der Skala.
+    _arcText(canvas, 'Claude', ri + ppc * 0.42, ppc * 0.5);
     return recorder.endRecording();
+  }
+
+  /// Schriftzug entlang eines Bogens, oben mittig, Fuß zur Mitte.
+  void _arcText(Canvas canvas, String text, double radius, double fontSize) {
+    final painters = <TextPainter>[];
+    var total = 0.0;
+    for (final ch in text.split('')) {
+      final tp = TextPainter(
+        text: TextSpan(
+          text: ch,
+          style: TextStyle(
+            color: _ink.withValues(alpha: 0.75),
+            fontFamily: 'Dekko',
+            fontSize: fontSize,
+            fontStyle: FontStyle.italic,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      painters.add(tp);
+      total += tp.width;
+    }
+    var offset = 0.0;
+    final start = math.pi / 2 + total / radius / 2;
+    for (final tp in painters) {
+      final theta = start - (offset + tp.width / 2) / radius;
+      canvas.save();
+      canvas.translate(radius * math.cos(theta), -radius * math.sin(theta));
+      canvas.rotate(math.pi / 2 - theta);
+      tp.paint(canvas, Offset(-tp.width / 2, -tp.height / 2));
+      canvas.restore();
+      offset += tp.width;
+    }
   }
 
   /// Kleiner Schriftzug auf dem Hilfsmittel (Schreibschrift-artige Schrift).

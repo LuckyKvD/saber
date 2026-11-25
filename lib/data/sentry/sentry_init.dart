@@ -18,7 +18,8 @@ export 'package:sentry_flutter/sentry_flutter.dart' show SentryWidget;
 /// - false on Linux (except in tests)
 /// - true otherwise
 @pragma('vm:platform-const-if', !kDebugMode)
-bool get isSentryAvailable => !Platform.isLinux || isThisATest;
+// Feder: Fehlerberichte an den Saber-Server sind dauerhaft abgeschaltet.
+bool get isSentryAvailable => isThisATest;
 
 /// Whether Sentry was initialized when the app started.
 ///
