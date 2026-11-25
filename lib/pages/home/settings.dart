@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:saber/components/settings/about_feder.dart';
 import 'package:saber/components/settings/local_encryption_tile.dart';
 import 'package:saber/components/navbar/responsive_navbar.dart';
 import 'package:saber/components/security/app_lock.dart';
@@ -212,6 +213,7 @@ class _SettingsPageState extends State<SettingsPage> {
             sliver: SliverList.list(
               children: [
                 const NextcloudProfile(),
+                const AboutFeder(),
                 const SaberImportTile(),
                 const LocalEncryptionTile(),
                 SettingsSubtitle(subtitle: t.settings.prefCategories.general),

@@ -394,8 +394,8 @@ class EditorCoreInfo {
       );
 
       final length = jsonString?.length ?? bsonBytes!.length;
-      if (alwaysUseIsolate || length > 2 * 1024 * 1024) {
-        // > 2 MB, run on a separate isolate
+      if (alwaysUseIsolate || length > 256 * 1024) {
+        // > 256 KB (Feder: frueher als im Original), eigener Isolate
         final documentsDirectory = FileManager.documentsDirectory;
         coreInfo = await workerManager.execute(
           () async {
