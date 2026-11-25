@@ -356,6 +356,12 @@ class Stows {
         Colors.black.toARGB32(),
         volatile: !_isOnMainIsolate,
       );
+  /// Muster des Klebebands (-1 = einfarbig).
+  final lastTapePattern = PlainStow(
+    'lastTapePattern',
+    7,
+    volatile: !_isOnMainIsolate,
+  );
   final lastBackgroundPattern = PlainStow(
     'lastBackgroundPattern',
     CanvasBackgroundPattern.none,

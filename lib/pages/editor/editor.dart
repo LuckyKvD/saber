@@ -1644,6 +1644,7 @@ class EditorState extends State<Editor> {
                 (currentTool as TapePen).color = color.withAlpha(
                   TapePen.alpha,
                 );
+                stows.lastTapePattern.value = -1; // Farbe gewählt = einfarbig
               } else if (currentTool is Pen) {
                 (currentTool as Pen).color = color;
               } else if (currentTool is Select) {

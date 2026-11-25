@@ -138,7 +138,13 @@ class CanvasPainter extends CustomPainter {
       }
 
       if (stroke.toolId == .tape && stroke.points.length >= 2) {
-        drawTape(canvas, stroke.points, stroke.options.size, color);
+        drawTape(
+          canvas,
+          stroke.points,
+          stroke.options.size,
+          color,
+          pattern: stroke.tapePattern,
+        );
         continue;
       }
 
@@ -190,6 +196,7 @@ class CanvasPainter extends CustomPainter {
           currentStroke!.points,
           currentStroke!.options.size,
           color,
+          pattern: currentStroke!.tapePattern,
         );
       }
       return;

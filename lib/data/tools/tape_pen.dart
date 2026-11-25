@@ -37,6 +37,9 @@ class TapePen extends Pen {
     final stroke = Pen.currentStroke;
     if (stroke == null) return;
 
+    final pattern = stows.lastTapePattern.value;
+    stroke.tapePattern = pattern >= 0 ? pattern : null;
+
     if (stroke.points.length >= 2) {
       stroke.points.removeRange(1, stroke.points.length);
     }
