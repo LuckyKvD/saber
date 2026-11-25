@@ -4,7 +4,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:perfect_freehand/perfect_freehand.dart';
 
 /// Anzahl der Klebeband-Muster.
-const tapePatternCount = 9;
+const tapePatternCount = 12;
 
 const tapePatternNames = [
   'Kreuze',
@@ -16,6 +16,9 @@ const tapePatternNames = [
   'Herzchen',
   'Wellen',
   'Halbkreise',
+  'Rote Herzen',
+  'Pirat',
+  'Namensband',
 ];
 
 /// Umriss eines Klebebands von [a] nach [b] mit gezackten Enden.
@@ -239,5 +242,117 @@ void paintTapePattern(Canvas canvas, int pattern, double length, double width) {
         }
         row++;
       }
+    case 9: // Rotes Band mit weißen Herzen
+      bg(0xFFC62828);
+      fill.color = const Color(0xFFFFFFFF);
+      final step = width * 0.34, size = width * 0.26;
+      var row = 0;
+      for (var y = -half + step / 2; y < half + step / 2; y += step) {
+        for (
+          var x = x0 + (row.isOdd ? step / 2 : 0);
+          x < x1;
+          x += step
+        ) {
+          canvas.drawPath(_heart(Offset(x, y), size), fill);
+        }
+        row++;
+      }
+    case 10: // Schwarzes Band mit Totenkopf und gekreuzten Knochen
+      bg(0xFF111111);
+      final r = width * 0.22;
+      final step = r * 5.2;
+      for (var x = r * 2; x < x1; x += step) {
+        _skull(canvas, Offset(x, -r * 0.1), r);
+      }
+    case 11: // Blaues Band mit weißer Schrift
+      bg(0xFF1E5AA8);
+      final tp = _namePainter(width);
+      final tileWidth = tp.width + width * 0.35;
+      for (var x = 0.0; x < x1; x += tileWidth) {
+        tp.paint(canvas, Offset(x, -tp.height / 2));
+      }
   }
+}
+
+Path _heart(Offset c, double s) {
+  final x = c.dx, y = c.dy;
+  return Path()
+    ..moveTo(x, y + s * 0.38)
+    ..cubicTo(x - s * 0.65, y - s * 0.05, x - s * 0.38, y - s * 0.55, x, y - s * 0.2)
+    ..cubicTo(x + s * 0.38, y - s * 0.55, x + s * 0.65, y - s * 0.05, x, y + s * 0.38)
+    ..close();
+}
+
+/// Totenkopf mit gekreuzten Knochen, Mittelpunkt [c], Schädelradius [r].
+void _skull(Canvas canvas, Offset c, double r) {
+  final white = Paint()..color = const Color(0xFFFFFFFF);
+  final bone = Paint()
+    ..color = const Color(0xFFFFFFFF)
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round
+    ..strokeWidth = r * 0.3;
+
+  // Gekreuzte Knochen hinter dem Schädel.
+  final b1a = c + Offset(-r * 1.5, r * 0.4), b1b = c + Offset(r * 1.5, r * 1.9);
+  final b2a = c + Offset(r * 1.5, r * 0.4), b2b = c + Offset(-r * 1.5, r * 1.9);
+  canvas.drawLine(b1a, b1b, bone);
+  canvas.drawLine(b2a, b2b, bone);
+  for (final end in [b1a, b1b, b2a, b2b]) {
+    canvas.drawCircle(end + Offset(0, 0), r * 0.22, white);
+  }
+
+  // Schädel.
+  final head = c + Offset(0, -r * 0.1);
+  canvas.drawCircle(head, r, white);
+  canvas.drawRRect(
+    RRect.fromRectAndRadius(
+      Rect.fromCenter(
+        center: head + Offset(0, r * 0.85),
+        width: r * 1.05,
+        height: r * 0.75,
+      ),
+      Radius.circular(r * 0.15),
+    ),
+    white,
+  );
+
+  // Augen, Nase, Zähne.
+  final dark = Paint()..color = const Color(0xFF111111);
+  canvas.drawCircle(head + Offset(-r * 0.38, -r * 0.1), r * 0.26, dark);
+  canvas.drawCircle(head + Offset(r * 0.38, -r * 0.1), r * 0.26, dark);
+  canvas.drawPath(
+    Path()
+      ..moveTo(head.dx, head.dy + r * 0.12)
+      ..lineTo(head.dx - r * 0.1, head.dy + r * 0.38)
+      ..lineTo(head.dx + r * 0.1, head.dy + r * 0.38)
+      ..close(),
+    dark,
+  );
+  final tooth = Paint()
+    ..color = const Color(0xFF111111)
+    ..strokeWidth = math.max(1, r * 0.05);
+  for (final dx in [-0.17, 0.0, 0.17]) {
+    canvas.drawLine(
+      head + Offset(r * dx, r * 0.62),
+      head + Offset(r * dx, r * 1.1),
+      tooth,
+    );
+  }
+}
+
+final _nameCache = <int, TextPainter>{};
+TextPainter _namePainter(double width) {
+  final key = (width * 10).round();
+  return _nameCache[key] ??= TextPainter(
+    text: TextSpan(
+      text: 'LuckyKvD',
+      style: TextStyle(
+        color: const Color(0xFFFFFFFF),
+        fontSize: width * 0.42,
+        fontWeight: FontWeight.w800,
+        letterSpacing: width * 0.02,
+      ),
+    ),
+    textDirection: TextDirection.ltr,
+  )..layout();
 }

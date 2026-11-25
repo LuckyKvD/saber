@@ -1,6 +1,7 @@
 import 'package:defer_pointer/defer_pointer.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:saber/components/toolbar/writing_pad_guide.dart';
 import 'package:one_dollar_unistroke_recognizer/one_dollar_unistroke_recognizer.dart';
 import 'package:saber/components/canvas/_canvas_background_painter.dart';
 import 'package:saber/components/canvas/_canvas_painter.dart';
@@ -149,6 +150,10 @@ class _InnerCanvasState extends State<InnerCanvas> {
           totalPages: widget.coreInfo.pages.length,
           currentScale: widget.currentScale,
           defaultTextStyle: theme.textTheme.bodyMedium!,
+          writingGuide: WritingPadGuide.rectFor(
+            widget.coreInfo,
+            widget.pageIndex,
+          ),
         ),
         isComplex: true,
         willChange: true,

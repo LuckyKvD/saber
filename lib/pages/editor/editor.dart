@@ -45,6 +45,7 @@ import 'package:saber/data/tools/eraser.dart';
 import 'package:saber/data/tools/highlighter.dart';
 import 'package:saber/data/tools/tape_pen.dart';
 import 'package:saber/components/toolbar/writing_pad.dart';
+import 'package:saber/components/toolbar/writing_pad_guide.dart';
 import 'package:saber/data/tools/laser_pointer.dart';
 import 'package:saber/data/tools/pen.dart';
 import 'package:saber/data/tools/pencil.dart';
@@ -125,6 +126,8 @@ class EditorState extends State<Editor> {
 
   /// Schreibfeld (Easy-Writing) sichtbar?
   bool showWritingPad = false;
+  final writingPadController = WritingPadController();
+  bool _placingWritingPad = false;
 
   /// Stift für das Schreibfeld: der aktuelle Stift, sonst der letzte normale.
   Pen get _writingPadPen {
@@ -158,6 +161,11 @@ class EditorState extends State<Editor> {
       addStroke: _writingPadAddStroke,
       undo: undo,
       close: () => setState(() => showWritingPad = false),
+      controller: writingPadController,
+      owner: coreInfo,
+      onGuideChanged: () {
+        if (mounted) setState(() {});
+      },
     );
   }
 
@@ -590,6 +598,13 @@ class EditorState extends State<Editor> {
   void onDrawStart(ScaleStartDetails details) {
     final page = coreInfo.pages[dragPageIndex!];
     final position = page.renderBox!.globalToLocal(details.focalPoint);
+
+    if (showWritingPad && writingPadController.armed) {
+      // "Ort wählen": dieser Tipp setzt nur den Startpunkt, es wird nichts gezeichnet.
+      _placingWritingPad = true;
+      writingPadController.place(dragPageIndex!, position);
+      return;
+    }
     history.canRedo = false;
 
     if (currentTool is Pen) {
@@ -644,7 +659,7 @@ class EditorState extends State<Editor> {
   }
 
   void onDrawUpdate(ScaleUpdateDetails details) {
-    if (dragPageIndex == null) {
+    if (dragPageIndex == null || _placingWritingPad) {
       return;
     }
     final page = coreInfo.pages[dragPageIndex!];
@@ -807,6 +822,10 @@ class EditorState extends State<Editor> {
   }
 
   void onDrawEnd(ScaleEndDetails details) {
+    if (_placingWritingPad) {
+      _placingWritingPad = false;
+      return;
+    }
     if (dragPageIndex == null) {
       return;
     }

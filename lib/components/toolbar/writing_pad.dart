@@ -2,9 +2,12 @@ import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:perfect_freehand/perfect_freehand.dart';
 import 'package:saber/components/canvas/_stroke.dart';
+import 'package:saber/components/toolbar/writing_pad_guide.dart';
 import 'package:saber/data/editor/page.dart';
 import 'package:saber/data/prefs.dart';
+import 'package:stow/stow.dart';
 import 'package:saber/data/tools/pen.dart';
 
 /// Schreibfeld (Easy-Writing): Du schreibst groß in das Feld, die Schrift
@@ -23,6 +26,9 @@ class WritingPad extends StatefulWidget {
     required this.addStroke,
     required this.undo,
     required this.close,
+    required this.controller,
+    required this.owner,
+    required this.onGuideChanged,
   });
 
   /// Stift, dessen Farbe und Dicke verwendet werden.
@@ -37,6 +43,13 @@ class WritingPad extends StatefulWidget {
   final void Function(Stroke stroke) addStroke;
   final VoidCallback undo;
   final VoidCallback close;
+  final WritingPadController controller;
+
+  /// Notiz, zu der das Schreibfeld gehört (für den Rahmen auf dem Blatt).
+  final Object owner;
+
+  /// Der Rahmen auf dem Blatt hat sich bewegt: Seite neu zeichnen.
+  final VoidCallback onGuideChanged;
 
   @override
   State<WritingPad> createState() => _WritingPadState();
@@ -49,6 +62,9 @@ class _WritingPadState extends State<WritingPad> {
   late int pageIndex;
   double lineY = _noteMargin;
   double lineStartV = 0;
+
+  /// Linker Rand der Zeile in der Notiz (per Tipp oder Pfeil verschiebbar).
+  double startX = _noteMargin;
 
   /// Waagerechter Versatz der Ansicht im endlosen Feld.
   double viewX = 0;
@@ -69,6 +85,60 @@ class _WritingPadState extends State<WritingPad> {
     super.initState();
     pageIndex = widget.startPageIndex.clamp(0, widget.pages.length - 1);
     lineY = _firstFreeY(pageIndex);
+    widget.controller.addListener(_onController);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _publishGuide());
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_onController);
+    widget.controller.disarm();
+    WritingPadGuide.clear();
+    super.dispose();
+  }
+
+  void _onController() {
+    final c = widget.controller;
+    final target = c.target;
+    if (target != null && c.targetPage != null) {
+      pageIndex = c.targetPage!.clamp(0, widget.pages.length - 1);
+      final page = widget.pages[pageIndex];
+      startX = target.dx.clamp(0, page.size.width - 200).toDouble();
+      lineY = (target.dy - _lineHeight / 2)
+          .clamp(0, page.size.height - _lineHeight)
+          .toDouble();
+      padStrokes.clear();
+      lineStartV = viewX;
+      c.target = null;
+      c.targetPage = null;
+    }
+    if (mounted) setState(() {});
+    _publishGuide();
+  }
+
+  /// Teilt der Seite mit, wo die nächste Zeile entsteht.
+  void _publishGuide() {
+    if (!mounted) return;
+    final page = widget.pages[pageIndex];
+    WritingPadGuide.owner = widget.owner;
+    WritingPadGuide.pageIndex = pageIndex;
+    WritingPadGuide.rect = Rect.fromLTWH(
+      startX,
+      lineY,
+      math.max(100, page.size.width - _noteMargin - startX),
+      _lineHeight,
+    );
+    widget.onGuideChanged();
+  }
+
+  void _nudge(double lines) {
+    setState(() {
+      final page = widget.pages[pageIndex];
+      lineY = (lineY + lines * _lineHeight)
+          .clamp(0, page.size.height - _lineHeight)
+          .toDouble();
+    });
+    _publishGuide();
   }
 
   double _firstFreeY(int index) {
@@ -82,11 +152,21 @@ class _WritingPadState extends State<WritingPad> {
   }
 
   Offset _toNote(double vx, double py) => Offset(
-    _noteMargin + (vx - lineStartV) * scale,
+    startX + (vx - lineStartV) * scale,
     lineY + py * scale,
   );
 
   double get _lineHeight => padHeight * scale;
+
+  /// Strichstärke in der Notiz: dünner als normal und mit wenig Druckvarianz,
+  /// damit kleine Schrift lesbar bleibt.
+  StrokeOptions _noteOptions(Pen pen) {
+    final factor = stows.easyWritingThickness.value / 100;
+    final options = pen.options.copyWith(isComplete: true);
+    options.size = math.max(0.8, pen.options.size * factor);
+    options.thinning = math.min(pen.options.thinning, 0.2);
+    return options;
+  }
 
   void _newLine({double? startAtV}) {
     setState(() {
@@ -100,6 +180,7 @@ class _WritingPadState extends State<WritingPad> {
       }
       lineStartV = startAtV ?? (viewX + padWidth * 0.03);
     });
+    _publishGuide();
   }
 
   void _space() {
@@ -123,10 +204,9 @@ class _WritingPadState extends State<WritingPad> {
     currentPadStroke = Stroke(
       color: pen.color,
       pressureEnabled: pen.pressureEnabled,
-      options: pen.options.copyWith(
-        size: pen.options.size / scale,
-        isComplete: false,
-      ),
+      options: _noteOptions(pen)
+        ..size = _noteOptions(pen).size / scale
+        ..isComplete = false,
       pageIndex: pageIndex,
       page: widget.pages[pageIndex],
       toolId: pen.toolId,
@@ -163,7 +243,7 @@ class _WritingPadState extends State<WritingPad> {
     final noteStroke = Stroke(
       color: pen.color,
       pressureEnabled: pen.pressureEnabled,
-      options: pen.options.copyWith(isComplete: true),
+      options: _noteOptions(pen),
       pageIndex: pageIndex,
       page: widget.pages[pageIndex],
       toolId: pen.toolId,
@@ -221,40 +301,63 @@ class _WritingPadState extends State<WritingPad> {
           children: [
             SizedBox(
               height: 44,
-              child: Row(
-                children: [
-                  const SizedBox(width: 8),
-                  Text(
-                    'Schreibfeld',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: colorScheme.onSurface,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    const SizedBox(width: 8),
+                    _chips(
+                      'Größe',
+                      stows.easyWritingScale,
+                      const [(30, 'Klein'), (40, 'Mittel'), (55, 'Groß')],
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  _scaleChips(),
-                  const Spacer(),
-                  IconButton(
-                    tooltip: 'Leerzeichen',
-                    onPressed: _space,
-                    icon: const Icon(Icons.space_bar),
-                  ),
-                  IconButton(
-                    tooltip: 'Neue Zeile',
-                    onPressed: () => _newLine(),
-                    icon: const Icon(Icons.keyboard_return),
-                  ),
-                  IconButton(
-                    tooltip: 'Rückgängig',
-                    onPressed: _undo,
-                    icon: const Icon(Icons.undo),
-                  ),
-                  IconButton(
-                    tooltip: 'Schreibfeld schließen',
-                    onPressed: widget.close,
-                    icon: const Icon(Icons.close),
-                  ),
-                ],
+                    const SizedBox(width: 12),
+                    _chips(
+                      'Strich',
+                      stows.easyWritingThickness,
+                      const [(40, 'Fein'), (65, 'Mittel'), (100, 'Kräftig')],
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      tooltip: 'Ort wählen: danach in die Notiz tippen',
+                      isSelected: widget.controller.armed,
+                      onPressed: () => widget.controller.armed
+                          ? widget.controller.disarm()
+                          : widget.controller.arm(),
+                      icon: const Icon(Icons.ads_click),
+                    ),
+                    IconButton(
+                      tooltip: 'Zeile nach oben',
+                      onPressed: () => _nudge(-0.5),
+                      icon: const Icon(Icons.arrow_upward),
+                    ),
+                    IconButton(
+                      tooltip: 'Zeile nach unten',
+                      onPressed: () => _nudge(0.5),
+                      icon: const Icon(Icons.arrow_downward),
+                    ),
+                    IconButton(
+                      tooltip: 'Leerzeichen',
+                      onPressed: _space,
+                      icon: const Icon(Icons.space_bar),
+                    ),
+                    IconButton(
+                      tooltip: 'Neue Zeile',
+                      onPressed: () => _newLine(),
+                      icon: const Icon(Icons.keyboard_return),
+                    ),
+                    IconButton(
+                      tooltip: 'Rückgängig',
+                      onPressed: _undo,
+                      icon: const Icon(Icons.undo),
+                    ),
+                    IconButton(
+                      tooltip: 'Schreibfeld schließen',
+                      onPressed: widget.close,
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
               ),
             ),
             Expanded(
@@ -299,24 +402,26 @@ class _WritingPadState extends State<WritingPad> {
     );
   }
 
-  Widget _scaleChips() {
+  Widget _chips(String label, Stow<dynamic, int, dynamic> pref, List<(int, String)> options) {
     return ListenableBuilder(
-      listenable: stows.easyWritingScale,
+      listenable: pref,
       builder: (context, _) {
         return Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            for (final (value, label) in const [
-              (30, 'Klein'),
-              (40, 'Mittel'),
-              (55, 'Groß'),
-            ])
+            Text(label, style: const TextStyle(fontSize: 12)),
+            const SizedBox(width: 6),
+            for (final (value, text) in options)
               Padding(
                 padding: const EdgeInsets.only(right: 4),
                 child: ChoiceChip(
-                  label: Text(label),
-                  selected: stows.easyWritingScale.value == value,
-                  onSelected: (_) => stows.easyWritingScale.value = value,
+                  label: Text(text),
+                  selected: pref.value == value,
+                  onSelected: (_) {
+                    pref.value = value;
+                    setState(() {});
+                    _publishGuide();
+                  },
                   visualDensity: VisualDensity.compact,
                   labelStyle: const TextStyle(fontSize: 12),
                 ),

@@ -33,6 +33,7 @@ class CanvasPainter extends CustomPainter {
     required this.totalPages,
     required this.currentScale,
     required this.defaultTextStyle,
+    this.writingGuide,
   });
 
   final bool invert;
@@ -48,6 +49,9 @@ class CanvasPainter extends CustomPainter {
   final double currentScale;
   final TextStyle defaultTextStyle;
 
+  /// Rahmen der nächsten Zeile des Schreibfelds (nur in der offenen Notiz).
+  final Rect? writingGuide;
+
   @override
   void paint(Canvas canvas, Size size) {
     final canvasRect = Offset.zero & size;
@@ -59,6 +63,7 @@ class CanvasPainter extends CustomPainter {
     _drawDetectedShape(canvas);
     _drawHeldShape(canvas);
     _drawSelection(canvas);
+    _drawWritingGuide(canvas);
     _drawPageIndicator(canvas, size);
   }
 
@@ -78,7 +83,8 @@ class CanvasPainter extends CustomPainter {
         showPageIndicator != oldDelegate.showPageIndicator ||
         pageIndex != oldDelegate.pageIndex ||
         totalPages != oldDelegate.totalPages ||
-        currentScale != oldDelegate.currentScale;
+        currentScale != oldDelegate.currentScale ||
+        writingGuide != oldDelegate.writingGuide;
   }
 
   void _drawHighlighterStrokes(Canvas canvas, Rect canvasRect) {
@@ -217,6 +223,26 @@ class CanvasPainter extends CustomPainter {
         ),
     );
     canvas.drawPath(stroke.innerPath, Paint()..color = const Color(0xDDffffff));
+  }
+
+  void _drawWritingGuide(Canvas canvas) {
+    final rect = writingGuide;
+    if (rect == null) return;
+    final rrect = RRect.fromRectAndRadius(rect, const Radius.circular(8));
+    canvas.drawRRect(
+      rrect,
+      Paint()..color = primaryColor.withValues(alpha: 0.07),
+    );
+    canvas.drawPath(
+      dashPath(
+        Path()..addRRect(rrect),
+        dashArray: CircularIntervalList([8, 6]),
+      ),
+      Paint()
+        ..color = primaryColor.withValues(alpha: 0.8)
+        ..strokeWidth = 2
+        ..style = .stroke,
+    );
   }
 
   void _drawHeldShape(Canvas canvas) {

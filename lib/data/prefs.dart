@@ -363,6 +363,13 @@ class Stows {
     volatile: !_isOnMainIsolate,
   );
 
+  /// Schreibfeld: Strichstärke in Prozent der Stiftdicke.
+  final easyWritingThickness = PlainStow(
+    'easyWritingThickness',
+    40,
+    volatile: !_isOnMainIsolate,
+  );
+
   /// Muster des Klebebands (-1 = einfarbig).
   final lastTapePattern = PlainStow(
     'lastTapePattern',
