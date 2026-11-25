@@ -44,6 +44,8 @@ import 'package:saber/data/tools/_tool.dart';
 import 'package:saber/data/tools/eraser.dart';
 import 'package:saber/data/tools/highlighter.dart';
 import 'package:saber/data/tools/tape_pen.dart';
+import 'package:saber/components/toolbar/writing_pad.dart';
+import 'package:saber/components/toolbar/writing_pad_guide.dart';
 import 'package:saber/data/tools/laser_pointer.dart';
 import 'package:saber/data/tools/pen.dart';
 import 'package:saber/data/tools/pencil.dart';
@@ -122,6 +124,173 @@ class EditorState extends State<Editor> {
 
   var history = EditorHistory();
 
+  /// Schreibfeld (Easy-Writing) sichtbar?
+  bool showWritingPad = false;
+  final writingPadController = WritingPadController();
+  bool _placingWritingPad = false;
+  bool _draggingWritingPad = false;
+  bool _resizingWritingPad = false;
+  double _resizeStartWidth = 0;
+  Offset _resizeStartPosition = Offset.zero;
+  Offset _guideDragLast = Offset.zero;
+
+  /// Stift, mit dem der aktuelle Strich im Schreibfeld entsteht.
+  Pen? _writingStrokePen;
+
+  /// Stift für das Schreibfeld: der aktuelle Stift, sonst der letzte normale.
+  Pen get _writingPadPen {
+    final tool = currentTool;
+    if (tool is Pen &&
+        tool is! Highlighter &&
+        tool is! TapePen &&
+        tool is! ShapePen) {
+      return tool;
+    }
+    final pen = Pen.currentPen;
+    return pen is ShapePen ? Pen.fountainPen() : pen;
+  }
+
+  void _writingStrokeStart(int pageIndex, Offset position, double? pressure) {
+    if (coreInfo.readOnly) return;
+    final pen = _writingPadPen;
+    _writingStrokePen = pen;
+    history.canRedo = false;
+    Select.currentSelect.unselect();
+    pen.onDragStart(position, coreInfo.pages[pageIndex], pageIndex, pressure);
+    // setState, damit die Seite den laufenden Strich kennt
+    setState(() {});
+  }
+
+  void _writingStrokeUpdate(Offset position, double? pressure) {
+    final pen = _writingStrokePen;
+    if (pen == null) return;
+    pen.onDragUpdate(position, pressure);
+    final index = Pen.currentStroke?.pageIndex;
+    if (index != null && index < coreInfo.pages.length) {
+      coreInfo.pages[index].redrawStrokes();
+    }
+  }
+
+  void _writingStrokeEnd() {
+    final pen = _writingStrokePen;
+    _writingStrokePen = null;
+    if (pen == null) return;
+
+    final newStroke = pen.onDragEnd();
+    if (newStroke == null || newStroke.isEmpty) {
+      setState(() {});
+      return;
+    }
+    if (stows.autoStraightenLines.value &&
+        pen is! ShapePen &&
+        newStroke.isStraightLine()) {
+      newStroke.convertToLine();
+    }
+    setState(() {
+      createPage(newStroke.pageIndex);
+      coreInfo.pages[newStroke.pageIndex].insertStroke(newStroke);
+      history.recordChange(HistoricAdd(strokes: [newStroke], images: []));
+    });
+    autosaveAfterDelay();
+  }
+
+  void _attachWritingPad() {
+    writingPadController.attach(
+      pages: coreInfo.pages,
+      ensurePage: (index) => setState(() => createPage(index)),
+      cell: coreInfo.lineHeight.toDouble(),
+      owner: coreInfo,
+    );
+  }
+
+  void _toggleWritingPad() {
+    if (showWritingPad) {
+      _closeWritingPad();
+    } else {
+      showWritingPad = true;
+      _attachWritingPad();
+      // meldet sich über den Listener: Rahmen zeichnen und Blatt mitscrollen
+      writingPadController.openAt(currentPageIndex);
+    }
+  }
+
+  /// Schließt das Schreibfeld und nimmt den Rahmen im selben Schritt vom Blatt.
+  void _closeWritingPad() {
+    showWritingPad = false;
+    writingPadController.close();
+  }
+
+  void _onWritingPadChanged() {
+    if (!mounted) return;
+    setState(() {});
+    // Beim Ziehen mit dem Finger nicht mitscrollen, sonst läuft der Rahmen weg.
+    if (showWritingPad && !_draggingWritingPad && !_resizingWritingPad) {
+      _revealWritingWindow();
+    }
+  }
+
+  /// Scrollt das Blatt so, dass der Rahmen sichtbar bleibt
+  /// (das Schreibfeld nimmt unten Platz weg).
+  void _revealWritingWindow({bool retry = true}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !showWritingPad) return;
+      final controller = writingPadController;
+      if (controller.pageIndex >= coreInfo.pages.length) return;
+      final pageBox = coreInfo.pages[controller.pageIndex].renderBox;
+      final viewBox =
+          _canvasGestureDetectorKey.currentContext?.findRenderObject()
+              as RenderBox?;
+      if (pageBox == null ||
+          viewBox == null ||
+          !pageBox.attached ||
+          !viewBox.attached) {
+        // Seite ist noch nicht aufgebaut (z. B. neue Seite): dorthin scrollen
+        // und es danach noch einmal versuchen.
+        if (retry && viewBox != null) {
+          CanvasGestureDetector.scrollToPage(
+            pageIndex: controller.pageIndex,
+            pages: coreInfo.pages,
+            screenWidth: MediaQuery.sizeOf(context).width,
+            transformationController: _transformationController,
+          );
+          _revealWritingWindow(retry: false);
+        }
+        return;
+      }
+
+      final rect = controller.rect;
+      final top = viewBox
+          .globalToLocal(pageBox.localToGlobal(rect.topLeft))
+          .dy;
+      final bottom = viewBox
+          .globalToLocal(pageBox.localToGlobal(rect.bottomRight))
+          .dy;
+      const gap = 12.0;
+      var dy = 0.0;
+      if (bottom > viewBox.size.height - gap) {
+        dy = viewBox.size.height - gap - bottom;
+      }
+      if (top + dy < gap) dy = gap - top;
+      if (dy.abs() < 0.5) return;
+
+      _transformationController.value =
+          Matrix4.translationValues(0, dy, 0) * _transformationController.value;
+    });
+  }
+
+  Widget _buildWritingPad() {
+    _attachWritingPad();
+    return WritingPad(
+      key: const ValueKey('writingPad'),
+      controller: writingPadController,
+      coreInfo: coreInfo,
+      enabled: !coreInfo.readOnly,
+      onStrokeStart: _writingStrokeStart,
+      onStrokeUpdate: _writingStrokeUpdate,
+      onStrokeEnd: _writingStrokeEnd,
+    );
+  }
+
   late bool needsNaming = widget.needsNaming && stows.editorPromptRename.value;
 
   late Tool _currentTool = () {
@@ -188,6 +357,7 @@ class EditorState extends State<Editor> {
   void initState() {
     DynamicMaterialApp.addFullscreenListener(_setState);
     Pen.onHoldShapeDetected = _setState;
+    writingPadController.addListener(_onWritingPadChanged);
 
     _initAsync();
     _assignKeybindings();
@@ -504,6 +674,20 @@ class EditorState extends State<Editor> {
   int? dragPageIndex;
   PointerDeviceKind? currentPointerKind;
   double? currentPressure;
+  bool _focalPointInWritingGuide(Offset focalPoint, int pageIndex) {
+    final rect = WritingPadGuide.rectFor(coreInfo, pageIndex);
+    final box = coreInfo.pages[pageIndex].renderBox;
+    if (rect == null || box == null) return false;
+    return rect.inflate(12).contains(box.globalToLocal(focalPoint));
+  }
+
+  bool _focalPointOnWritingHandle(Offset focalPoint, int pageIndex) {
+    final rect = WritingPadGuide.rectFor(coreInfo, pageIndex);
+    final box = coreInfo.pages[pageIndex].renderBox;
+    if (rect == null || box == null) return false;
+    return (box.globalToLocal(focalPoint) - rect.bottomRight).distance < 34;
+  }
+
   bool isDrawGesture(ScaleStartDetails details) {
     if (coreInfo.readOnly) return false;
 
@@ -535,6 +719,12 @@ class EditorState extends State<Editor> {
 
     if (currentTool == Tool.textEditing) {
       return false;
+    } else if (showWritingPad &&
+        currentPointerKind == PointerDeviceKind.touch &&
+        (_focalPointOnWritingHandle(details.focalPoint, dragPageIndex!) ||
+            _focalPointInWritingGuide(details.focalPoint, dragPageIndex!))) {
+      // Finger auf dem Rahmen des Schreibfelds: Rahmen verschieben.
+      return true;
     } else if (stows.editorFingerDrawing.value ||
         currentPointerKind == PointerDeviceKind.stylus ||
         currentPointerKind == PointerDeviceKind.invertedStylus ||
@@ -551,6 +741,26 @@ class EditorState extends State<Editor> {
   void onDrawStart(ScaleStartDetails details) {
     final page = coreInfo.pages[dragPageIndex!];
     final position = page.renderBox!.globalToLocal(details.focalPoint);
+
+    if (showWritingPad &&
+        currentPointerKind == PointerDeviceKind.touch &&
+        _focalPointOnWritingHandle(details.focalPoint, dragPageIndex!)) {
+      // Eckgriff: Rahmen breiter oder schmaler ziehen.
+      _placingWritingPad = true;
+      _resizingWritingPad = true;
+      _resizeStartPosition = position;
+      _resizeStartWidth = writingPadController.width;
+      return;
+    }
+    if (showWritingPad &&
+        currentPointerKind == PointerDeviceKind.touch &&
+        _focalPointInWritingGuide(details.focalPoint, dragPageIndex!)) {
+      // Finger im Rahmen: Rahmen verschieben.
+      _placingWritingPad = true;
+      _draggingWritingPad = true;
+      _guideDragLast = position;
+      return;
+    }
     history.canRedo = false;
 
     if (currentTool is Pen) {
@@ -605,7 +815,30 @@ class EditorState extends State<Editor> {
   }
 
   void onDrawUpdate(ScaleUpdateDetails details) {
-    if (dragPageIndex == null) {
+    if (_resizingWritingPad && dragPageIndex != null) {
+      final box = coreInfo.pages[dragPageIndex!].renderBox;
+      if (box != null) {
+        final now = box.globalToLocal(details.focalPoint);
+        final controller = writingPadController;
+        final dx = now.dx - _resizeStartPosition.dx;
+        final dy = now.dy - _resizeStartPosition.dy;
+        // Diagonal ziehen: Breite und Höhe (über das feste Seitenverhältnis) mitteln.
+        controller.setWidth(
+          _resizeStartWidth + (dx + dy / controller.aspect) / 2,
+        );
+      }
+      return;
+    }
+    if (_draggingWritingPad && dragPageIndex != null) {
+      final box = coreInfo.pages[dragPageIndex!].renderBox;
+      if (box != null) {
+        final now = box.globalToLocal(details.focalPoint);
+        writingPadController.moveBy(now - _guideDragLast);
+        _guideDragLast = now;
+      }
+      return;
+    }
+    if (dragPageIndex == null || _placingWritingPad) {
       return;
     }
     final page = coreInfo.pages[dragPageIndex!];
@@ -768,6 +1001,15 @@ class EditorState extends State<Editor> {
   }
 
   void onDrawEnd(ScaleEndDetails details) {
+    if (_placingWritingPad) {
+      if (_draggingWritingPad) writingPadController.endMove();
+      if (_resizingWritingPad) writingPadController.endResize();
+      _placingWritingPad = false;
+      _draggingWritingPad = false;
+      _resizingWritingPad = false;
+      _revealWritingWindow();
+      return;
+    }
     if (dragPageIndex == null) {
       return;
     }
@@ -1700,6 +1942,8 @@ class EditorState extends State<Editor> {
             lastSeenPointerCount = 0;
           },
           pickPhoto: _pickPhotos,
+          toggleWritingPad: _toggleWritingPad,
+          writingPadVisible: showWritingPad,
           paste: paste,
           exportAsSba: exportAsSba,
           exportAsPdf: exportAsPdf,
@@ -1725,6 +1969,7 @@ class EditorState extends State<Editor> {
                     child: canvas,
                   ),
                 ),
+                if (showWritingPad) _buildWritingPad(),
                 readonlyBanner,
               ],
             ),
@@ -1743,6 +1988,7 @@ class EditorState extends State<Editor> {
               child: canvas,
             ),
           ),
+          if (showWritingPad) _buildWritingPad(),
           toolbar,
           readonlyBanner,
         ],
@@ -2163,6 +2409,9 @@ class EditorState extends State<Editor> {
 
     DynamicMaterialApp.removeFullscreenListener(_setState);
     if (Pen.onHoldShapeDetected == _setState) Pen.onHoldShapeDetected = null;
+    writingPadController.removeListener(_onWritingPadChanged);
+    WritingPadGuide.clear();
+    writingPadController.dispose();
 
     _delayedSaveTimer?.cancel();
     _watchServerTimer?.cancel();

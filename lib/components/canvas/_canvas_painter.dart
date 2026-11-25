@@ -33,6 +33,7 @@ class CanvasPainter extends CustomPainter {
     required this.totalPages,
     required this.currentScale,
     required this.defaultTextStyle,
+    this.writingGuide,
   });
 
   final bool invert;
@@ -48,6 +49,9 @@ class CanvasPainter extends CustomPainter {
   final double currentScale;
   final TextStyle defaultTextStyle;
 
+  /// Rahmen der nächsten Zeile des Schreibfelds (nur in der offenen Notiz).
+  final Rect? writingGuide;
+
   @override
   void paint(Canvas canvas, Size size) {
     final canvasRect = Offset.zero & size;
@@ -59,6 +63,7 @@ class CanvasPainter extends CustomPainter {
     _drawDetectedShape(canvas);
     _drawHeldShape(canvas);
     _drawSelection(canvas);
+    _drawWritingGuide(canvas);
     _drawPageIndicator(canvas, size);
   }
 
@@ -78,7 +83,8 @@ class CanvasPainter extends CustomPainter {
         showPageIndicator != oldDelegate.showPageIndicator ||
         pageIndex != oldDelegate.pageIndex ||
         totalPages != oldDelegate.totalPages ||
-        currentScale != oldDelegate.currentScale;
+        currentScale != oldDelegate.currentScale ||
+        writingGuide != oldDelegate.writingGuide;
   }
 
   void _drawHighlighterStrokes(Canvas canvas, Rect canvasRect) {
@@ -217,6 +223,33 @@ class CanvasPainter extends CustomPainter {
         ),
     );
     canvas.drawPath(stroke.innerPath, Paint()..color = const Color(0xDDffffff));
+  }
+
+  void _drawWritingGuide(Canvas canvas) {
+    final rect = writingGuide;
+    if (rect == null) return;
+    final color = primaryColor;
+
+    // Rahmen des Schreibfelds: der Ausschnitt, der im Feld vergrößert erscheint.
+    canvas.drawRect(
+      rect,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.5,
+    );
+
+    // Eckgriff unten rechts (Dreieck) zum Breiter-/Schmalerziehen.
+    const s = 24.0;
+    final corner = rect.bottomRight;
+    canvas.drawPath(
+      Path()
+        ..moveTo(corner.dx - 3, corner.dy - 3)
+        ..lineTo(corner.dx - 3 - s, corner.dy - 3)
+        ..lineTo(corner.dx - 3, corner.dy - 3 - s)
+        ..close(),
+      Paint()..color = color,
+    );
   }
 
   void _drawHeldShape(Canvas canvas) {

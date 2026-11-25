@@ -356,6 +356,21 @@ class Stows {
         Colors.black.toARGB32(),
         volatile: !_isOnMainIsolate,
       );
+  /// Schreibfeld: Breite des Rahmens auf dem Blatt in Seitenpunkten
+  /// (0 = automatisch, zwei Kästchen hoch).
+  final easyWritingWidth = PlainStow(
+    'easyWritingWidth',
+    0,
+    volatile: !_isOnMainIsolate,
+  );
+
+  /// Schreibfeld: Lage der Umbruch-Marke in Prozent der Feldbreite.
+  final easyWritingMarker = PlainStow(
+    'easyWritingMarker',
+    72,
+    volatile: !_isOnMainIsolate,
+  );
+
   /// Muster des Klebebands (-1 = einfarbig).
   final lastTapePattern = PlainStow(
     'lastTapePattern',
