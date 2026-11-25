@@ -13,6 +13,7 @@ import 'package:meta/meta.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:saber/components/canvas/_asset_cache.dart';
 import 'package:saber/components/canvas/canvas_image.dart';
+import 'package:saber/components/canvas/image/image_clip.dart';
 import 'package:saber/components/canvas/invert_widget.dart';
 import 'package:saber/data/file_manager/decrypted_file_image.dart';
 import 'package:saber/data/file_manager/file_manager.dart';
@@ -43,6 +44,44 @@ sealed class EditorImage extends ChangeNotifier {
   }
 
   int pageIndex;
+
+  /// Schnittebenen (Lasso-Ausschnitt); leer = ganzes Foto sichtbar.
+  List<ImageClip> clip = const [];
+  final clipCache = ImageClipCache();
+
+  /// Sichtbarer Ausschnitt als Anteil des ganzen Fotos (0..1). [dstRect] ist
+  /// der Rahmen dieses Ausschnitts; so passt sich der Rahmen dem Zuschnitt an.
+  Rect crop = const Rect.fromLTWH(0, 0, 1, 1);
+  bool get isCropped =>
+      crop.left != 0 || crop.top != 0 || crop.width != 1 || crop.height != 1;
+
+  /// Drehung des Fotos um seine Mitte (Bogenmaß).
+  double angle = 0;
+
+  /// Wunschmitte für ein neu eingefügtes Bild (Seitenkoordinaten).
+  Offset? centerHint;
+
+  /// Vom Editor gesetzt: Bild wurde losgelassen, ggf. auf eine andere Seite.
+  /// Gibt true zurück, wenn der Editor die Bewegung selbst verbucht hat.
+  static bool Function(EditorImage image, Rect startRect)? dropHandler;
+
+  /// Vom Editor gesetzt: Ziel für dieses Bild per Antippen wählen.
+  static void Function(EditorImage image)? targetHandler;
+
+  /// Rechteck für die erste Platzierung: um [centerHint] herum, sonst oben links.
+  Rect placeRect(Size size) {
+    final hint = centerHint;
+    if (hint == null) return dstRect.topLeft & size;
+    var left = hint.dx - size.width / 2;
+    var top = hint.dy - size.height / 2;
+    final ps = pageSize;
+    if (ps != null && ps.isFinite) {
+      left = left.clamp(0, max(0, ps.width - size.width)).toDouble();
+      top = top.clamp(0, max(0, ps.height - size.height)).toDouble();
+    }
+    return Rect.fromLTWH(left, top, size.width, size.height);
+  }
+
   void Function(EditorImage, Rect)? onMoveImage;
   void Function(EditorImage)? onDeleteImage;
   void Function()? onMiscChange;
@@ -118,6 +157,34 @@ sealed class EditorImage extends ChangeNotifier {
     required String sbnPath,
     required AssetCache assetCache,
   }) {
+    final image = _fromJsonInner(
+      json,
+      inlineAssets: inlineAssets,
+      isThumbnail: isThumbnail,
+      sbnPath: sbnPath,
+      assetCache: assetCache,
+    );
+    image.clip = ImageClip.listFromJson(json['cl']);
+    final cr = json['cr'];
+    if (cr is List && cr.length == 4) {
+      image.crop = Rect.fromLTWH(
+        (cr[0] as num).toDouble(),
+        (cr[1] as num).toDouble(),
+        (cr[2] as num).toDouble(),
+        (cr[3] as num).toDouble(),
+      );
+    }
+    image.angle = (json['r'] as num?)?.toDouble() ?? 0;
+    return image;
+  }
+
+  static EditorImage _fromJsonInner(
+    Map<String, dynamic> json, {
+    required List<Uint8List>? inlineAssets,
+    bool isThumbnail = false,
+    required String sbnPath,
+    required AssetCache assetCache,
+  }) {
     final extension = json['e'] as String?;
     if (extension == '.svg') {
       return SvgEditorImage.fromJson(
@@ -158,6 +225,9 @@ sealed class EditorImage extends ChangeNotifier {
     'y': dstRect.top,
     'w': dstRect.width,
     'h': dstRect.height,
+    if (clip.isNotEmpty) 'cl': [for (final c in clip) c.toJson()],
+    if (isCropped) 'cr': [crop.left, crop.top, crop.width, crop.height],
+    if (angle != 0) 'r': angle,
     if (srcRect.left != 0) 'sx': srcRect.left,
     if (srcRect.top != 0) 'sy': srcRect.top,
     if (srcRect.width != 0) 'sw': srcRect.width,
@@ -250,6 +320,12 @@ sealed class EditorImage extends ChangeNotifier {
   });
 
   EditorImage copy();
+
+  /// Wie [copy], aber mit Schnittebenen.
+  EditorImage clone() => copy()
+    ..clip = List.of(clip)
+    ..crop = crop
+    ..angle = angle;
 
   /// Resizes [before] to fit inside [max] while maintaining aspect ratio.
   ///

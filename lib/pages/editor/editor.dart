@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:collapsible/collapsible.dart';
@@ -19,6 +20,8 @@ import 'package:saber/components/canvas/_asset_cache.dart';
 import 'package:saber/components/canvas/_stroke.dart';
 import 'package:saber/components/canvas/canvas.dart';
 import 'package:saber/components/canvas/guide_tools.dart';
+import 'package:saber/components/canvas/image/image_clip.dart';
+import 'package:saber/data/photo_sources.dart';
 import 'package:saber/components/canvas/canvas_gesture_detector.dart';
 import 'package:saber/components/canvas/canvas_image.dart';
 import 'package:saber/components/canvas/image/editor_image.dart';
@@ -375,6 +378,8 @@ class EditorState extends State<Editor> {
     DynamicMaterialApp.addFullscreenListener(_setState);
     Pen.onHoldShapeDetected = _setState;
     writingPadController.addListener(_onWritingPadChanged);
+    EditorImage.dropHandler = _onDropImage;
+    EditorImage.targetHandler = _startImageTarget;
 
     _initAsync();
     _assignKeybindings();
@@ -576,6 +581,13 @@ class EditorState extends State<Editor> {
         for (final stroke in historic.removed) {
           createPage(stroke.pageIndex);
           coreInfo.pages[stroke.pageIndex].insertStroke(stroke);
+        }
+        for (final image in historic.addedImages) {
+          coreInfo.pages[image.pageIndex].images.remove(image);
+        }
+        for (final image in historic.removedImages) {
+          createPage(image.pageIndex);
+          coreInfo.pages[image.pageIndex].images.add(image);
         }
         removeExcessPages();
 
@@ -1099,6 +1111,33 @@ class EditorState extends State<Editor> {
           shouldSave = false;
           select.onDragEnd(page.strokes, page.images);
 
+          // Linien und Fotos, die nur teilweise im Lasso liegen, am Rand abschneiden.
+          final cuts = select.cutStrokes(List.of(page.strokes));
+          final removed = <Stroke>[];
+          final added = <Stroke>[];
+          for (final (old, inside, outside) in cuts) {
+            page.strokes.remove(old);
+            removed.add(old);
+            for (final piece in [...inside, ...outside]) {
+              page.insertStroke(piece);
+              added.add(piece);
+            }
+          }
+          final removedImages = <EditorImage>[];
+          final addedImages = <EditorImage>[];
+          _cutImages(select, page, removedImages, addedImages);
+          if (removed.isNotEmpty || removedImages.isNotEmpty) {
+            history.recordChange(
+              HistoricReplace(
+                removed: removed,
+                added: added,
+                removedImages: removedImages,
+                addedImages: addedImages,
+              ),
+            );
+            shouldSave = true;
+          }
+
           if (select.selectResult.isEmpty) {
             Select.currentSelect.unselect();
           }
@@ -1318,6 +1357,22 @@ class EditorState extends State<Editor> {
     await _renameFileNow();
 
     final filePath = coreInfo.filePath + Editor.extension;
+    // Fotos, die noch auf eine Datei zeigen, werden vor dem Speichern in den
+    // Arbeitsspeicher geholt. Sonst koennen sich die Dateinummern beim
+    // Speichern verschieben und ein Foto zeigt auf das Bild eines anderen.
+    for (final page in coreInfo.pages) {
+      for (final image in page.images) {
+        if (image is PngEditorImage && image.imageProvider is FileImage) {
+          final file = (image.imageProvider as FileImage).file;
+          try {
+            image.imageProvider = MemoryImage(await FileManager.readBytes(file));
+            image.notifyListeners();
+          } catch (e, st) {
+            log.severe('Foto konnte nicht eingelesen werden: $e', e, st);
+          }
+        }
+      }
+    }
     final Uint8List bson;
     final OrderedAssetCache assets;
     coreInfo.assetCache.allowRemovingAssets = false;
@@ -1329,18 +1384,15 @@ class EditorState extends State<Editor> {
       coreInfo.assetCache.allowRemovingAssets = true;
     }
     try {
+      // Erst alles lesen, dann schreiben (sonst werden Dateien ueberschrieben,
+      // die noch gelesen werden muessen).
+      final assetBytes = [
+        for (int i = 0; i < assets.length; ++i) await assets.getBytes(i),
+      ];
       await Future.wait([
         FileManager.writeFile(filePath, bson, awaitWrite: true),
-        for (int i = 0; i < assets.length; ++i)
-          assets
-              .getBytes(i)
-              .then(
-                (bytes) => FileManager.writeFile(
-                  '$filePath.$i',
-                  bytes,
-                  awaitWrite: true,
-                ),
-              ),
+        for (int i = 0; i < assetBytes.length; ++i)
+          FileManager.writeFile('$filePath.$i', assetBytes[i], awaitWrite: true),
         FileManager.removeUnusedAssets(filePath, numAssets: assets.length),
       ]);
       savingState.value = .saved;
@@ -1475,10 +1527,12 @@ class EditorState extends State<Editor> {
   Future<int> _pickPhotos([List<_PhotoInfo>? photoInfos]) async {
     if (coreInfo.readOnly) return 0;
 
-    final currentPageIndex = this.currentPageIndex;
-
-    photoInfos ??= await _pickPhotosWithFilePicker();
+    photoInfos ??= await _pickPhotosFromChosenSource();
     if (photoInfos.isEmpty) return 0;
+
+    // Neue Bilder erscheinen in der Mitte des sichtbaren Bereichs.
+    final (currentPageIndex, visibleCenter) = _visibleTarget();
+    var staggerCount = 0;
 
     /// Some Android platforms allow selecting a pdf here.
     /// Tell user to use the Import PDF function instead.
@@ -1502,7 +1556,7 @@ class EditorState extends State<Editor> {
             onMiscChange: autosaveAfterDelay,
             onLoad: () => setState(() {}),
             assetCache: coreInfo.assetCache,
-          ),
+          )..centerHint = visibleCenter + Offset(24.0, 24.0) * (staggerCount++).toDouble(),
         );
       } else {
         images.add(
@@ -1517,7 +1571,7 @@ class EditorState extends State<Editor> {
             onMiscChange: autosaveAfterDelay,
             onLoad: () => setState(() {}),
             assetCache: coreInfo.assetCache,
-          ),
+          )..centerHint = visibleCenter + Offset(24.0, 24.0) * (staggerCount++).toDouble(),
         );
       }
     }
@@ -1527,8 +1581,10 @@ class EditorState extends State<Editor> {
       currentTool = Select.currentSelect;
 
       history.recordChange(HistoricAdd(strokes: const [], images: images));
-      createPage(currentPageIndex);
-      coreInfo.pages[currentPageIndex].images.addAll(images);
+      setState(() {
+        createPage(currentPageIndex);
+        coreInfo.pages[currentPageIndex].images.addAll(images);
+      });
       autosaveAfterDelay();
     }
 
@@ -1549,6 +1605,304 @@ class EditorState extends State<Editor> {
     }
 
     return images.length;
+  }
+
+  /// Schneidet Fotos am Lassorand: ganz innen = ausgewählt, teilweise =
+  /// in zwei Fotos geteilt (innen ausgewählt, außen bleibt), außen = unberührt.
+  void _cutImages(
+    Select select,
+    EditorPage page,
+    List<EditorImage> removedImages,
+    List<EditorImage> addedImages,
+  ) {
+    final path = select.selectResult.path;
+    final lasso = select.lassoPoints;
+    if (lasso.length < 3) return;
+    for (final image in List.of(page.images)) {
+      final rect = image.dstRect;
+      if (rect.isEmpty) continue;
+      // Anteil der Abtastpunkte des Fotos, die im Lasso liegen.
+      const n = 14;
+      var inside = 0;
+      for (int ix = 0; ix < n; ix++) {
+        for (int iy = 0; iy < n; iy++) {
+          final p = Offset(
+            rect.left + rect.width * (ix + 0.5) / n,
+            rect.top + rect.height * (iy + 0.5) / n,
+          );
+          if (path.contains(p)) inside++;
+        }
+      }
+      if (inside == 0) continue;
+      if (inside == n * n) {
+        select.selectResult.images.add(image);
+        continue;
+      }
+      // Das ganze (ungeschnittene) Foto in Seitenkoordinaten.
+      final fullW = rect.width / image.crop.width;
+      final fullH = rect.height / image.crop.height;
+      final fullLeft = rect.left - image.crop.left * fullW;
+      final fullTop = rect.top - image.crop.top * fullH;
+      final fractions = [
+        for (final p in lasso)
+          Offset((p.dx - fullLeft) / fullW, (p.dy - fullTop) / fullH),
+      ];
+      EditorImage? piece(bool isInside) {
+        final layers = [
+          ...image.clip,
+          ImageClip(inside: isInside, points: fractions),
+        ];
+        final visible = ImageClip.pathFor(layers, Size(fullW, fullH)).getBounds();
+        final cropNew = Rect.fromLTRB(
+          visible.left / fullW,
+          visible.top / fullH,
+          visible.right / fullW,
+          visible.bottom / fullH,
+        ).intersect(image.crop);
+        if (cropNew.isEmpty || cropNew.width < 0.005 || cropNew.height < 0.005) {
+          return null;
+        }
+        return image.clone()
+          ..id = coreInfo.nextImageId++
+          ..newImage = false
+          ..clip = layers
+          ..crop = cropNew
+          ..dstRect = Rect.fromLTWH(
+            fullLeft + cropNew.left * fullW,
+            fullTop + cropNew.top * fullH,
+            cropNew.width * fullW,
+            cropNew.height * fullH,
+          );
+      }
+
+      final inner = piece(true);
+      final outer = piece(false);
+      page.images.remove(image);
+      final pieces = [?outer, ?inner];
+      page.images.addAll(pieces);
+      removedImages.add(image);
+      addedImages.addAll(pieces);
+      if (inner != null) select.selectResult.images.add(inner);
+    }
+  }
+
+  /// Seite und Mitte (Seitenkoordinaten) des gerade sichtbaren Bereichs.
+  (int, Offset) _visibleTarget() {
+    final size = MediaQuery.sizeOf(context);
+    final screenCenter = Offset(size.width / 2, size.height / 2);
+    final index = (onWhichPageIsFocalPoint(screenCenter) ?? currentPageIndex)
+        .clamp(0, coreInfo.pages.length - 1);
+    final page = coreInfo.pages[index];
+    final box = page.renderBox;
+    var local = box != null
+        ? box.globalToLocal(screenCenter)
+        : Offset(page.size.width / 2, page.size.height / 2);
+    local = Offset(
+      local.dx.clamp(0, page.size.width).toDouble(),
+      local.dy.clamp(0, page.size.height).toDouble(),
+    );
+    return (index, local);
+  }
+
+  /// Fragt, woher die Fotos kommen sollen.
+  Future<List<_PhotoInfo>> _pickPhotosFromChosenSource() async {
+    final source = await showModalBottomSheet<PhotoSource>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ListTile(title: Text('Foto einfügen aus …')),
+            for (final s in PhotoSource.values)
+              ListTile(
+                leading: Icon(switch (s) {
+                  PhotoSource.gallery => Icons.photo_library,
+                  PhotoSource.camera => Icons.photo_camera,
+                  PhotoSource.googlePhotos => Icons.cloud,
+                  PhotoSource.ente => Icons.lock,
+                  PhotoSource.files => Icons.folder_open,
+                }),
+                title: Text(s.label),
+                onTap: () => Navigator.of(context).pop(s),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (source == null) return const [];
+    if (source == PhotoSource.files) return _pickPhotosWithFilePicker();
+
+    if (!stows.maxImageSize.loaded) await stows.maxImageSize.waitUntilRead();
+    try {
+      final picked = await PhotoSources.pick(
+        source,
+        maxSize: stows.maxImageSize.value.round(),
+      );
+      return [for (final p in picked) _PhotoInfo(p.bytes, p.extension)];
+    } on PhotoSourceUnavailable {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '${source.label} ist nicht installiert oder bietet keine '
+              'Bildauswahl für andere Apps an. Nimm "Galerie (System)" oder '
+              '"Dateien durchsuchen".',
+            ),
+          ),
+        );
+      }
+      return const [];
+    }
+  }
+
+  // ---- Foto auf andere Seite: Loslassen und Ziel antippen ----
+
+  /// Wird nach dem Ziehen eines Fotos aufgerufen. Liegt die Mitte des Fotos
+  /// auf einer anderen Seite, wechselt es dorthin.
+  bool _onDropImage(EditorImage image, Rect startRect) {
+    final from = image.pageIndex;
+    if (from < 0 || from >= coreInfo.pages.length) return false;
+    final fromBox = coreInfo.pages[from].renderBox;
+    if (fromBox == null) return false;
+    final globalCenter = fromBox.localToGlobal(image.dstRect.center);
+    final to = onWhichPageIsFocalPoint(globalCenter);
+    if (to == null || to == from) {
+      // Ins Leere gezogen: zurück an den Rand der eigenen Seite.
+      final size = coreInfo.pages[from].size;
+      final r = image.dstRect;
+      final fixed = Rect.fromLTWH(
+        r.left.clamp(0, math.max(0, size.width - r.width)).toDouble(),
+        r.top.clamp(0, math.max(0, size.height - r.height)).toDouble(),
+        r.width,
+        r.height,
+      );
+      if (fixed != r) {
+        image.dstRect = fixed;
+        onMoveImage(
+          image,
+          Rect.fromLTRB(
+            fixed.left - startRect.left,
+            fixed.top - startRect.top,
+            fixed.right - startRect.right,
+            fixed.bottom - startRect.bottom,
+          ),
+        );
+        return true;
+      }
+      return false;
+    }
+    final toBox = coreInfo.pages[to].renderBox;
+    if (toBox == null) return false;
+    final newTopLeft = toBox.globalToLocal(
+      fromBox.localToGlobal(image.dstRect.topLeft),
+    );
+    _transferImage(image, from, to, startRect, newTopLeft);
+    return true;
+  }
+
+  void _transferImage(
+    EditorImage image,
+    int from,
+    int to,
+    Rect startRect,
+    Offset newTopLeft,
+  ) {
+    final size = coreInfo.pages[to].size;
+    final w = image.dstRect.width;
+    final h = image.dstRect.height;
+    final left = newTopLeft.dx.clamp(0, math.max(0, size.width - w)).toDouble();
+    final top = newTopLeft.dy.clamp(0, math.max(0, size.height - h)).toDouble();
+    setState(() {
+      moveImageToPage(image, from, to);
+      image.dstRect = Rect.fromLTWH(left, top, w, h);
+    });
+    final dx = left - startRect.left;
+    final dy = top - startRect.top;
+    history.recordChange(
+      HistoricMove(
+        pageIndex: to,
+        prevPageIndex: from,
+        strokes: const [],
+        images: [image],
+        offset: Rect.fromLTRB(dx, dy, dx, dy),
+      ),
+    );
+    autosaveAfterDelay();
+  }
+
+  EditorImage? _targetImage;
+  Offset? _targetDownPosition;
+  int? _targetDownTime;
+
+  void _startImageTarget(EditorImage image) {
+    _targetImage = image;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        duration: const Duration(days: 1),
+        content: const Text('Tippe auf die Stelle, an der das Foto stehen soll.'),
+        action: SnackBarAction(label: 'Abbrechen', onPressed: _cancelImageTarget),
+      ),
+    );
+  }
+
+  void _cancelImageTarget() {
+    _targetImage = null;
+    ScaffoldMessenger.maybeOf(context)?.hideCurrentSnackBar();
+  }
+
+  void _targetPointerDown(PointerDownEvent e) {
+    if (_targetImage == null) return;
+    _targetDownPosition = e.position;
+    _targetDownTime = DateTime.now().millisecondsSinceEpoch;
+  }
+
+  void _targetPointerUp(PointerUpEvent e) {
+    final image = _targetImage;
+    final down = _targetDownPosition;
+    final time = _targetDownTime;
+    _targetDownPosition = null;
+    _targetDownTime = null;
+    if (image == null || down == null || time == null) return;
+    // nur ein kurzer Tipp zählt, kein Wischen
+    if ((e.position - down).distance > 24) return;
+    if (DateTime.now().millisecondsSinceEpoch - time > 700) return;
+    final to = onWhichPageIsFocalPoint(e.position);
+    if (to == null) return;
+    final from = image.pageIndex;
+    final box = coreInfo.pages[to].renderBox;
+    if (box == null) return;
+    final local = box.globalToLocal(e.position);
+    final start = image.dstRect;
+    final newTopLeft = Offset(
+      local.dx - start.width / 2,
+      local.dy - start.height / 2,
+    );
+    _cancelImageTarget();
+    if (to == from) {
+      final size = coreInfo.pages[to].size;
+      final left = newTopLeft.dx
+          .clamp(0, math.max(0, size.width - start.width))
+          .toDouble();
+      final top = newTopLeft.dy
+          .clamp(0, math.max(0, size.height - start.height))
+          .toDouble();
+      setState(() {
+        image.dstRect = Rect.fromLTWH(left, top, start.width, start.height);
+      });
+      onMoveImage(
+        image,
+        Rect.fromLTRB(
+          left - start.left,
+          top - start.top,
+          left + start.width - start.right,
+          top + start.height - start.bottom,
+        ),
+      );
+    } else {
+      _transferImage(image, from, to, start, newTopLeft);
+    }
   }
 
   Future<List<_PhotoInfo>> _pickPhotosWithFilePicker() async {
@@ -1857,7 +2211,7 @@ class EditorState extends State<Editor> {
               }).toList();
 
               final duplicatedImages = images.map((image) {
-                return image.copy()
+                return image.clone()
                   ..id = coreInfo.nextImageId++
                   ..dstRect.shift(duplicationFeedbackOffset);
               }).toList();
@@ -1990,7 +2344,7 @@ class EditorState extends State<Editor> {
       ),
     );
 
-    final Widget body;
+    Widget body;
     if (isToolbarVertical) {
       final editorToolbarAlignment = stows.editorToolbarAlignment.value;
       body = Row(
@@ -2019,6 +2373,10 @@ class EditorState extends State<Editor> {
       body = Column(
         verticalDirection: editorToolbarAlignment == .up ? .up : .down,
         children: [
+          // Bei Leiste oben läuft die Spalte von unten nach oben: Das Schreibfeld
+          // steht dann als Erstes und damit ganz unten. Es ist immer unten.
+          if (showWritingPad && editorToolbarAlignment == .up)
+            _buildWritingPad(),
           Expanded(
             child: SafeArea(
               top: editorToolbarAlignment != .up,
@@ -2026,12 +2384,20 @@ class EditorState extends State<Editor> {
               child: canvas,
             ),
           ),
-          if (showWritingPad) _buildWritingPad(),
+          if (showWritingPad && editorToolbarAlignment != .up)
+            _buildWritingPad(),
           toolbar,
           readonlyBanner,
         ],
       );
     }
+
+    body = Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: _targetPointerDown,
+      onPointerUp: _targetPointerUp,
+      child: body,
+    );
 
     return ValueListenableBuilder(
       valueListenable: savingState,
@@ -2295,7 +2661,7 @@ class EditorState extends State<Editor> {
               .map((stroke) => stroke.copy()..pageIndex += 1)
               .toList(),
           images: page.images
-              .map((image) => image.copy()..pageIndex += 1)
+              .map((image) => image.clone()..pageIndex += 1)
               .toList(),
           quill: QuillStruct(
             controller: flutter_quill.QuillController(
@@ -2450,6 +2816,11 @@ class EditorState extends State<Editor> {
     writingPadController.removeListener(_onWritingPadChanged);
     WritingPadGuide.clear();
     Guides.clear();
+    if (EditorImage.dropHandler == _onDropImage) EditorImage.dropHandler = null;
+    if (EditorImage.targetHandler == _startImageTarget) {
+      EditorImage.targetHandler = null;
+    }
+    ScaffoldMessenger.maybeOf(context)?.hideCurrentSnackBar();
     writingPadController.dispose();
 
     _delayedSaveTimer?.cancel();

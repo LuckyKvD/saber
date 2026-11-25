@@ -1,4 +1,9 @@
 import 'package:material_ui/material_ui.dart';
+import 'dart:math' as math;
+
+import 'package:perfect_freehand/perfect_freehand.dart' show PointVector;
+import 'package:saber/components/canvas/_circle_stroke.dart';
+import 'package:saber/components/canvas/_rectangle_stroke.dart';
 import 'package:saber/components/canvas/_stroke.dart';
 import 'package:saber/components/canvas/image/editor_image.dart';
 import 'package:saber/data/tools/_tool.dart';
@@ -22,6 +27,9 @@ class Select extends Tool {
     pageIndexStart: null,
   );
   var doneSelecting = false;
+
+  /// Eckpunkte des Lassos (Seitenkoordinaten), für das Zuschneiden von Fotos.
+  List<Offset> lassoPoints = [];
 
   @override
   ToolId get toolId => .select;
@@ -59,12 +67,14 @@ class Select extends Tool {
       path: Path(),
       pageIndexStart: pageIndex,
     );
+    lassoPoints = [position];
     selectResult.path.moveTo(position.dx, position.dy);
     onDragUpdate(position);
   }
 
   void onDragUpdate(Offset position) {
     selectResult.path.lineTo(position.dx, position.dy);
+    lassoPoints.add(position);
   }
 
   /// Adds the indices of any [strokes] that are inside the selection area
@@ -75,6 +85,8 @@ class Select extends Tool {
 
     for (int i = 0; i < strokes.length; i++) {
       final stroke = strokes[i];
+      // Freie Linien werden am Lassorand geschnitten, siehe [cutStrokes].
+      if (stroke is! CircleStroke && stroke is! RectangleStroke) continue;
       final percentInside = polygonPercentInside(
         selectResult.path,
         stroke.lowQualityPolygon,
@@ -84,13 +96,91 @@ class Select extends Tool {
       }
     }
 
-    for (int i = 0; i < images.length; i++) {
-      final image = images[i];
-      final percentInside = rectPercentInside(selectResult.path, image.dstRect);
-      if (percentInside >= minPercentInside) {
-        selectResult.images.add(image);
+    // Fotos werden vom Editor am Lassorand zugeschnitten.
+  }
+
+  /// Schneidet freie Linien am Lassorand: Der Teil innen wird ausgewählt,
+  /// der Teil außen bleibt stehen. Gibt (Original, innen, außen) für jeden
+  /// geschnittenen Strich zurück. Ganz innen liegende Striche werden
+  /// unverändert ausgewählt. Der Aufrufer ersetzt Originale durch Teile.
+  List<(Stroke, List<Stroke>, List<Stroke>)> cutStrokes(List<Stroke> strokes) {
+    final result = <(Stroke, List<Stroke>, List<Stroke>)>[];
+    final path = selectResult.path;
+    final bounds = path.getBounds();
+    const step = 3.0;
+
+    for (final stroke in strokes) {
+      if (stroke is CircleStroke || stroke is RectangleStroke) continue;
+      final pts = stroke.points;
+      if (pts.isEmpty) continue;
+
+      // Schnelltest über die Umrandung des Strichs.
+      var minX = double.infinity, minY = double.infinity;
+      var maxX = -double.infinity, maxY = -double.infinity;
+      for (final p in pts) {
+        minX = math.min(minX, p.dx);
+        maxX = math.max(maxX, p.dx);
+        minY = math.min(minY, p.dy);
+        maxY = math.max(maxY, p.dy);
       }
+      if (!bounds.overlaps(Rect.fromLTRB(minX, minY, maxX, maxY)) &&
+          !bounds.contains(Offset(minX, minY))) {
+        continue;
+      }
+
+      // Linie verdichten, damit die Schnittkante genau am Rand liegt.
+      final dense = <PointVector>[pts.first];
+      for (int i = 0; i < pts.length - 1; i++) {
+        final a = pts[i], b = pts[i + 1];
+        final n = ((b - a).distance / step).ceil();
+        for (int k = 1; k < n; k++) {
+          final t = k / n;
+          dense.add(
+            PointVector(
+              a.dx + (b.dx - a.dx) * t,
+              a.dy + (b.dy - a.dy) * t,
+              a.pressure == null || b.pressure == null
+                  ? null
+                  : a.pressure! + (b.pressure! - a.pressure!) * t,
+            ),
+          );
+        }
+        dense.add(b);
+      }
+
+      final inside = [for (final p in dense) path.contains(Offset(p.dx, p.dy))];
+      if (inside.every((v) => !v)) continue;
+      if (inside.every((v) => v)) {
+        selectResult.strokes.add(stroke);
+        continue;
+      }
+
+      final insideRuns = <List<PointVector>>[];
+      final outsideRuns = <List<PointVector>>[];
+      var current = <PointVector>[dense.first];
+      for (int i = 1; i < dense.length; i++) {
+        if (inside[i] == inside[i - 1]) {
+          current.add(dense[i]);
+        } else {
+          (inside[i - 1] ? insideRuns : outsideRuns).add(current);
+          // Anschlusspunkt doppelt, damit keine Lücke entsteht.
+          current = [dense[i - 1], dense[i]];
+        }
+      }
+      (inside.last ? insideRuns : outsideRuns).add(current);
+
+      final insidePieces = [
+        for (final run in insideRuns)
+          if (run.length >= 2) stroke.piece(run),
+      ];
+      final outsidePieces = [
+        for (final run in outsideRuns)
+          if (run.length >= 2) stroke.piece(run),
+      ];
+      selectResult.strokes.addAll(insidePieces);
+      result.add((stroke, insidePieces, outsidePieces));
     }
+    return result;
   }
 
   static double rectPercentInside(Path selection, Rect rect) {

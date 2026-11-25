@@ -20,6 +20,7 @@ class CanvasImageDialog extends StatefulWidget {
     required this.redrawImage,
     required this.isBackground,
     required this.toggleAsBackground,
+    this.chooseTarget,
     this.singleRow = false,
   });
 
@@ -29,6 +30,9 @@ class CanvasImageDialog extends StatefulWidget {
 
   final bool isBackground;
   final VoidCallback? toggleAsBackground;
+
+  /// Ziel per Antippen wählen (andere Seite oder genaue Stelle).
+  final VoidCallback? chooseTarget;
 
   final bool singleRow;
 
@@ -138,6 +142,15 @@ class _CanvasImageDialogState extends State<CanvasImageDialog> {
           cupertinoIcon: CupertinoIcons.photo_fill_on_rectangle_fill,
         ),
       ),
+      if (widget.chooseTarget != null)
+        _CanvasImageDialogItem(
+          onTap: () {
+            Navigator.of(context).pop();
+            widget.chooseTarget!.call();
+          },
+          title: 'Ziel antippen',
+          child: const Icon(Icons.ads_click),
+        ),
       _CanvasImageDialogItem(
         onTap: () {
           widget.image.onDeleteImage?.call(widget.image);

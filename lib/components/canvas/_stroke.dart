@@ -384,6 +384,17 @@ class Stroke {
     ];
   }
 
+  /// Neuer Strich mit denselben Eigenschaften, aber nur den Punkten [run].
+  Stroke piece(List<PointVector> run) => Stroke(
+    color: color,
+    pressureEnabled: pressureEnabled,
+    options: options.copyWith(),
+    pageIndex: pageIndex,
+    page: page,
+    toolId: toolId,
+    nibAngle: nibAngle,
+  )..points.addAll(run);
+
   /// Returns a list with every Nth point in [points].
   static List<PointVector> skipPoints(List<PointVector> points, int N) {
     // Nothing is being skipped, just return [points].

@@ -174,9 +174,16 @@ class const HistoricDelete({
 class const HistoricReplace({
   required final List<Stroke> removed,
   required final List<Stroke> added,
+  final List<EditorImage> removedImages = const [],
+  final List<EditorImage> addedImages = const [],
 }) extends Historic {
   @override
-  HistoricReplace reverse() => .new(removed: added, added: removed);
+  HistoricReplace reverse() => .new(
+    removed: added,
+    added: removed,
+    removedImages: addedImages,
+    addedImages: removedImages,
+  );
 }
 
 /// A stroke or image was moved.

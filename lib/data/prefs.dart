@@ -189,7 +189,7 @@ class Stows {
 
   final maxImageSize = PlainStow<double>(
     'maxImageSize',
-    1000,
+    2000,
     volatile: !_isOnMainIsolate,
   );
 

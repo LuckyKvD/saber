@@ -1,10 +1,14 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:defer_pointer/defer_pointer.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:saber/components/canvas/canvas_image_dialog.dart';
+import 'package:saber/components/canvas/guide_tools.dart';
 import 'package:saber/components/canvas/image/editor_image.dart';
+import 'package:saber/components/canvas/image/image_clip.dart';
 import 'package:saber/components/theming/adaptive_alert_dialog.dart';
 import 'package:saber/data/extensions/change_notifier_extensions.dart';
 import 'package:saber/data/prefs.dart';
@@ -20,6 +24,7 @@ class CanvasImage extends StatefulHookWidget {
     this.isBackground = false,
     this.readOnly = false,
     this.selected = false,
+    this.acceptStylus = true,
   }) : super(key: Key('CanvasImage$filePath/${image.id}'));
 
   /// The path to the note that this image is in.
@@ -31,6 +36,10 @@ class CanvasImage extends StatefulHookWidget {
   final bool isBackground;
   final bool readOnly;
   final bool selected;
+
+  /// Reagiert das Foto auf den Stift? Nur mit dem Lasso-Werkzeug; sonst
+  /// schreibt der Stift über das Foto.
+  final bool acceptStylus;
 
   /// When notified, all [CanvasImages] will have their [active] property set to false.
   static var activeListener = ChangeNotifier();
@@ -74,6 +83,59 @@ class _CanvasImageState extends State<CanvasImage> {
   Rect panStartRect = .zero;
   Offset panStartPosition = .zero;
 
+  // Beim Ziehen liegt das Foto in einer Ebene über allen Seiten,
+  // damit es auch über die Seitengrenze hinweg sichtbar bleibt.
+  OverlayEntry? _dragEntry;
+  Offset _dragCenter = Offset.zero;
+  Offset _dragGrab = Offset.zero;
+  Size _dragSize = Size.zero;
+  double _dragScale = 1;
+  Widget? _dragContent;
+
+  void _startDragOverlay(DragStartDetails details) {
+    final box = context.findRenderObject() as RenderBox?;
+    final overlay = Overlay.maybeOf(context);
+    if (box == null || overlay == null) return;
+    final origin = box.localToGlobal(Offset.zero);
+    final unit = box.localToGlobal(const Offset(1, 0)) - origin;
+    _dragScale = unit.dx;
+    final center = box.localToGlobal(box.size.center(Offset.zero));
+    _dragCenter = center;
+    _dragGrab = center - details.globalPosition;
+    _dragSize = widget.image.dstRect.size;
+    _dragEntry = OverlayEntry(
+      builder: (context) {
+        final w = _dragSize.width, h = _dragSize.height;
+        return Positioned(
+          left: _dragCenter.dx - w * _dragScale / 2,
+          top: _dragCenter.dy - h * _dragScale / 2,
+          width: w * _dragScale,
+          height: h * _dragScale,
+          child: IgnorePointer(
+            child: FittedBox(
+              fit: BoxFit.fill,
+              child: SizedBox(width: w, height: h, child: _dragContent),
+            ),
+          ),
+        );
+      },
+    );
+    overlay.insert(_dragEntry!);
+  }
+
+  void _updateDragOverlay(DragUpdateDetails details) {
+    if (_dragEntry == null) return;
+    _dragCenter = details.globalPosition + _dragGrab;
+    _dragEntry!.markNeedsBuild();
+  }
+
+  void _endDragOverlay() {
+    _dragEntry?.remove();
+    _dragEntry?.dispose();
+    _dragEntry = null;
+    if (mounted) setState(() {});
+  }
+
   @override
   void initState() {
     widget.image.loadIn();
@@ -115,59 +177,12 @@ class _CanvasImageState extends State<CanvasImage> {
         children: [
           MouseRegion(
             cursor: active ? SystemMouseCursors.grab : MouseCursor.defer,
-            child: GestureDetector(
+            child: Listener(
               behavior: HitTestBehavior.opaque,
-              onTap: () {
-                active = !active;
-              },
-              onLongPress: active ? showModal : null,
-              onSecondaryTap: active ? showModal : null,
-              onPanStart: active
-                  ? (details) {
-                      panStartRect = widget.image.dstRect;
-                    }
-                  : null,
-              onPanUpdate: active
-                  ? (details) {
-                      setState(() {
-                        final fivePercent = min(
-                          widget.pageSize.width * 0.05,
-                          widget.pageSize.height * 0.05,
-                        );
-                        widget.image.dstRect = .fromLTWH(
-                          (widget.image.dstRect.left + details.delta.dx)
-                              .clamp(
-                                fivePercent - widget.image.dstRect.width,
-                                widget.pageSize.width - fivePercent,
-                              )
-                              .toDouble(),
-                          (widget.image.dstRect.top + details.delta.dy)
-                              .clamp(
-                                fivePercent - widget.image.dstRect.height,
-                                widget.pageSize.height - fivePercent,
-                              )
-                              .toDouble(),
-                          widget.image.dstRect.width,
-                          widget.image.dstRect.height,
-                        );
-                      });
-                    }
-                  : null,
-              onPanEnd: active
-                  ? (details) {
-                      if (panStartRect == widget.image.dstRect) return;
-                      widget.image.onMoveImage?.call(
-                        widget.image,
-                        .fromLTRB(
-                          widget.image.dstRect.left - panStartRect.left,
-                          widget.image.dstRect.top - panStartRect.top,
-                          widget.image.dstRect.right - panStartRect.right,
-                          widget.image.dstRect.bottom - panStartRect.bottom,
-                        ),
-                      );
-                      panStartRect = .zero;
-                    }
-                  : null,
+              onPointerDown: _onPointerDown,
+              onPointerMove: _onPointerMove,
+              onPointerUp: _onPointerUp,
+              onPointerCancel: _onPointerCancel,
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   border: Border.all(
@@ -175,34 +190,7 @@ class _CanvasImageState extends State<CanvasImage> {
                     width: 2,
                   ),
                 ),
-                child: Center(
-                  child: SizedBox(
-                    width: widget.isBackground
-                        ? widget.pageSize.width
-                        : max(
-                            widget.image.dstRect.width,
-                            CanvasImage.minImageSize,
-                          ),
-                    height: widget.isBackground
-                        ? widget.pageSize.height
-                        : max(
-                            widget.image.dstRect.height,
-                            CanvasImage.minImageSize,
-                          ),
-                    child: SizedOverflowBox(
-                      size: widget.image.srcRect.size,
-                      child: Transform.translate(
-                        offset: -widget.image.srcRect.topLeft,
-                        child: widget.image.buildImageWidget(
-                          context: context,
-                          overrideBoxFit: widget.overrideBoxFit,
-                          isBackground: widget.isBackground,
-                          invert: imageBrightness == .dark,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
+                child: Center(child: _buildContent(context)),
               ),
             ),
           ),
@@ -219,6 +207,12 @@ class _CanvasImageState extends State<CanvasImage> {
                     parent: this,
                     afterDrag: () => setState(() {}),
                   ),
+          if (!widget.readOnly && !widget.isBackground)
+            _CanvasImageRotateHandle(
+              active: active,
+              image: widget.image,
+              parent: this,
+            ),
         ],
       ),
     );
@@ -246,12 +240,245 @@ class _CanvasImageState extends State<CanvasImage> {
       width: max(widget.image.dstRect.width, CanvasImage.minInteractiveSize),
       height: max(widget.image.dstRect.height, CanvasImage.minInteractiveSize),
 
-      child: unpositioned,
+      child: widget.image.angle == 0
+          ? unpositioned
+          : Transform.rotate(angle: widget.image.angle, child: unpositioned),
     );
+  }
+
+  // Bedienung nur mit Stift (mit dem Lasso-Werkzeug) oder Maus.
+  // Der Finger scrollt die Seite und beruehrt das Foto nicht.
+  int? _pointer;
+  Offset _downPosition = Offset.zero;
+  bool _moved = false;
+  bool _longPressed = false;
+  bool _grabbed = false;
+  Timer? _longPressTimer;
+
+  bool _accepts(PointerEvent event) {
+    switch (event.kind) {
+      case PointerDeviceKind.mouse:
+        return true;
+      case PointerDeviceKind.stylus:
+      case PointerDeviceKind.invertedStylus:
+        return widget.acceptStylus;
+      default:
+        return false;
+    }
+  }
+
+  void _releaseGrab() {
+    if (_grabbed) {
+      _grabbed = false;
+      Guides.grabbing = false;
+    }
+  }
+
+  void _onPointerDown(PointerDownEvent event) {
+    if (widget.readOnly || _pointer != null || !_accepts(event)) return;
+    _pointer = event.pointer;
+    _downPosition = event.position;
+    _moved = false;
+    _longPressed = false;
+    if (event.kind == PointerDeviceKind.mouse &&
+        (event.buttons & kSecondaryMouseButton) != 0) {
+      if (active) showModal();
+      _pointer = null;
+      return;
+    }
+    if (active) {
+      // Seite nicht mitscrollen, Lasso nicht starten: das Foto wird gezogen.
+      _grabbed = true;
+      Guides.grabbing = true;
+      _longPressTimer = Timer(const Duration(milliseconds: 600), () {
+        if (_pointer == null || _moved) return;
+        _longPressed = true;
+        _releaseGrab();
+        showModal();
+      });
+    }
+  }
+
+  void _onPointerMove(PointerMoveEvent event) {
+    if (event.pointer != _pointer || _longPressed) return;
+    if (!_moved) {
+      if ((event.position - _downPosition).distance < 6) return;
+      _moved = true;
+      _longPressTimer?.cancel();
+      if (!active) return; // Lasso laeuft ganz normal weiter
+      _onPanStart(DragStartDetails(globalPosition: _downPosition));
+      _onPanUpdate(
+        DragUpdateDetails(
+          globalPosition: event.position,
+          delta: event.position - _downPosition,
+        ),
+      );
+      return;
+    }
+    if (!active || panStartRect == Rect.zero) return;
+    _onPanUpdate(
+      DragUpdateDetails(globalPosition: event.position, delta: event.delta),
+    );
+  }
+
+  void _onPointerUp(PointerUpEvent event) {
+    if (event.pointer != _pointer) return;
+    _pointer = null;
+    _longPressTimer?.cancel();
+    final wasMoved = _moved;
+    final wasLong = _longPressed;
+    _releaseGrab();
+    if (wasLong) return;
+    if (wasMoved) {
+      if (active && panStartRect != Rect.zero) {
+        _onPanEnd(DragEndDetails());
+      }
+    } else {
+      active = !active;
+    }
+  }
+
+  void _onPointerCancel(PointerCancelEvent event) {
+    if (event.pointer != _pointer) return;
+    _pointer = null;
+    _longPressTimer?.cancel();
+    _releaseGrab();
+    if (_moved && panStartRect != Rect.zero) _endDragOverlay();
+    panStartRect = .zero;
+  }
+
+  void _onPanStart(DragStartDetails details) {
+    panStartRect = widget.image.dstRect;
+    _startDragOverlay(details);
+    if (_dragEntry != null) setState(() {});
+  }
+
+  void _onPanUpdate(DragUpdateDetails details) {
+    // Bei gedrehtem Foto liegt die Geste im gedrehten Koordinatensystem.
+    final a = widget.image.angle;
+    final zoom = _dragScale <= 0 ? 1.0 : _dragScale;
+    final gx = details.delta.dx / zoom, gy = details.delta.dy / zoom;
+    final delta = Offset(
+      gx * cos(a) - gy * sin(a),
+      gx * sin(a) + gy * cos(a),
+    );
+    setState(() {
+      final fivePercent = min(
+        widget.pageSize.width * 0.05,
+        widget.pageSize.height * 0.05,
+      );
+      final r = widget.image.dstRect;
+      // Auch über den Seitenrand hinaus ziehbar: beim Loslassen wechselt
+      // das Foto auf die Nachbarseite.
+      widget.image.dstRect = .fromLTWH(
+        (r.left + delta.dx)
+            .clamp(fivePercent - r.width, widget.pageSize.width - fivePercent)
+            .toDouble(),
+        (r.top + delta.dy)
+            .clamp(-r.height - widget.pageSize.height, widget.pageSize.height * 2)
+            .toDouble(),
+        r.width,
+        r.height,
+      );
+    });
+    _updateDragOverlay(details);
+  }
+
+  void _onPanEnd(DragEndDetails details) {
+    _endDragOverlay();
+    if (panStartRect == widget.image.dstRect) {
+      panStartRect = .zero;
+      return;
+    }
+    if (EditorImage.dropHandler?.call(widget.image, panStartRect) ?? false) {
+      panStartRect = .zero;
+      return;
+    }
+    widget.image.onMoveImage?.call(
+      widget.image,
+      .fromLTRB(
+        widget.image.dstRect.left - panStartRect.left,
+        widget.image.dstRect.top - panStartRect.top,
+        widget.image.dstRect.right - panStartRect.right,
+        widget.image.dstRect.bottom - panStartRect.bottom,
+      ),
+    );
+    panStartRect = .zero;
+  }
+
+  /// Foto samt Zuschnitt (Rahmen) und Lasso-Schnittebenen.
+  Widget _buildContent(BuildContext context) {
+    final image = widget.image;
+    final frameW = widget.isBackground
+        ? widget.pageSize.width
+        : max(image.dstRect.width, CanvasImage.minImageSize);
+    final frameH = widget.isBackground
+        ? widget.pageSize.height
+        : max(image.dstRect.height, CanvasImage.minImageSize);
+
+    Widget inner(double w, double h) => SizedBox(
+      width: w,
+      height: h,
+      child: SizedOverflowBox(
+        size: image.srcRect.size,
+        child: Transform.translate(
+          offset: -image.srcRect.topLeft,
+          child: image.buildImageWidget(
+            context: context,
+            overrideBoxFit: widget.overrideBoxFit,
+            isBackground: widget.isBackground,
+            invert: imageBrightness == .dark,
+          ),
+        ),
+      ),
+    );
+
+    final crop = image.crop;
+    final fullW = frameW / crop.width;
+    final fullH = frameH / crop.height;
+    Widget full = inner(fullW, fullH);
+    if (image.clip.isNotEmpty) {
+      full = ClipPath(
+        clipper: ImageClipper(image.clip, image.clipCache),
+        child: full,
+      );
+    }
+    final Widget content;
+    if (!image.isCropped) {
+      content = full;
+    } else {
+      content = SizedBox(
+        width: frameW,
+        height: frameH,
+        child: ClipRect(
+          child: OverflowBox(
+            alignment: Alignment.topLeft,
+            minWidth: fullW,
+            maxWidth: fullW,
+            minHeight: fullH,
+            maxHeight: fullH,
+            child: Transform.translate(
+              offset: Offset(-crop.left * fullW, -crop.top * fullH),
+              child: full,
+            ),
+          ),
+        ),
+      );
+    }
+    _dragContent = image.angle == 0
+        ? content
+        : Transform.rotate(angle: image.angle, child: content);
+    // Während des Ziehens zeigt die Überlagerung das Foto, nicht die Seite.
+    return Opacity(opacity: _dragEntry != null ? 0 : 1, child: content);
   }
 
   @override
   void dispose() {
+    _longPressTimer?.cancel();
+    _releaseGrab();
+    _dragEntry?.remove();
+    _dragEntry?.dispose();
+    _dragEntry = null;
     widget.image.loadOut();
     CanvasImage.activeListener.removeListener(disableActive);
     super.dispose();
@@ -271,6 +498,7 @@ class _CanvasImageState extends State<CanvasImage> {
             toggleAsBackground: () {
               widget.setAsBackground?.call(widget.image);
             },
+            chooseTarget: () => EditorImage.targetHandler?.call(widget.image),
           ),
           actions: const [],
         );
@@ -411,6 +639,63 @@ class _CanvasImageResizeHandle extends StatelessWidget {
                   border: Border.all(color: colorScheme.surface, width: 2),
                 ),
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Drehknopf oberhalb des aktiven Fotos.
+class _CanvasImageRotateHandle extends StatelessWidget {
+  const new({
+    required this.active,
+    required this.image,
+    required this.parent,
+  });
+
+  final bool active;
+  final EditorImage image;
+  final _CanvasImageState parent;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = ColorScheme.of(context);
+    return Positioned(
+      left: image.dstRect.width / 2 - 20,
+      top: -64,
+      child: DeferPointer(
+        paintOnTop: true,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onPanUpdate: active
+              ? (details) {
+                  final box = parent.context.findRenderObject() as RenderBox?;
+                  if (box == null) return;
+                  final center = box.localToGlobal(box.size.center(Offset.zero));
+                  var a = (details.globalPosition - center).direction + pi / 2;
+                  // leichtes Einrasten bei Vielfachen von 15 Grad
+                  final deg = a * 180 / pi;
+                  final snapped = (deg / 15).roundToDouble() * 15;
+                  if ((deg - snapped).abs() < 3) a = snapped * pi / 180;
+                  image.angle = a;
+                  image.notifyListeners();
+                }
+              : null,
+          onPanEnd: active ? (details) => image.onMiscChange?.call() : null,
+          child: AnimatedOpacity(
+            opacity: active ? 1 : 0,
+            duration: const Duration(milliseconds: 100),
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: colorScheme.onSurface,
+                shape: .circle,
+                border: Border.all(color: colorScheme.surface, width: 2),
+              ),
+              child: Icon(Icons.rotate_right, color: colorScheme.surface, size: 24),
             ),
           ),
         ),
