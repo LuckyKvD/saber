@@ -25,7 +25,7 @@ class RenameFolderButton extends StatelessWidget {
         showDialog(
           context: context,
           builder: (BuildContext context) {
-            return _RenameFolderDialog(
+            return RenameFolderDialog(
               folderName: folderName,
               doesFolderExist: doesFolderExist,
               renameFolder: renameFolder,
@@ -38,7 +38,7 @@ class RenameFolderButton extends StatelessWidget {
   }
 }
 
-class _RenameFolderDialog extends StatefulWidget {
+class RenameFolderDialog extends StatefulWidget {
   const new({
     required this.folderName,
     required this.doesFolderExist,
@@ -50,10 +50,10 @@ class _RenameFolderDialog extends StatefulWidget {
   final Future<void> Function(String newName) renameFolder;
 
   @override
-  State<_RenameFolderDialog> createState() => _RenameFolderDialogState();
+  State<RenameFolderDialog> createState() => RenameFolderDialogState();
 }
 
-class _RenameFolderDialogState extends State<_RenameFolderDialog> {
+class RenameFolderDialogState extends State<RenameFolderDialog> {
   final _formKey = GlobalKey<FormState>();
   final _controller = TextEditingController();
 

@@ -242,7 +242,7 @@ class const App({super.key}) extends StatefulWidget {
   static final log = Logger('App');
 
   static String initialLocation = pathToFunction(RoutePaths.home)({
-    'subpage': HomePage.recentSubpage,
+    'subpage': HomePage.browseSubpage,
   });
   static final _router = GoRouter(
     initialLocation: initialLocation,
@@ -251,7 +251,7 @@ class const App({super.key}) extends StatefulWidget {
       GoRoute(
         path: RoutePaths.home,
         builder: (context, state) => HomePage(
-          subpage: state.pathParameters['subpage'] ?? HomePage.recentSubpage,
+          subpage: state.pathParameters['subpage'] ?? HomePage.browseSubpage,
           path: state.uri.queryParameters['path'],
         ),
       ),

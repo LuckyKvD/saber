@@ -23,7 +23,7 @@ class DeleteFolderButton extends StatelessWidget {
       onPressed: () async {
         await showDialog(
           context: context,
-          builder: (context) => _DeleteFolderDialog(
+          builder: (context) => DeleteFolderDialog(
             folderName: folderName,
             deleteFolder: deleteFolder,
             isFolderEmpty: isFolderEmpty,
@@ -35,7 +35,7 @@ class DeleteFolderButton extends StatelessWidget {
   }
 }
 
-class _DeleteFolderDialog extends StatefulWidget {
+class DeleteFolderDialog extends StatefulWidget {
   const new({
     required this.folderName,
     required this.deleteFolder,
@@ -47,10 +47,10 @@ class _DeleteFolderDialog extends StatefulWidget {
   final Future<bool> Function(String) isFolderEmpty;
 
   @override
-  State<_DeleteFolderDialog> createState() => _DeleteFolderDialogState();
+  State<DeleteFolderDialog> createState() => DeleteFolderDialogState();
 }
 
-class _DeleteFolderDialogState extends State<_DeleteFolderDialog> {
+class DeleteFolderDialogState extends State<DeleteFolderDialog> {
   var isFolderEmpty = false;
   var alsoDeleteContents = false;
 

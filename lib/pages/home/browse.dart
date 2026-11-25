@@ -20,6 +20,7 @@ import 'package:saber/components/home/sort_button.dart';
 import 'package:saber/components/home/syncing_button.dart';
 import 'package:saber/components/shelf/cover_dialogs.dart';
 import 'package:saber/components/shelf/shelf_files.dart';
+import 'package:saber/components/shelf/shelf_tabs.dart';
 import 'package:saber/components/theming/saber_theme.dart';
 import 'package:saber/data/file_manager/file_manager.dart';
 import 'package:saber/data/prefs.dart';
@@ -40,6 +41,9 @@ class BrowsePage extends StatefulHookWidget {
 
 class _BrowsePageState extends State<BrowsePage> {
   DirectoryChildren? children;
+
+  /// Ordner der obersten Ebene = Regal-Schilder
+  List<String> rootFolders = [];
 
   String? path;
 
@@ -89,6 +93,13 @@ class _BrowsePageState extends State<BrowsePage> {
           sortMetric: stows.browseSortMetric.value,
         );
 
+    if (path == null || path!.isEmpty) {
+      rootFolders = [...?children?.directories];
+    } else {
+      final root = await FileManager.getChildrenOfDirectory('/');
+      rootFolders = [...?root?.directories];
+    }
+
     if (mounted) setState(() {});
   }
 
@@ -112,6 +123,50 @@ class _BrowsePageState extends State<BrowsePage> {
     path = newPath;
     context.go(HomeRoutes.browseFilePath(path ?? '/'));
     findChildrenOfPath();
+  }
+
+  /// Name des gewählten Regals (erste Pfadebene), `null` = Hauptregal.
+  String? get selectedShelf {
+    final parts = (path ?? '').split('/').where((s) => s.isNotEmpty);
+    return parts.isEmpty ? null : parts.first;
+  }
+
+  bool get isDeeperThanShelf =>
+      (path ?? '').split('/').where((s) => s.isNotEmpty).length > 1;
+
+  void selectShelf(String? folder) {
+    selectedFiles.value = [];
+    path = folder == null ? null : '/$folder';
+    context.go(HomeRoutes.browseFilePath(path ?? '/'));
+    findChildrenOfPath();
+  }
+
+  Future<void> createShelf(String folderName) async {
+    await FileManager.createFolder('/$folderName');
+    selectShelf(folderName);
+  }
+
+  Future<void> renameShelf(String oldName, String newName) async {
+    await FileManager.renameDirectory('/$oldName', newName);
+    if (selectedShelf == oldName) {
+      selectShelf(newName);
+    } else {
+      findChildrenOfPath();
+    }
+  }
+
+  Future<void> deleteShelf(String name) async {
+    await FileManager.deleteDirectory('/$name');
+    if (selectedShelf == name) {
+      selectShelf(null);
+    } else {
+      findChildrenOfPath();
+    }
+  }
+
+  Future<bool> isShelfEmpty(String name) async {
+    final c = await FileManager.getChildrenOfDirectory('/$name');
+    return c?.isEmpty ?? true;
   }
 
   Future<void> createFolder(String folderName) async {
@@ -138,7 +193,7 @@ class _BrowsePageState extends State<BrowsePage> {
             scrolledUnderElevation: 1,
             flexibleSpace: FlexibleSpaceBar(
               title: Text(
-                t.home.titles.browse,
+                t.home.titles.home,
                 style: TextStyle(color: colorScheme.onSurface),
               ),
               centerTitle: false,
@@ -154,10 +209,27 @@ class _BrowsePageState extends State<BrowsePage> {
             ],
           ),
           SliverToBoxAdapter(
-            child: PathComponents(path, onPathComponentTap: onPathComponentTap),
+            child: ShelfTabs(
+              folders: rootFolders,
+              selected: selectedShelf,
+              onSelect: selectShelf,
+              createFolder: createShelf,
+              renameFolder: renameShelf,
+              deleteFolder: deleteShelf,
+              isFolderEmpty: isShelfEmpty,
+            ),
           ),
+          // Nur für ältere, tiefer verschachtelte Ordner
+          if (isDeeperThanShelf)
+            SliverToBoxAdapter(
+              child: PathComponents(
+                path,
+                onPathComponentTap: onPathComponentTap,
+              ),
+            ),
           const SliverToBoxAdapter(child: LocalMigrationStatus()),
           const SliverPadding(padding: .only(bottom: 16)),
+          if (path != null && (children?.directories.isNotEmpty ?? false))
           GridFolders(
             isAtRoot: path?.isEmpty ?? true,
             crossAxisCount: crossAxisCount,

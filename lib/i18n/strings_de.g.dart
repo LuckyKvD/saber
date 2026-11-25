@@ -255,7 +255,7 @@ class _Translations$home$titles$de extends Translations$home$titles$en {
 	final TranslationsDe _root; // ignore: unused_field
 
 	// Translations
-	@override String get home => 'Letzte Notizen';
+	@override String get home => 'Mein Regal';
 	@override String get browse => 'Durchsuchen';
 	@override String get whiteboard => 'Whiteboard';
 	@override String get settings => 'Einstellungen';
