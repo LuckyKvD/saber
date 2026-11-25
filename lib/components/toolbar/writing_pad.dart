@@ -1,456 +1,239 @@
-import 'dart:math' as math;
-
 import 'package:flutter/gestures.dart';
 import 'package:material_ui/material_ui.dart';
-import 'package:perfect_freehand/perfect_freehand.dart';
-import 'package:saber/components/canvas/_stroke.dart';
+import 'package:saber/components/canvas/_canvas_background_painter.dart';
+import 'package:saber/components/canvas/_canvas_painter.dart';
+import 'package:saber/components/canvas/inner_canvas.dart';
 import 'package:saber/components/toolbar/writing_pad_guide.dart';
+import 'package:saber/data/editor/editor_core_info.dart';
 import 'package:saber/data/editor/page.dart';
+import 'package:saber/data/extensions/color_extensions.dart';
 import 'package:saber/data/prefs.dart';
-import 'package:stow/stow.dart';
+import 'package:saber/data/pressure_curve.dart';
 import 'package:saber/data/tools/pen.dart';
+import 'package:sbn/canvas_background_pattern.dart';
 
-/// Schreibfeld (Easy-Writing): Du schreibst groß in das Feld, die Schrift
-/// erscheint verkleinert als normale Handschrift in der Notiz.
-///
-/// Zuordnung: Ein Punkt im Feld (vx, py) landet in der Notiz bei
-/// x = Rand + (vx - lineStartV) * scale, y = lineY + py * scale.
-/// "vx" ist die waagerechte Position im endlos nach rechts laufenden Feld.
+/// Schreibfeld (Easy-Writing) nach dem Vorbild von Samsung Notes:
+/// Das Feld ist eine Lupe auf das echte Blatt. Der blaue Rahmen auf dem Blatt
+/// zeigt, welcher Ausschnitt im Feld vergrößert erscheint. Was du im Feld
+/// schreibst, entsteht direkt im Blatt (mit der echten Stiftdicke).
 class WritingPad extends StatefulWidget {
   const new({
     super.key,
-    required this.pen,
-    required this.pages,
-    required this.startPageIndex,
-    required this.ensurePage,
-    required this.addStroke,
-    required this.undo,
-    required this.close,
     required this.controller,
-    required this.owner,
-    required this.onGuideChanged,
-    required this.cell,
+    required this.coreInfo,
+    required this.enabled,
+    required this.onStrokeStart,
+    required this.onStrokeUpdate,
+    required this.onStrokeEnd,
   });
 
-  /// Stift, dessen Farbe und Dicke verwendet werden.
-  final Pen pen;
-  final List<EditorPage> pages;
-  final int startPageIndex;
-
-  /// Legt Seiten bis einschließlich [pageIndex] an (plus eine leere Seite).
-  final void Function(int pageIndex) ensurePage;
-
-  /// Fügt einen fertigen Strich in die Notiz ein (mit Rückgängig-Verlauf).
-  final void Function(Stroke stroke) addStroke;
-  final VoidCallback undo;
-  final VoidCallback close;
   final WritingPadController controller;
+  final EditorCoreInfo coreInfo;
 
-  /// Notiz, zu der das Schreibfeld gehört (für den Rahmen auf dem Blatt).
-  final Object owner;
+  /// false bei schreibgeschützten Notizen.
+  final bool enabled;
 
-  /// Kästchengröße (Zeilenhöhe) der Notiz in Notiz-Einheiten.
-  final double cell;
-
-  /// Der Rahmen auf dem Blatt hat sich bewegt: Seite neu zeichnen.
-  final VoidCallback onGuideChanged;
+  /// Strich beginnt: Seite, Position in Seitenkoordinaten, Druck (0 bis 1).
+  final void Function(int pageIndex, Offset position, double? pressure)
+  onStrokeStart;
+  final void Function(Offset position, double? pressure) onStrokeUpdate;
+  final VoidCallback onStrokeEnd;
 
   @override
   State<WritingPad> createState() => _WritingPadState();
 }
 
 class _WritingPadState extends State<WritingPad> {
-  static const _noteMargin = 40.0;
+  static const _barHeight = 44.0;
 
-  late int pageIndex;
-  double lineY = _noteMargin;
-  double lineStartV = 0;
+  int? _pointer;
+  Offset _lastPagePosition = Offset.zero;
+  double _padWidth = 0;
+  double _padHeight = 0;
 
-  /// Linker Rand der Zeile in der Notiz (per Tipp oder Pfeil verschiebbar).
-  double startX = _noteMargin;
+  /// Lage der Umbruch-Marke in Prozent der Feldbreite (bleibt gespeichert).
+  late double _marker = stows.easyWritingMarker.value / 100;
 
-  /// Waagerechter Versatz der Ansicht im endlosen Feld.
-  double viewX = 0;
+  WritingPadController get c => widget.controller;
 
-  /// Striche der aktuellen Zeile im Feld (virtuelle Koordinaten).
-  final padStrokes = <Stroke>[];
-  Stroke? currentPadStroke;
-  List<(Offset, double?)> currentRaw = [];
+  double get _zoom => _padWidth <= 0 ? 1 : _padWidth / c.width;
 
-  /// Eingefügte Striche der aktuellen Zeile (für das Rückgängig im Feld).
-  double padWidth = 600;
-  double padHeight = 200;
-
-  double get cell => math.max(10, widget.cell);
-
-  /// Höhe einer Schreibzeile in Kästchen (1 bis 3).
-  int get cells => stows.easyWritingCells.value;
-
-  /// Verkleinerung: das Feld ([padHeight] hoch) entspricht genau [cells] Kästchen.
-  double get scale => _lineHeight / padHeight;
-
-  /// Kleiner Leerraum links, damit Striche links vom ersten Strich im Rahmen bleiben.
-  double get _slackV => padWidth * 0.03;
-
-  @override
-  void initState() {
-    super.initState();
-    pageIndex = widget.startPageIndex.clamp(0, widget.pages.length - 1);
-    lineY = _firstFreeY(pageIndex);
-    widget.controller.addListener(_onController);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _publishGuide());
-  }
-
-  @override
-  void dispose() {
-    widget.controller.removeListener(_onController);
-    widget.controller.disarm();
-    WritingPadGuide.clear();
-    super.dispose();
-  }
-
-  void _onController() {
-    final c = widget.controller;
-    final target = c.target;
-    if (target != null && c.targetPage != null) {
-      pageIndex = c.targetPage!.clamp(0, widget.pages.length - 1);
-      final page = widget.pages[pageIndex];
-      startX = target.dx.clamp(0, page.size.width - 200).toDouble();
-      lineY = _snapY(
-        (target.dy - _lineHeight / 2).clamp(0, page.size.height - _lineHeight),
-      );
-      padStrokes.clear();
-      lineStartV = viewX;
-      c.target = null;
-      c.targetPage = null;
-    }
-    final delta = c.moveDelta;
-    if (delta != null) {
-      final page = widget.pages[pageIndex];
-      startX = (startX + delta.dx).clamp(0, page.size.width - 200).toDouble();
-      lineY = (lineY + delta.dy)
-          .clamp(0, page.size.height - _lineHeight)
-          .toDouble();
-      c.moveDelta = null;
-    }
-    _syncScale();
-    final page2 = widget.pages[pageIndex];
-    lineY = lineY.clamp(0, math.max(0, page2.size.height - _lineHeight)).toDouble();
-    if (c.snapRequested) {
-      c.snapRequested = false;
-      lineY = _snapY(lineY);
-    }
-    if (mounted) setState(() {});
-    _publishGuide();
-  }
-
-  /// Teilt der Seite mit, wo die nächste Zeile entsteht.
-  void _publishGuide() {
-    if (!mounted) return;
-    final page = widget.pages[pageIndex];
-    WritingPadGuide.owner = widget.owner;
-    WritingPadGuide.pageIndex = pageIndex;
-    WritingPadGuide.rect = Rect.fromLTWH(
-      startX - _slackV * scale,
-      lineY,
-      math.max(100, page.size.width - _noteMargin - startX),
-      _lineHeight,
-    ).inflate(3);
-    widget.onGuideChanged();
-  }
-
-  void _nudge(int cellsDown) {
-    setState(() {
-      final page = widget.pages[pageIndex];
-      lineY = (_snapY(lineY) + cellsDown * cell)
-          .clamp(0, page.size.height - _lineHeight)
-          .toDouble();
-    });
-    _publishGuide();
-  }
-
-  double _firstFreeY(int index) {
-    final page = widget.pages[index];
-    if (page.strokes.isEmpty) return _snapY(_noteMargin);
-    var maxY = 0.0;
-    for (final stroke in page.strokes) {
-      maxY = math.max(maxY, stroke.maxY);
-    }
-    return _snapY(maxY + cell * 0.5, up: true);
-  }
-
-  /// Rastet [y] auf das Kästchenraster der Notiz ein.
-  double _snapY(double y, {bool up = false}) {
-    final n = y / cell;
-    return (up ? n.ceil() : n.round()) * cell;
-  }
-
-  Offset _toNote(double vx, double py) => Offset(
-    startX + (vx - lineStartV) * scale,
-    lineY + py * scale,
-  );
-
-  double get _lineHeight => cells * cell;
-
-  /// Strichdicke im Schreibfeld (Bildschirmpunkte). Unabhängig von der Zeilenhöhe,
-  /// damit das Feld immer gleich aussieht.
-  double get _padStrokeWidth {
-    final base = switch (stows.easyWritingThickness.value) {
-      <= 25 => 3.0,
-      <= 45 => 4.5,
-      _ => 6.5,
-    };
-    return base * (widget.pen.options.size / 5).clamp(0.6, 2.0);
-  }
-
-  /// Strichoptionen: dünn und mit kaum Druckvarianz, damit kleine Schrift lesbar bleibt.
-  /// [size] ist die Strichdicke in der jeweiligen Zeichenfläche.
-  StrokeOptions _options(Pen pen, double size) {
-    final options = pen.options.copyWith(isComplete: true);
-    options.size = size;
-    options.thinning = math.min(pen.options.thinning, 0.05);
-    return options;
-  }
-
-  /// Ändert sich die Verkleinerung mitten in der Zeile (Höhe gewechselt oder
-  /// Rahmen aufgezogen), bleibt die bisherige Schrift unverändert stehen und
-  /// die nächste Schrift setzt genau dahinter an. Sonst entstünden Lücken.
-  double? _appliedScale;
-  double _inkEndV = 0;
-  void _syncScale() {
-    final now = scale;
-    final old = _appliedScale;
-    _appliedScale = now;
-    if (old == null || (old - now).abs() < 1e-9) return;
-    if (padStrokes.isNotEmpty) {
-      lineStartV = _inkEndV - (_inkEndV - lineStartV) * old / now;
-    }
-  }
-
-  void _newLine({double? startAtV}) {
-    setState(() {
-      padStrokes.clear();
-      lineY += _lineHeight;
-      final page = widget.pages[pageIndex];
-      if (lineY + _lineHeight > page.size.height - _noteMargin) {
-        pageIndex++;
-        widget.ensurePage(pageIndex);
-        lineY = _snapY(_noteMargin);
-      }
-      lineStartV = startAtV ?? (viewX + _slackV);
-    });
-    _publishGuide();
-  }
-
-  void _space() {
-    setState(() => viewX += padWidth * 0.12);
-  }
-
-  void _pointerDown(PointerDownEvent e) {
-    if (!_accepts(e.kind)) return;
-    _syncScale();
-    final vx = viewX + e.localPosition.dx;
-    final page = widget.pages[pageIndex];
-
-    if (padStrokes.isEmpty) {
-      // Erster Strich einer Zeile beginnt genau am linken Rand der Notiz.
-      lineStartV = vx - _slackV;
-    } else if (_toNote(vx, 0).dx > page.size.width - _noteMargin) {
-      _newLine(startAtV: vx - _slackV);
-    }
-
-    final pen = widget.pen;
-    currentRaw = [(Offset(vx, e.localPosition.dy), _pressure(e))];
-    currentPadStroke = Stroke(
-      color: pen.color,
-      pressureEnabled: pen.pressureEnabled,
-      options: _options(pen, _padStrokeWidth)..isComplete = false,
-      pageIndex: pageIndex,
-      page: widget.pages[pageIndex],
-      toolId: pen.toolId,
-    )..addPoint(Offset(vx, e.localPosition.dy), _pressure(e));
-    setState(() {});
-  }
-
-  void _pointerMove(PointerMoveEvent e) {
-    final stroke = currentPadStroke;
-    if (stroke == null) return;
-    final vx = viewX + e.localPosition.dx;
-    final p = Offset(vx, e.localPosition.dy.clamp(0, padHeight));
-    currentRaw.add((p, _pressure(e)));
-    stroke.addPoint(p, _pressure(e));
-    setState(() {});
-  }
-
-  void _pointerUp(PointerEvent e) {
-    final padStroke = currentPadStroke;
-    currentPadStroke = null;
-    if (padStroke == null) return;
-    final raw = currentRaw;
-    currentRaw = [];
-    if (raw.isEmpty) {
-      setState(() {});
-      return;
-    }
-
-    padStroke.options.isComplete = true;
-    padStroke.markPolygonNeedsUpdating();
-
-    // Verkleinerte Kopie in die Notiz einfügen.
-    final pen = widget.pen;
-    final noteStroke = Stroke(
-      color: pen.color,
-      pressureEnabled: pen.pressureEnabled,
-      options: _options(pen, math.max(0.7, _padStrokeWidth * scale)),
-      pageIndex: pageIndex,
-      page: widget.pages[pageIndex],
-      toolId: pen.toolId,
-    );
-    for (final (point, pressure) in raw) {
-      noteStroke.addPoint(_toNote(point.dx, point.dy), pressure);
-    }
-    if (!noteStroke.isEmpty) widget.addStroke(noteStroke);
-
-    padStrokes.add(padStroke);
-    _inkEndV = raw.last.$1.dx;
-
-    // Nähert sich die Schrift dem rechten Rand, läuft die Ansicht weiter.
-    final endLocalX = raw.last.$1.dx - viewX;
-    if (endLocalX > padWidth * 0.7) {
-      viewX = raw.last.$1.dx - padWidth * 0.25;
-    }
-    setState(() {});
+  Offset _toPage(Offset local) {
+    final x = local.dx.clamp(0, _padWidth).toDouble();
+    final y = local.dy.clamp(0, _padHeight).toDouble();
+    return Offset(c.left + x / _zoom, c.top + y / _zoom);
   }
 
   bool _accepts(PointerDeviceKind kind) {
+    if (!widget.enabled) return false;
     if (kind == PointerDeviceKind.stylus ||
         kind == PointerDeviceKind.invertedStylus ||
         kind == PointerDeviceKind.mouse) {
       return true;
     }
-    return kind == PointerDeviceKind.touch &&
-        stows.editorFingerDrawing.value;
+    return kind == PointerDeviceKind.touch && stows.editorFingerDrawing.value;
   }
 
   double? _pressure(PointerEvent e) {
-    if (e.kind != PointerDeviceKind.stylus) return null;
+    if (e.kind != PointerDeviceKind.stylus &&
+        e.kind != PointerDeviceKind.invertedStylus) {
+      return null;
+    }
     final range = e.pressureMax - e.pressureMin;
     if (range <= 0) return null;
-    return ((e.pressure - e.pressureMin) / range).clamp(0.0, 1.0);
+    final t = ((e.pressure - e.pressureMin) / range).clamp(0.0, 1.0);
+    return applyPressureCurve(t.toDouble());
   }
 
-  void _undo() {
-    widget.undo();
-    setState(() {
-      if (padStrokes.isNotEmpty) padStrokes.removeLast();
+  void _pointerDown(PointerDownEvent e) {
+    if (_pointer != null || !_accepts(e.kind)) return;
+    _pointer = e.pointer;
+    _lastPagePosition = _toPage(e.localPosition);
+    widget.onStrokeStart(c.pageIndex, _lastPagePosition, _pressure(e));
+  }
+
+  void _pointerMove(PointerMoveEvent e) {
+    if (e.pointer != _pointer) return;
+    _lastPagePosition = _toPage(e.localPosition);
+    widget.onStrokeUpdate(_lastPagePosition, _pressure(e));
+  }
+
+  void _pointerUp(PointerEvent e) {
+    if (e.pointer != _pointer) return;
+    _pointer = null;
+    widget.onStrokeEnd();
+    // Erst nach dem Strich weiterrücken, nie mittendrin (sonst springt die Schrift).
+    c.afterStroke(lastX: _lastPagePosition.dx, markerFraction: _marker);
+  }
+
+  /// Das Feld kennt seine Größe erst nach dem Layout; der Rahmen auf dem
+  /// Blatt muss genau diesem Seitenverhältnis folgen.
+  void _syncSize(double width, double height) {
+    if ((width - _padWidth).abs() < 0.5 && (height - _padHeight).abs() < 0.5) {
+      return;
+    }
+    _padWidth = width;
+    _padHeight = height;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _padWidth > 0) c.setAspect(_padHeight / _padWidth);
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = ColorScheme.of(context);
-    final height = math.min(240.0, MediaQuery.sizeOf(context).height * 0.3);
-    padHeight = height;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final brightness = theme.brightness;
+    final invert = stows.editorAutoInvert.value && brightness == Brightness.dark;
+    final invertColorScheme =
+        !stows.editorAutoInvert.value && brightness == Brightness.dark;
+
+    final pages = widget.coreInfo.pages;
+    final page = pages[c.pageIndex.clamp(0, pages.length - 1)];
+
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final padHeight = (screenWidth * 0.22).clamp(120.0, 230.0).toDouble();
 
     return Material(
       color: colorScheme.surfaceContainerHigh,
       child: SizedBox(
-        height: height + 44,
+        height: padHeight + _barHeight,
         child: Column(
           children: [
             SizedBox(
-              height: 44,
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    const SizedBox(width: 8),
-                    _chips(
-                      'Höhe (Kästchen)',
-                      stows.easyWritingCells,
-                      const [(1, '1'), (2, '2'), (3, '3'), (4, '4')],
-                    ),
-                    const SizedBox(width: 12),
-                    _chips(
-                      'Strich',
-                      stows.easyWritingThickness,
-                      const [(25, 'Fein'), (45, 'Mittel'), (70, 'Kräftig')],
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      tooltip: 'Ort wählen: danach in die Notiz tippen',
-                      isSelected: widget.controller.armed,
-                      onPressed: () => widget.controller.armed
-                          ? widget.controller.disarm()
-                          : widget.controller.arm(),
-                      icon: const Icon(Icons.ads_click),
-                    ),
-                    IconButton(
-                      tooltip: 'Zeile ein Kästchen nach oben',
-                      onPressed: () => _nudge(-1),
-                      icon: const Icon(Icons.arrow_upward),
-                    ),
-                    IconButton(
-                      tooltip: 'Zeile ein Kästchen nach unten',
-                      onPressed: () => _nudge(1),
-                      icon: const Icon(Icons.arrow_downward),
-                    ),
-                    IconButton(
-                      tooltip: 'Leerzeichen',
-                      onPressed: _space,
-                      icon: const Icon(Icons.space_bar),
-                    ),
-                    IconButton(
-                      tooltip: 'Neue Zeile',
-                      onPressed: () => _newLine(),
-                      icon: const Icon(Icons.keyboard_return),
-                    ),
-                    IconButton(
-                      tooltip: 'Rückgängig',
-                      onPressed: _undo,
-                      icon: const Icon(Icons.undo),
-                    ),
-                    IconButton(
-                      tooltip: 'Schreibfeld schließen',
-                      onPressed: widget.close,
-                      icon: const Icon(Icons.close),
-                    ),
-                  ],
-                ),
+              height: _barHeight,
+              child: Row(
+                children: [
+                  const SizedBox(width: 12),
+                  Icon(
+                    Icons.drag_indicator,
+                    size: 20,
+                    color: colorScheme.outline,
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    tooltip: 'Zurück',
+                    onPressed: () => c.shift(-1),
+                    icon: const Icon(Icons.chevron_left),
+                  ),
+                  IconButton(
+                    tooltip: 'Weiter',
+                    onPressed: () => c.shift(1),
+                    icon: const Icon(Icons.chevron_right),
+                  ),
+                  IconButton(
+                    tooltip: 'Neue Zeile',
+                    onPressed: c.newLine,
+                    icon: const Icon(Icons.keyboard_return),
+                  ),
+                  const SizedBox(width: 8),
+                ],
               ),
             ),
             Expanded(
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  padWidth = constraints.maxWidth;
-                  return Listener(
-                    behavior: HitTestBehavior.opaque,
-                    onPointerDown: _pointerDown,
-                    onPointerMove: _pointerMove,
-                    onPointerUp: _pointerUp,
-                    onPointerCancel: _pointerUp,
-                    child: ClipRect(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: colorScheme.surface,
-                          border: Border(
-                            top: BorderSide(color: colorScheme.outlineVariant),
-                          ),
-                        ),
-                        child: CustomPaint(
-                          size: Size.infinite,
-                          painter: _PadPainter(
-                            strokes: [
-                              ...padStrokes,
-                              if (currentPadStroke != null) currentPadStroke!,
-                            ],
-                            viewX: viewX,
-                            guide: colorScheme.outlineVariant,
-                            midLine: padHeight / 2,
+                  _syncSize(constraints.maxWidth, constraints.maxHeight);
+                  final markerX = _marker * constraints.maxWidth;
+                  return Stack(
+                    children: [
+                      Positioned.fill(
+                        child: Listener(
+                          behavior: HitTestBehavior.opaque,
+                          onPointerDown: _pointerDown,
+                          onPointerMove: _pointerMove,
+                          onPointerUp: _pointerUp,
+                          onPointerCancel: _pointerUp,
+                          child: ClipRect(
+                            child: CustomPaint(
+                              size: Size.infinite,
+                              painter: _LupePainter(
+                                controller: c,
+                                page: page,
+                                pageIndex: c.pageIndex,
+                                totalPages: pages.length,
+                                invert: invert,
+                                backgroundColor:
+                                    widget.coreInfo.backgroundColor ??
+                                    InnerCanvas.defaultBackgroundColor,
+                                pattern: widget.coreInfo.backgroundPattern,
+                                lineHeight: widget.coreInfo.lineHeight,
+                                lineThickness: widget.coreInfo.lineThickness,
+                                primaryColor: colorScheme.primary.withInversion(
+                                  invertColorScheme,
+                                ),
+                                secondaryColor: colorScheme.secondary
+                                    .withInversion(invertColorScheme),
+                                textStyle: theme.textTheme.bodyMedium!,
+                                markerX: markerX,
+                                markerColor: colorScheme.primary,
+                                divider: colorScheme.outlineVariant,
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
+                      // Umbruch-Marke: nach links/rechts schiebbar.
+                      Positioned(
+                        left: markerX - 22,
+                        top: 0,
+                        width: 44,
+                        height: 36,
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onHorizontalDragUpdate: (d) {
+                            final x = (_marker * _padWidth + d.delta.dx);
+                            setState(() {
+                              _marker = (x / _padWidth).clamp(0.4, 0.92).toDouble();
+                            });
+                          },
+                          onHorizontalDragEnd: (_) {
+                            stows.easyWritingMarker.value = (_marker * 100)
+                                .round();
+                          },
+                        ),
+                      ),
+                    ],
                   );
                 },
               ),
@@ -460,71 +243,117 @@ class _WritingPadState extends State<WritingPad> {
       ),
     );
   }
-
-  Widget _chips(String label, Stow<dynamic, int, dynamic> pref, List<(int, String)> options) {
-    return ListenableBuilder(
-      listenable: pref,
-      builder: (context, _) {
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(label, style: const TextStyle(fontSize: 12)),
-            const SizedBox(width: 6),
-            for (final (value, text) in options)
-              Padding(
-                padding: const EdgeInsets.only(right: 4),
-                child: ChoiceChip(
-                  label: Text(text),
-                  selected: pref.value == value,
-                  onSelected: (_) {
-                    pref.value = value;
-                    _syncScale();
-                    setState(() {});
-                    _publishGuide();
-                  },
-                  visualDensity: VisualDensity.compact,
-                  labelStyle: const TextStyle(fontSize: 12),
-                ),
-              ),
-          ],
-        );
-      },
-    );
-  }
 }
 
-class _PadPainter extends CustomPainter {
-  const _PadPainter({
-    required this.strokes,
-    required this.viewX,
-    required this.guide,
-    required this.midLine,
-  });
+/// Zeichnet den Rahmen-Ausschnitt des Blatts vergrößert:
+/// Hintergrund (Kästchen, Linien) und Striche, wie auf dem Blatt selbst.
+class _LupePainter extends CustomPainter {
+  _LupePainter({
+    required this.controller,
+    required this.page,
+    required this.pageIndex,
+    required this.totalPages,
+    required this.invert,
+    required this.backgroundColor,
+    required this.pattern,
+    required this.lineHeight,
+    required this.lineThickness,
+    required this.primaryColor,
+    required this.secondaryColor,
+    required this.textStyle,
+    required this.markerX,
+    required this.markerColor,
+    required this.divider,
+  }) : super(repaint: Listenable.merge([controller, page]));
 
-  final List<Stroke> strokes;
-  final double viewX;
-  final Color guide;
-  final double midLine;
+  final WritingPadController controller;
+  final EditorPage page;
+  final int pageIndex;
+  final int totalPages;
+  final bool invert;
+  final Color backgroundColor;
+  final CanvasBackgroundPattern pattern;
+  final int lineHeight;
+  final int lineThickness;
+  final Color primaryColor;
+  final Color secondaryColor;
+  final TextStyle textStyle;
+  final double markerX;
+  final Color markerColor;
+  final Color divider;
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Hilfslinie in der Mitte (Schreibzeile).
+    final window = controller.rect;
+    if (window.width <= 0) return;
+    final zoom = size.width / window.width;
+
+    canvas.clipRect(Offset.zero & size);
+    canvas.save();
+    canvas.scale(zoom);
+    canvas.translate(-window.left, -window.top);
+
+    final hasBackgroundImage = page.backgroundImage != null;
+    CanvasBackgroundPainter(
+      invert: invert,
+      backgroundColor: hasBackgroundImage ? Colors.white : backgroundColor,
+      backgroundPattern: hasBackgroundImage
+          ? CanvasBackgroundPattern.none
+          : pattern,
+      lineHeight: lineHeight,
+      lineThickness: lineThickness,
+      primaryColor: primaryColor,
+      secondaryColor: secondaryColor,
+    ).paint(canvas, page.size);
+
+    final current = Pen.currentStroke;
+    CanvasPainter(
+      invert: invert,
+      strokes: page.strokes,
+      laserStrokes: page.laserStrokes,
+      currentStroke: current?.pageIndex == pageIndex ? current : null,
+      currentSelection: null,
+      primaryColor: primaryColor,
+      page: page,
+      showPageIndicator: false,
+      pageIndex: pageIndex,
+      totalPages: totalPages,
+      currentScale: 1,
+      defaultTextStyle: textStyle,
+    ).paint(canvas, page.size);
+
+    canvas.restore();
+
+    // Grauer Bereich hinter der Marke: hier rückt der Ausschnitt weiter.
+    canvas.drawRect(
+      Rect.fromLTRB(markerX, 0, size.width, size.height),
+      Paint()..color = Colors.black.withValues(alpha: 0.06),
+    );
     canvas.drawLine(
-      Offset(0, midLine),
-      Offset(size.width, midLine),
+      Offset(markerX, 0),
+      Offset(markerX, size.height),
       Paint()
-        ..color = guide.withValues(alpha: 0.5)
+        ..color = markerColor.withValues(alpha: 0.7)
+        ..strokeWidth = 1.5,
+    );
+    // Fähnchen oben an der Marke.
+    final pin = Path()
+      ..moveTo(markerX - 11, 0)
+      ..lineTo(markerX + 11, 0)
+      ..lineTo(markerX + 11, 14)
+      ..lineTo(markerX, 24)
+      ..lineTo(markerX - 11, 14)
+      ..close();
+    canvas.drawPath(pin, Paint()..color = markerColor);
+    canvas.drawLine(
+      Offset(0, 0),
+      Offset(size.width, 0),
+      Paint()
+        ..color = divider
         ..strokeWidth = 1,
     );
-
-    canvas.save();
-    canvas.translate(-viewX, 0);
-    for (final stroke in strokes) {
-      canvas.drawPath(stroke.highQualityPath, Paint()..color = stroke.color);
-    }
-    canvas.restore();
   }
 
   @override
-  bool shouldRepaint(_PadPainter oldDelegate) => true;
+  bool shouldRepaint(_LupePainter oldDelegate) => true;
 }

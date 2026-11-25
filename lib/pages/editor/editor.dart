@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:collapsible/collapsible.dart';
@@ -131,9 +130,12 @@ class EditorState extends State<Editor> {
   bool _placingWritingPad = false;
   bool _draggingWritingPad = false;
   bool _resizingWritingPad = false;
-  double _resizeStartY = 0;
-  int _resizeStartCells = 2;
+  double _resizeStartWidth = 0;
+  Offset _resizeStartPosition = Offset.zero;
   Offset _guideDragLast = Offset.zero;
+
+  /// Stift, mit dem der aktuelle Strich im Schreibfeld entsteht.
+  Pen? _writingStrokePen;
 
   /// Stift für das Schreibfeld: der aktuelle Stift, sonst der letzte normale.
   Pen get _writingPadPen {
@@ -148,31 +150,144 @@ class EditorState extends State<Editor> {
     return pen is ShapePen ? Pen.fountainPen() : pen;
   }
 
-  void _writingPadAddStroke(Stroke stroke) {
+  void _writingStrokeStart(int pageIndex, Offset position, double? pressure) {
+    if (coreInfo.readOnly) return;
+    final pen = _writingPadPen;
+    _writingStrokePen = pen;
+    history.canRedo = false;
+    Select.currentSelect.unselect();
+    pen.onDragStart(position, coreInfo.pages[pageIndex], pageIndex, pressure);
+    // setState, damit die Seite den laufenden Strich kennt
+    setState(() {});
+  }
+
+  void _writingStrokeUpdate(Offset position, double? pressure) {
+    final pen = _writingStrokePen;
+    if (pen == null) return;
+    pen.onDragUpdate(position, pressure);
+    final index = Pen.currentStroke?.pageIndex;
+    if (index != null && index < coreInfo.pages.length) {
+      coreInfo.pages[index].redrawStrokes();
+    }
+  }
+
+  void _writingStrokeEnd() {
+    final pen = _writingStrokePen;
+    _writingStrokePen = null;
+    if (pen == null) return;
+
+    final newStroke = pen.onDragEnd();
+    if (newStroke == null || newStroke.isEmpty) {
+      setState(() {});
+      return;
+    }
+    if (stows.autoStraightenLines.value &&
+        pen is! ShapePen &&
+        newStroke.isStraightLine()) {
+      newStroke.convertToLine();
+    }
     setState(() {
-      createPage(stroke.pageIndex);
-      coreInfo.pages[stroke.pageIndex].insertStroke(stroke);
-      history.recordChange(HistoricAdd(strokes: [stroke], images: []));
+      createPage(newStroke.pageIndex);
+      coreInfo.pages[newStroke.pageIndex].insertStroke(newStroke);
+      history.recordChange(HistoricAdd(strokes: [newStroke], images: []));
     });
     autosaveAfterDelay();
   }
 
+  void _attachWritingPad() {
+    writingPadController.attach(
+      pages: coreInfo.pages,
+      ensurePage: (index) => setState(() => createPage(index)),
+      cell: coreInfo.lineHeight.toDouble(),
+      owner: coreInfo,
+    );
+  }
+
+  void _toggleWritingPad() {
+    if (showWritingPad) {
+      _closeWritingPad();
+    } else {
+      showWritingPad = true;
+      _attachWritingPad();
+      // meldet sich über den Listener: Rahmen zeichnen und Blatt mitscrollen
+      writingPadController.openAt(currentPageIndex);
+    }
+  }
+
+  /// Schließt das Schreibfeld und nimmt den Rahmen im selben Schritt vom Blatt.
+  void _closeWritingPad() {
+    showWritingPad = false;
+    writingPadController.close();
+  }
+
+  void _onWritingPadChanged() {
+    if (!mounted) return;
+    setState(() {});
+    // Beim Ziehen mit dem Finger nicht mitscrollen, sonst läuft der Rahmen weg.
+    if (showWritingPad && !_draggingWritingPad && !_resizingWritingPad) {
+      _revealWritingWindow();
+    }
+  }
+
+  /// Scrollt das Blatt so, dass der Rahmen sichtbar bleibt
+  /// (das Schreibfeld nimmt unten Platz weg).
+  void _revealWritingWindow({bool retry = true}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !showWritingPad) return;
+      final controller = writingPadController;
+      if (controller.pageIndex >= coreInfo.pages.length) return;
+      final pageBox = coreInfo.pages[controller.pageIndex].renderBox;
+      final viewBox =
+          _canvasGestureDetectorKey.currentContext?.findRenderObject()
+              as RenderBox?;
+      if (pageBox == null ||
+          viewBox == null ||
+          !pageBox.attached ||
+          !viewBox.attached) {
+        // Seite ist noch nicht aufgebaut (z. B. neue Seite): dorthin scrollen
+        // und es danach noch einmal versuchen.
+        if (retry && viewBox != null) {
+          CanvasGestureDetector.scrollToPage(
+            pageIndex: controller.pageIndex,
+            pages: coreInfo.pages,
+            screenWidth: MediaQuery.sizeOf(context).width,
+            transformationController: _transformationController,
+          );
+          _revealWritingWindow(retry: false);
+        }
+        return;
+      }
+
+      final rect = controller.rect;
+      final top = viewBox
+          .globalToLocal(pageBox.localToGlobal(rect.topLeft))
+          .dy;
+      final bottom = viewBox
+          .globalToLocal(pageBox.localToGlobal(rect.bottomRight))
+          .dy;
+      const gap = 12.0;
+      var dy = 0.0;
+      if (bottom > viewBox.size.height - gap) {
+        dy = viewBox.size.height - gap - bottom;
+      }
+      if (top + dy < gap) dy = gap - top;
+      if (dy.abs() < 0.5) return;
+
+      _transformationController.value =
+          Matrix4.translationValues(0, dy, 0) * _transformationController.value;
+    });
+  }
+
   Widget _buildWritingPad() {
+    _attachWritingPad();
     return WritingPad(
       key: const ValueKey('writingPad'),
-      pen: _writingPadPen,
-      pages: coreInfo.pages,
-      startPageIndex: currentPageIndex,
-      ensurePage: createPage,
-      addStroke: _writingPadAddStroke,
-      undo: undo,
-      close: () => setState(() => showWritingPad = false),
       controller: writingPadController,
-      owner: coreInfo,
-      cell: coreInfo.lineHeight.toDouble(),
-      onGuideChanged: () {
-        if (mounted) setState(() {});
-      },
+      coreInfo: coreInfo,
+      enabled: !coreInfo.readOnly,
+      onStrokeStart: _writingStrokeStart,
+      onStrokeUpdate: _writingStrokeUpdate,
+      onStrokeEnd: _writingStrokeEnd,
     );
   }
 
@@ -242,6 +357,7 @@ class EditorState extends State<Editor> {
   void initState() {
     DynamicMaterialApp.addFullscreenListener(_setState);
     Pen.onHoldShapeDetected = _setState;
+    writingPadController.addListener(_onWritingPadChanged);
 
     _initAsync();
     _assignKeybindings();
@@ -629,25 +745,20 @@ class EditorState extends State<Editor> {
     if (showWritingPad &&
         currentPointerKind == PointerDeviceKind.touch &&
         _focalPointOnWritingHandle(details.focalPoint, dragPageIndex!)) {
-      // Eckgriff: Zeilenhöhe aufziehen.
+      // Eckgriff: Rahmen breiter oder schmaler ziehen.
       _placingWritingPad = true;
       _resizingWritingPad = true;
-      _resizeStartY = position.dy;
-      _resizeStartCells = stows.easyWritingCells.value;
+      _resizeStartPosition = position;
+      _resizeStartWidth = writingPadController.width;
       return;
     }
     if (showWritingPad &&
         currentPointerKind == PointerDeviceKind.touch &&
         _focalPointInWritingGuide(details.focalPoint, dragPageIndex!)) {
+      // Finger im Rahmen: Rahmen verschieben.
       _placingWritingPad = true;
       _draggingWritingPad = true;
       _guideDragLast = position;
-      return;
-    }
-    if (showWritingPad && writingPadController.armed) {
-      // "Ort wählen": dieser Tipp setzt nur den Startpunkt, es wird nichts gezeichnet.
-      _placingWritingPad = true;
-      writingPadController.place(dragPageIndex!, position);
       return;
     }
     history.canRedo = false;
@@ -708,15 +819,13 @@ class EditorState extends State<Editor> {
       final box = coreInfo.pages[dragPageIndex!].renderBox;
       if (box != null) {
         final now = box.globalToLocal(details.focalPoint);
-        final cell = math.max(10, coreInfo.lineHeight).toDouble();
-        final cells = (_resizeStartCells + (now.dy - _resizeStartY) / cell)
-            .round()
-            .clamp(1, 4)
-            .toInt();
-        if (cells != stows.easyWritingCells.value) {
-          stows.easyWritingCells.value = cells;
-          writingPadController.refresh();
-        }
+        final controller = writingPadController;
+        final dx = now.dx - _resizeStartPosition.dx;
+        final dy = now.dy - _resizeStartPosition.dy;
+        // Diagonal ziehen: Breite und Höhe (über das feste Seitenverhältnis) mitteln.
+        controller.setWidth(
+          _resizeStartWidth + (dx + dy / controller.aspect) / 2,
+        );
       }
       return;
     }
@@ -724,7 +833,7 @@ class EditorState extends State<Editor> {
       final box = coreInfo.pages[dragPageIndex!].renderBox;
       if (box != null) {
         final now = box.globalToLocal(details.focalPoint);
-        writingPadController.move(now - _guideDragLast);
+        writingPadController.moveBy(now - _guideDragLast);
         _guideDragLast = now;
       }
       return;
@@ -894,9 +1003,11 @@ class EditorState extends State<Editor> {
   void onDrawEnd(ScaleEndDetails details) {
     if (_placingWritingPad) {
       if (_draggingWritingPad) writingPadController.endMove();
+      if (_resizingWritingPad) writingPadController.endResize();
       _placingWritingPad = false;
       _draggingWritingPad = false;
       _resizingWritingPad = false;
+      _revealWritingWindow();
       return;
     }
     if (dragPageIndex == null) {
@@ -1831,8 +1942,7 @@ class EditorState extends State<Editor> {
             lastSeenPointerCount = 0;
           },
           pickPhoto: _pickPhotos,
-          toggleWritingPad: () =>
-              setState(() => showWritingPad = !showWritingPad),
+          toggleWritingPad: _toggleWritingPad,
           writingPadVisible: showWritingPad,
           paste: paste,
           exportAsSba: exportAsSba,
@@ -2299,6 +2409,9 @@ class EditorState extends State<Editor> {
 
     DynamicMaterialApp.removeFullscreenListener(_setState);
     if (Pen.onHoldShapeDetected == _setState) Pen.onHoldShapeDetected = null;
+    writingPadController.removeListener(_onWritingPadChanged);
+    WritingPadGuide.clear();
+    writingPadController.dispose();
 
     _delayedSaveTimer?.cancel();
     _watchServerTimer?.cancel();

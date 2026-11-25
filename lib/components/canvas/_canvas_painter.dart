@@ -228,26 +228,28 @@ class CanvasPainter extends CustomPainter {
   void _drawWritingGuide(Canvas canvas) {
     final rect = writingGuide;
     if (rect == null) return;
-    final rrect = RRect.fromRectAndRadius(rect, const Radius.circular(8));
-    canvas.drawRRect(
-      rrect,
-      Paint()..color = primaryColor.withValues(alpha: 0.07),
-    );
-    canvas.drawPath(
-      dashPath(
-        Path()..addRRect(rrect),
-        dashArray: CircularIntervalList([8, 6]),
-      ),
+    final color = primaryColor;
+
+    // Rahmen des Schreibfelds: der Ausschnitt, der im Feld vergrößert erscheint.
+    canvas.drawRect(
+      rect,
       Paint()
-        ..color = primaryColor.withValues(alpha: 0.8)
-        ..strokeWidth = 2
-        ..style = .stroke,
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.5,
     );
 
-    // Eckgriff unten rechts zum Aufziehen der Zeilenhöhe.
-    final handle = rect.bottomRight;
-    canvas.drawCircle(handle, 11, Paint()..color = primaryColor);
-    canvas.drawCircle(handle, 6, Paint()..color = const Color(0xFFFFFFFF));
+    // Eckgriff unten rechts (Dreieck) zum Breiter-/Schmalerziehen.
+    const s = 24.0;
+    final corner = rect.bottomRight;
+    canvas.drawPath(
+      Path()
+        ..moveTo(corner.dx - 3, corner.dy - 3)
+        ..lineTo(corner.dx - 3 - s, corner.dy - 3)
+        ..lineTo(corner.dx - 3, corner.dy - 3 - s)
+        ..close(),
+      Paint()..color = color,
+    );
   }
 
   void _drawHeldShape(Canvas canvas) {
