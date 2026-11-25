@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:collapsible/collapsible.dart';
@@ -129,6 +130,9 @@ class EditorState extends State<Editor> {
   final writingPadController = WritingPadController();
   bool _placingWritingPad = false;
   bool _draggingWritingPad = false;
+  bool _resizingWritingPad = false;
+  double _resizeStartY = 0;
+  int _resizeStartCells = 2;
   Offset _guideDragLast = Offset.zero;
 
   /// Stift für das Schreibfeld: der aktuelle Stift, sonst der letzte normale.
@@ -561,6 +565,13 @@ class EditorState extends State<Editor> {
     return rect.inflate(12).contains(box.globalToLocal(focalPoint));
   }
 
+  bool _focalPointOnWritingHandle(Offset focalPoint, int pageIndex) {
+    final rect = WritingPadGuide.rectFor(coreInfo, pageIndex);
+    final box = coreInfo.pages[pageIndex].renderBox;
+    if (rect == null || box == null) return false;
+    return (box.globalToLocal(focalPoint) - rect.bottomRight).distance < 34;
+  }
+
   bool isDrawGesture(ScaleStartDetails details) {
     if (coreInfo.readOnly) return false;
 
@@ -594,7 +605,8 @@ class EditorState extends State<Editor> {
       return false;
     } else if (showWritingPad &&
         currentPointerKind == PointerDeviceKind.touch &&
-        _focalPointInWritingGuide(details.focalPoint, dragPageIndex!)) {
+        (_focalPointOnWritingHandle(details.focalPoint, dragPageIndex!) ||
+            _focalPointInWritingGuide(details.focalPoint, dragPageIndex!))) {
       // Finger auf dem Rahmen des Schreibfelds: Rahmen verschieben.
       return true;
     } else if (stows.editorFingerDrawing.value ||
@@ -614,6 +626,16 @@ class EditorState extends State<Editor> {
     final page = coreInfo.pages[dragPageIndex!];
     final position = page.renderBox!.globalToLocal(details.focalPoint);
 
+    if (showWritingPad &&
+        currentPointerKind == PointerDeviceKind.touch &&
+        _focalPointOnWritingHandle(details.focalPoint, dragPageIndex!)) {
+      // Eckgriff: Zeilenhöhe aufziehen.
+      _placingWritingPad = true;
+      _resizingWritingPad = true;
+      _resizeStartY = position.dy;
+      _resizeStartCells = stows.easyWritingCells.value;
+      return;
+    }
     if (showWritingPad &&
         currentPointerKind == PointerDeviceKind.touch &&
         _focalPointInWritingGuide(details.focalPoint, dragPageIndex!)) {
@@ -682,6 +704,22 @@ class EditorState extends State<Editor> {
   }
 
   void onDrawUpdate(ScaleUpdateDetails details) {
+    if (_resizingWritingPad && dragPageIndex != null) {
+      final box = coreInfo.pages[dragPageIndex!].renderBox;
+      if (box != null) {
+        final now = box.globalToLocal(details.focalPoint);
+        final cell = math.max(10, coreInfo.lineHeight).toDouble();
+        final cells = (_resizeStartCells + (now.dy - _resizeStartY) / cell)
+            .round()
+            .clamp(1, 4)
+            .toInt();
+        if (cells != stows.easyWritingCells.value) {
+          stows.easyWritingCells.value = cells;
+          writingPadController.refresh();
+        }
+      }
+      return;
+    }
     if (_draggingWritingPad && dragPageIndex != null) {
       final box = coreInfo.pages[dragPageIndex!].renderBox;
       if (box != null) {
@@ -858,6 +896,7 @@ class EditorState extends State<Editor> {
       if (_draggingWritingPad) writingPadController.endMove();
       _placingWritingPad = false;
       _draggingWritingPad = false;
+      _resizingWritingPad = false;
       return;
     }
     if (dragPageIndex == null) {

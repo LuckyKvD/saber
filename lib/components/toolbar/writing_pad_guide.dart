@@ -44,6 +44,9 @@ class WritingPadController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Größe geändert (Aufziehen am Eckgriff): Feld neu berechnen.
+  void refresh() => notifyListeners();
+
   /// Verschiebt die Schreibzeile (Ziehen mit dem Finger).
   void move(Offset delta) {
     moveDelta = (moveDelta ?? Offset.zero) + delta;

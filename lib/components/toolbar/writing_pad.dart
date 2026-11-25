@@ -133,6 +133,9 @@ class _WritingPadState extends State<WritingPad> {
           .toDouble();
       c.moveDelta = null;
     }
+    _syncScale();
+    final page2 = widget.pages[pageIndex];
+    lineY = lineY.clamp(0, math.max(0, page2.size.height - _lineHeight)).toDouble();
     if (c.snapRequested) {
       c.snapRequested = false;
       lineY = _snapY(lineY);
@@ -189,14 +192,39 @@ class _WritingPadState extends State<WritingPad> {
 
   double get _lineHeight => cells * cell;
 
-  /// Strichstärke in der Notiz: dünner als normal und mit wenig Druckvarianz,
-  /// damit kleine Schrift lesbar bleibt.
-  StrokeOptions _noteOptions(Pen pen) {
-    final factor = stows.easyWritingThickness.value / 100;
+  /// Strichdicke im Schreibfeld (Bildschirmpunkte). Unabhängig von der Zeilenhöhe,
+  /// damit das Feld immer gleich aussieht.
+  double get _padStrokeWidth {
+    final base = switch (stows.easyWritingThickness.value) {
+      <= 25 => 3.0,
+      <= 45 => 4.5,
+      _ => 6.5,
+    };
+    return base * (widget.pen.options.size / 5).clamp(0.6, 2.0);
+  }
+
+  /// Strichoptionen: dünn und mit kaum Druckvarianz, damit kleine Schrift lesbar bleibt.
+  /// [size] ist die Strichdicke in der jeweiligen Zeichenfläche.
+  StrokeOptions _options(Pen pen, double size) {
     final options = pen.options.copyWith(isComplete: true);
-    options.size = math.max(0.8, pen.options.size * factor);
+    options.size = size;
     options.thinning = math.min(pen.options.thinning, 0.05);
     return options;
+  }
+
+  /// Ändert sich die Verkleinerung mitten in der Zeile (Höhe gewechselt oder
+  /// Rahmen aufgezogen), bleibt die bisherige Schrift unverändert stehen und
+  /// die nächste Schrift setzt genau dahinter an. Sonst entstünden Lücken.
+  double? _appliedScale;
+  double _inkEndV = 0;
+  void _syncScale() {
+    final now = scale;
+    final old = _appliedScale;
+    _appliedScale = now;
+    if (old == null || (old - now).abs() < 1e-9) return;
+    if (padStrokes.isNotEmpty) {
+      lineStartV = _inkEndV - (_inkEndV - lineStartV) * old / now;
+    }
   }
 
   void _newLine({double? startAtV}) {
@@ -220,6 +248,7 @@ class _WritingPadState extends State<WritingPad> {
 
   void _pointerDown(PointerDownEvent e) {
     if (!_accepts(e.kind)) return;
+    _syncScale();
     final vx = viewX + e.localPosition.dx;
     final page = widget.pages[pageIndex];
 
@@ -235,9 +264,7 @@ class _WritingPadState extends State<WritingPad> {
     currentPadStroke = Stroke(
       color: pen.color,
       pressureEnabled: pen.pressureEnabled,
-      options: _noteOptions(pen)
-        ..size = _noteOptions(pen).size / scale
-        ..isComplete = false,
+      options: _options(pen, _padStrokeWidth)..isComplete = false,
       pageIndex: pageIndex,
       page: widget.pages[pageIndex],
       toolId: pen.toolId,
@@ -274,7 +301,7 @@ class _WritingPadState extends State<WritingPad> {
     final noteStroke = Stroke(
       color: pen.color,
       pressureEnabled: pen.pressureEnabled,
-      options: _noteOptions(pen),
+      options: _options(pen, math.max(0.7, _padStrokeWidth * scale)),
       pageIndex: pageIndex,
       page: widget.pages[pageIndex],
       toolId: pen.toolId,
@@ -285,6 +312,7 @@ class _WritingPadState extends State<WritingPad> {
     if (!noteStroke.isEmpty) widget.addStroke(noteStroke);
 
     padStrokes.add(padStroke);
+    _inkEndV = raw.last.$1.dx;
 
     // Nähert sich die Schrift dem rechten Rand, läuft die Ansicht weiter.
     final endLocalX = raw.last.$1.dx - viewX;
@@ -338,9 +366,9 @@ class _WritingPadState extends State<WritingPad> {
                   children: [
                     const SizedBox(width: 8),
                     _chips(
-                      'Höhe',
+                      'Höhe (Kästchen)',
                       stows.easyWritingCells,
-                      const [(1, '1 Kästchen'), (2, '2 Kästchen'), (3, '3 Kästchen')],
+                      const [(1, '1'), (2, '2'), (3, '3'), (4, '4')],
                     ),
                     const SizedBox(width: 12),
                     _chips(
@@ -450,6 +478,7 @@ class _WritingPadState extends State<WritingPad> {
                   selected: pref.value == value,
                   onSelected: (_) {
                     pref.value = value;
+                    _syncScale();
                     setState(() {});
                     _publishGuide();
                   },

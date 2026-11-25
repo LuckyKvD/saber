@@ -243,6 +243,11 @@ class CanvasPainter extends CustomPainter {
         ..strokeWidth = 2
         ..style = .stroke,
     );
+
+    // Eckgriff unten rechts zum Aufziehen der Zeilenhöhe.
+    final handle = rect.bottomRight;
+    canvas.drawCircle(handle, 11, Paint()..color = primaryColor);
+    canvas.drawCircle(handle, 6, Paint()..color = const Color(0xFFFFFFFF));
   }
 
   void _drawHeldShape(Canvas canvas) {
