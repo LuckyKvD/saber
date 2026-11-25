@@ -13,6 +13,7 @@ import 'package:meta/meta.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:saber/components/canvas/_asset_cache.dart';
 import 'package:saber/components/canvas/canvas_image.dart';
+import 'package:saber/components/canvas/image/image_clip.dart';
 import 'package:saber/components/canvas/invert_widget.dart';
 import 'package:saber/data/file_manager/decrypted_file_image.dart';
 import 'package:saber/data/file_manager/file_manager.dart';
@@ -43,6 +44,9 @@ sealed class EditorImage extends ChangeNotifier {
   }
 
   int pageIndex;
+
+  /// Schnittebenen (Lasso-Ausschnitt); leer = ganzes Foto sichtbar.
+  List<ImageClip> clip = const [];
 
   /// Wunschmitte für ein neu eingefügtes Bild (Seitenkoordinaten).
   Offset? centerHint;
@@ -143,6 +147,24 @@ sealed class EditorImage extends ChangeNotifier {
     required String sbnPath,
     required AssetCache assetCache,
   }) {
+    final image = _fromJsonInner(
+      json,
+      inlineAssets: inlineAssets,
+      isThumbnail: isThumbnail,
+      sbnPath: sbnPath,
+      assetCache: assetCache,
+    );
+    image.clip = ImageClip.listFromJson(json['cl']);
+    return image;
+  }
+
+  static EditorImage _fromJsonInner(
+    Map<String, dynamic> json, {
+    required List<Uint8List>? inlineAssets,
+    bool isThumbnail = false,
+    required String sbnPath,
+    required AssetCache assetCache,
+  }) {
     final extension = json['e'] as String?;
     if (extension == '.svg') {
       return SvgEditorImage.fromJson(
@@ -183,6 +205,7 @@ sealed class EditorImage extends ChangeNotifier {
     'y': dstRect.top,
     'w': dstRect.width,
     'h': dstRect.height,
+    if (clip.isNotEmpty) 'cl': [for (final c in clip) c.toJson()],
     if (srcRect.left != 0) 'sx': srcRect.left,
     if (srcRect.top != 0) 'sy': srcRect.top,
     if (srcRect.width != 0) 'sw': srcRect.width,
@@ -275,6 +298,9 @@ sealed class EditorImage extends ChangeNotifier {
   });
 
   EditorImage copy();
+
+  /// Wie [copy], aber mit Schnittebenen.
+  EditorImage clone() => copy()..clip = List.of(clip);
 
   /// Resizes [before] to fit inside [max] while maintaining aspect ratio.
   ///

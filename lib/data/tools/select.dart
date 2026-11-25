@@ -28,6 +28,9 @@ class Select extends Tool {
   );
   var doneSelecting = false;
 
+  /// Eckpunkte des Lassos (Seitenkoordinaten), für das Zuschneiden von Fotos.
+  List<Offset> lassoPoints = [];
+
   @override
   ToolId get toolId => .select;
 
@@ -64,12 +67,14 @@ class Select extends Tool {
       path: Path(),
       pageIndexStart: pageIndex,
     );
+    lassoPoints = [position];
     selectResult.path.moveTo(position.dx, position.dy);
     onDragUpdate(position);
   }
 
   void onDragUpdate(Offset position) {
     selectResult.path.lineTo(position.dx, position.dy);
+    lassoPoints.add(position);
   }
 
   /// Adds the indices of any [strokes] that are inside the selection area
@@ -91,13 +96,7 @@ class Select extends Tool {
       }
     }
 
-    for (int i = 0; i < images.length; i++) {
-      final image = images[i];
-      final percentInside = rectPercentInside(selectResult.path, image.dstRect);
-      if (percentInside >= minPercentInside) {
-        selectResult.images.add(image);
-      }
-    }
+    // Fotos werden vom Editor am Lassorand zugeschnitten.
   }
 
   /// Schneidet freie Linien am Lassorand: Der Teil innen wird ausgewählt,

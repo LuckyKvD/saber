@@ -5,6 +5,7 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:saber/components/canvas/canvas_image_dialog.dart';
 import 'package:saber/components/canvas/image/editor_image.dart';
+import 'package:saber/components/canvas/image/image_clip.dart';
 import 'package:saber/components/theming/adaptive_alert_dialog.dart';
 import 'package:saber/data/extensions/change_notifier_extensions.dart';
 import 'package:saber/data/prefs.dart';
@@ -74,6 +75,59 @@ class _CanvasImageState extends State<CanvasImage> {
   Rect panStartRect = .zero;
   Offset panStartPosition = .zero;
 
+  // Beim Ziehen liegt das Foto in einer Ebene über allen Seiten,
+  // damit es auch über die Seitengrenze hinweg sichtbar bleibt.
+  OverlayEntry? _dragEntry;
+  Offset _dragCenter = Offset.zero;
+  Offset _dragGrab = Offset.zero;
+  Size _dragSize = Size.zero;
+  double _dragScale = 1;
+  Widget? _dragContent;
+
+  void _startDragOverlay(DragStartDetails details) {
+    final box = context.findRenderObject() as RenderBox?;
+    final overlay = Overlay.maybeOf(context);
+    if (box == null || overlay == null) return;
+    final origin = box.localToGlobal(Offset.zero);
+    final unit = box.localToGlobal(const Offset(1, 0)) - origin;
+    _dragScale = unit.dx;
+    final center = box.localToGlobal(box.size.center(Offset.zero));
+    _dragCenter = center;
+    _dragGrab = center - details.globalPosition;
+    _dragSize = widget.image.dstRect.size;
+    _dragEntry = OverlayEntry(
+      builder: (context) {
+        final w = _dragSize.width, h = _dragSize.height;
+        return Positioned(
+          left: _dragCenter.dx - w * _dragScale / 2,
+          top: _dragCenter.dy - h * _dragScale / 2,
+          width: w * _dragScale,
+          height: h * _dragScale,
+          child: IgnorePointer(
+            child: FittedBox(
+              fit: BoxFit.fill,
+              child: SizedBox(width: w, height: h, child: _dragContent),
+            ),
+          ),
+        );
+      },
+    );
+    overlay.insert(_dragEntry!);
+  }
+
+  void _updateDragOverlay(DragUpdateDetails details) {
+    if (_dragEntry == null) return;
+    _dragCenter = details.globalPosition + _dragGrab;
+    _dragEntry!.markNeedsBuild();
+  }
+
+  void _endDragOverlay() {
+    _dragEntry?.remove();
+    _dragEntry?.dispose();
+    _dragEntry = null;
+    if (mounted) setState(() {});
+  }
+
   @override
   void initState() {
     widget.image.loadIn();
@@ -125,6 +179,8 @@ class _CanvasImageState extends State<CanvasImage> {
               onPanStart: active
                   ? (details) {
                       panStartRect = widget.image.dstRect;
+                      _startDragOverlay(details);
+                      if (_dragEntry != null) setState(() {});
                     }
                   : null,
               onPanUpdate: active
@@ -154,10 +210,13 @@ class _CanvasImageState extends State<CanvasImage> {
                           widget.image.dstRect.height,
                         );
                       });
+                      _updateDragOverlay(details);
                     }
                   : null,
+              onPanCancel: _endDragOverlay,
               onPanEnd: active
                   ? (details) {
+                      _endDragOverlay();
                       if (panStartRect == widget.image.dstRect) return;
                       if (EditorImage.dropHandler?.call(
                             widget.image,
@@ -187,7 +246,7 @@ class _CanvasImageState extends State<CanvasImage> {
                   ),
                 ),
                 child: Center(
-                  child: SizedBox(
+                  child: _clipped(SizedBox(
                     width: widget.isBackground
                         ? widget.pageSize.width
                         : max(
@@ -212,7 +271,7 @@ class _CanvasImageState extends State<CanvasImage> {
                         ),
                       ),
                     ),
-                  ),
+                  )),
                 ),
               ),
             ),
@@ -261,8 +320,21 @@ class _CanvasImageState extends State<CanvasImage> {
     );
   }
 
+  /// Wendet die Lasso-Schnittebenen des Fotos an.
+  Widget _clipped(Widget child) {
+    final content = widget.image.clip.isEmpty
+        ? child
+        : ClipPath(clipper: ImageClipper(widget.image.clip), child: child);
+    _dragContent = content;
+    // Während des Ziehens zeigt die Überlagerung das Foto, nicht die Seite.
+    return Opacity(opacity: _dragEntry != null ? 0 : 1, child: content);
+  }
+
   @override
   void dispose() {
+    _dragEntry?.remove();
+    _dragEntry?.dispose();
+    _dragEntry = null;
     widget.image.loadOut();
     CanvasImage.activeListener.removeListener(disableActive);
     super.dispose();

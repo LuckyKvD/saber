@@ -20,6 +20,7 @@ import 'package:saber/components/canvas/_asset_cache.dart';
 import 'package:saber/components/canvas/_stroke.dart';
 import 'package:saber/components/canvas/canvas.dart';
 import 'package:saber/components/canvas/guide_tools.dart';
+import 'package:saber/components/canvas/image/image_clip.dart';
 import 'package:saber/data/photo_sources.dart';
 import 'package:saber/components/canvas/canvas_gesture_detector.dart';
 import 'package:saber/components/canvas/canvas_image.dart';
@@ -581,6 +582,13 @@ class EditorState extends State<Editor> {
           createPage(stroke.pageIndex);
           coreInfo.pages[stroke.pageIndex].insertStroke(stroke);
         }
+        for (final image in historic.addedImages) {
+          coreInfo.pages[image.pageIndex].images.remove(image);
+        }
+        for (final image in historic.removedImages) {
+          createPage(image.pageIndex);
+          coreInfo.pages[image.pageIndex].images.add(image);
+        }
         removeExcessPages();
 
       case (final HistoricPageDelete historic):
@@ -747,14 +755,8 @@ class EditorState extends State<Editor> {
       // Finger auf dem Rahmen des Schreibfelds: Rahmen verschieben.
       return true;
     } else if (currentTool is Select &&
-        (currentTool as Select).doneSelecting &&
-        currentPointerKind == PointerDeviceKind.touch &&
-        (currentTool as Select).selectResult.path.contains(
-          coreInfo.pages[dragPageIndex!].renderBox!.globalToLocal(
-            details.focalPoint,
-          ),
-        )) {
-      // Auswahl lässt sich auch mit dem Finger verschieben.
+        currentPointerKind == PointerDeviceKind.touch) {
+      // Lasso und Auswahl lassen sich auch mit dem Finger bedienen.
       return true;
     } else if (stows.editorFingerDrawing.value ||
         currentPointerKind == PointerDeviceKind.stylus ||
@@ -1113,20 +1115,30 @@ class EditorState extends State<Editor> {
           shouldSave = false;
           select.onDragEnd(page.strokes, page.images);
 
-          // Linien, die nur teilweise im Lasso liegen, am Rand abschneiden.
+          // Linien und Fotos, die nur teilweise im Lasso liegen, am Rand abschneiden.
           final cuts = select.cutStrokes(List.of(page.strokes));
-          if (cuts.isNotEmpty) {
-            final removed = <Stroke>[];
-            final added = <Stroke>[];
-            for (final (old, inside, outside) in cuts) {
-              page.strokes.remove(old);
-              removed.add(old);
-              for (final piece in [...inside, ...outside]) {
-                page.insertStroke(piece);
-                added.add(piece);
-              }
+          final removed = <Stroke>[];
+          final added = <Stroke>[];
+          for (final (old, inside, outside) in cuts) {
+            page.strokes.remove(old);
+            removed.add(old);
+            for (final piece in [...inside, ...outside]) {
+              page.insertStroke(piece);
+              added.add(piece);
             }
-            history.recordChange(HistoricReplace(removed: removed, added: added));
+          }
+          final removedImages = <EditorImage>[];
+          final addedImages = <EditorImage>[];
+          _cutImages(select, page, removedImages, addedImages);
+          if (removed.isNotEmpty || removedImages.isNotEmpty) {
+            history.recordChange(
+              HistoricReplace(
+                removed: removed,
+                added: added,
+                removedImages: removedImages,
+                addedImages: addedImages,
+              ),
+            );
             shouldSave = true;
           }
 
@@ -1560,8 +1572,10 @@ class EditorState extends State<Editor> {
       currentTool = Select.currentSelect;
 
       history.recordChange(HistoricAdd(strokes: const [], images: images));
-      createPage(currentPageIndex);
-      coreInfo.pages[currentPageIndex].images.addAll(images);
+      setState(() {
+        createPage(currentPageIndex);
+        coreInfo.pages[currentPageIndex].images.addAll(images);
+      });
       autosaveAfterDelay();
     }
 
@@ -1582,6 +1596,58 @@ class EditorState extends State<Editor> {
     }
 
     return images.length;
+  }
+
+  /// Schneidet Fotos am Lassorand: ganz innen = ausgewählt, teilweise =
+  /// in zwei Fotos geteilt (innen ausgewählt, außen bleibt), außen = unberührt.
+  void _cutImages(
+    Select select,
+    EditorPage page,
+    List<EditorImage> removedImages,
+    List<EditorImage> addedImages,
+  ) {
+    final path = select.selectResult.path;
+    final lasso = select.lassoPoints;
+    if (lasso.length < 3) return;
+    for (final image in List.of(page.images)) {
+      final rect = image.dstRect;
+      if (rect.isEmpty) continue;
+      // Anteil der Abtastpunkte des Fotos, die im Lasso liegen.
+      const n = 14;
+      var inside = 0;
+      for (int ix = 0; ix < n; ix++) {
+        for (int iy = 0; iy < n; iy++) {
+          final p = Offset(
+            rect.left + rect.width * (ix + 0.5) / n,
+            rect.top + rect.height * (iy + 0.5) / n,
+          );
+          if (path.contains(p)) inside++;
+        }
+      }
+      if (inside == 0) continue;
+      if (inside == n * n) {
+        select.selectResult.images.add(image);
+        continue;
+      }
+      final fractions = [
+        for (final p in lasso)
+          Offset(
+            (p.dx - rect.left) / rect.width,
+            (p.dy - rect.top) / rect.height,
+          ),
+      ];
+      EditorImage piece(bool isInside) => image.clone()
+        ..id = coreInfo.nextImageId++
+        ..newImage = false
+        ..clip = [...image.clip, ImageClip(inside: isInside, points: fractions)];
+      final inner = piece(true);
+      final outer = piece(false);
+      page.images.remove(image);
+      page.images.addAll([outer, inner]);
+      removedImages.add(image);
+      addedImages.addAll([outer, inner]);
+      select.selectResult.images.add(inner);
+    }
   }
 
   /// Seite und Mitte (Seitenkoordinaten) des gerade sichtbaren Bereichs.
@@ -2109,7 +2175,7 @@ class EditorState extends State<Editor> {
               }).toList();
 
               final duplicatedImages = images.map((image) {
-                return image.copy()
+                return image.clone()
                   ..id = coreInfo.nextImageId++
                   ..dstRect.shift(duplicationFeedbackOffset);
               }).toList();
@@ -2559,7 +2625,7 @@ class EditorState extends State<Editor> {
               .map((stroke) => stroke.copy()..pageIndex += 1)
               .toList(),
           images: page.images
-              .map((image) => image.copy()..pageIndex += 1)
+              .map((image) => image.clone()..pageIndex += 1)
               .toList(),
           quill: QuillStruct(
             controller: flutter_quill.QuillController(
