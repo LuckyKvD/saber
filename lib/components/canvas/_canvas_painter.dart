@@ -8,6 +8,7 @@ import 'package:perfect_freehand/perfect_freehand.dart';
 import 'package:saber/components/canvas/_circle_stroke.dart';
 import 'package:saber/components/canvas/_rectangle_stroke.dart';
 import 'package:saber/components/canvas/_stroke.dart';
+import 'package:saber/components/canvas/tape_geometry.dart';
 import 'package:saber/data/editor/page.dart';
 import 'package:saber/data/extensions/color_extensions.dart';
 import 'package:saber/data/tools/highlighter.dart';
@@ -136,6 +137,17 @@ class CanvasPainter extends CustomPainter {
         }
       }
 
+      if (stroke.toolId == .tape && stroke.points.length >= 2) {
+        drawTape(
+          canvas,
+          stroke.points,
+          stroke.options.size,
+          color,
+          pattern: stroke.tapePattern,
+        );
+        continue;
+      }
+
       late final shapePaint = Paint()
         ..color = paint.color
         ..style = .stroke
@@ -175,6 +187,19 @@ class CanvasPainter extends CustomPainter {
         ..setFloat(1, color.g)
         ..setFloat(2, color.b);
       paint.maskFilter = _getPencilMaskFilter(currentStroke!.options.size);
+    }
+
+    if (currentStroke!.toolId == .tape) {
+      if (currentStroke!.points.length >= 2) {
+        drawTape(
+          canvas,
+          currentStroke!.points,
+          currentStroke!.options.size,
+          color,
+          pattern: currentStroke!.tapePattern,
+        );
+      }
+      return;
     }
 
     // Current stroke always uses high quality

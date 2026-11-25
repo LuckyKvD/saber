@@ -313,6 +313,12 @@ class Stows {
         fromJson: _strokeOptionsFromJson,
         volatile: !_isOnMainIsolate,
       ),
+      lastTapeOptions = PlainStow.json(
+        'lastTapeProperties',
+        Pen.tapeOptions,
+        fromJson: _strokeOptionsFromJson,
+        volatile: !_isOnMainIsolate,
+      ),
       lastPencilOptions = PlainStow.json(
         'lastPencilProperties',
         Pen.pencilOptions,
@@ -350,6 +356,12 @@ class Stows {
         Colors.black.toARGB32(),
         volatile: !_isOnMainIsolate,
       );
+  /// Muster des Klebebands (-1 = einfarbig).
+  final lastTapePattern = PlainStow(
+    'lastTapePattern',
+    7,
+    volatile: !_isOnMainIsolate,
+  );
   final lastBackgroundPattern = PlainStow(
     'lastBackgroundPattern',
     CanvasBackgroundPattern.none,

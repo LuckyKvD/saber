@@ -22,10 +22,12 @@ abstract class EditorExporter {
   /// This function returns true if [stroke] is one of those strokes.
   ///
   /// Strokes that can't be drawn as vector graphics include:
-  /// - Highlighter strokes, because PDFs don't support transparency
+  /// - Highlighter and tape strokes, because PDFs don't support transparency
   /// - Pencil strokes, which need a special shader to look correct
   static bool shouldRasterizeStroke(Stroke stroke) {
-    return stroke.toolId == .highlighter || stroke.toolId == .pencil;
+    return stroke.toolId == .highlighter ||
+        stroke.toolId == .pencil ||
+        stroke.toolId == .tape;
   }
 
   static Future<pw.Document> generatePdf(

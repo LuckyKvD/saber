@@ -7,6 +7,9 @@ import 'package:stow_codecs/stow_codecs.dart';
 /// e.g. so that the highlighter is always below the rest.
 enum ToolId(final String id) {
   highlighter('Highlighter'),
+  // Klebeband (Washi Tape). Die Kennung beginnt mit einer Ziffer, damit
+  // Klebebänder beim Sortieren (nach Kennung) unter allen anderen Strichen liegen.
+  tape('0Tape'),
   fountainPen('fountainPen'),
   ballpointPen('ballpointPen'),
   pencil('Pencil'),

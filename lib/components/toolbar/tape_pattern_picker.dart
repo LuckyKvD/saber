@@ -1,0 +1,86 @@
+import 'package:material_ui/material_ui.dart';
+import 'package:saber/components/canvas/tape_geometry.dart';
+import 'package:saber/data/prefs.dart';
+
+/// Auswahl der Klebeband-Muster direkt in der Stift-Leiste.
+/// Das erste Feld ("Farbe") bedeutet einfarbig mit der Farbe aus der Farbleiste.
+class TapePatternPicker extends StatelessWidget {
+  const TapePatternPicker({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = ColorScheme.of(context);
+    return ListenableBuilder(
+      listenable: stows.lastTapePattern,
+      builder: (context, _) {
+        final selected = stows.lastTapePattern.value;
+        Widget swatch(int pattern, Widget child, String tooltip) {
+          final isSelected = selected == pattern;
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 3),
+            child: Tooltip(
+              message: tooltip,
+              child: GestureDetector(
+                onTap: () => stows.lastTapePattern.value = pattern,
+                child: Container(
+                  width: 44,
+                  height: 26,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: isSelected
+                          ? colorScheme.primary
+                          : colorScheme.outlineVariant,
+                      width: isSelected ? 2.5 : 1,
+                    ),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(2),
+                    child: child,
+                  ),
+                ),
+              ),
+            ),
+          );
+        }
+
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            swatch(
+              -1,
+              Center(
+                child: Text('Farbe', style: const TextStyle(fontSize: 10)),
+              ),
+              'Einfarbig (Farbe aus der Leiste)',
+            ),
+            for (var i = 0; i < tapePatternCount; i++)
+              swatch(
+                i,
+                CustomPaint(painter: _SwatchPainter(i), size: Size.infinite),
+                tapePatternNames[i],
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _SwatchPainter extends CustomPainter {
+  const _SwatchPainter(this.pattern);
+
+  final int pattern;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.clipRect(Offset.zero & size);
+    // Vorschau: Band mit Breite = Höhe der Fläche, damit das Muster lesbar bleibt.
+    canvas.translate(0, size.height / 2);
+    paintTapePattern(canvas, pattern, size.width, size.height);
+  }
+
+  @override
+  bool shouldRepaint(_SwatchPainter oldDelegate) =>
+      oldDelegate.pattern != pattern;
+}

@@ -42,6 +42,9 @@ class Stroke {
   /// Dateiformat folgt in Phase 4.
   double? nibAngle;
 
+  /// Muster-Nummer eines Klebebands (null = einfarbig). Zusatzschlüssel `tp`.
+  int? tapePattern;
+
   List<Offset>? _lowQualityPolygon, _highQualityPolygon;
   List<Offset> get lowQualityPolygon =>
       _lowQualityPolygon ??= getPolygon(quality: .low);
@@ -78,6 +81,7 @@ class Stroke {
     required this.page,
     required this.toolId,
     this.nibAngle,
+    this.tapePattern,
   });
 
   factory fromJson(
@@ -158,6 +162,7 @@ class Stroke {
       page: page,
       toolId: toolId,
       nibAngle: (json['na'] as num?)?.toDouble(),
+      tapePattern: (json['tp'] as num?)?.toInt(),
     )..points.addAll(points);
   }
   Map<String, dynamic> toJson() {
@@ -173,6 +178,7 @@ class Stroke {
       'pe': pressureEnabled,
       'c': color.toARGB32(),
       if (nibAngle != null) 'na': nibAngle,
+      if (tapePattern != null) 'tp': tapePattern,
     }..addAll(options.toJson());
   }
 
@@ -529,6 +535,7 @@ class Stroke {
     page: page,
     toolId: toolId,
     nibAngle: nibAngle,
+    tapePattern: tapePattern,
   )..points.addAll(points);
 }
 

@@ -29,6 +29,7 @@ import 'package:saber/data/tools/pen.dart';
 import 'package:saber/data/tools/pencil.dart';
 import 'package:saber/data/tools/select.dart';
 import 'package:saber/data/tools/shape_pen.dart';
+import 'package:saber/data/tools/tape_pen.dart';
 import 'package:saber/i18n/strings.g.dart';
 
 class Toolbar extends StatefulWidget {
@@ -246,6 +247,10 @@ class _ToolbarState extends State<Toolbar> {
                 getTool: () => Highlighter.currentHighlighter,
                 setTool: widget.setTool,
               ),
+              .tape => PenModal(
+                getTool: () => TapePen.currentTape,
+                setTool: widget.setTool,
+              ),
               .pencil => PenModal(
                 getTool: () => Pencil.currentPencil,
                 setTool: widget.setTool,
@@ -390,6 +395,23 @@ class _ToolbarState extends State<Toolbar> {
                 },
                 padding: buttonPadding,
                 child: const FaIcon(Highlighter.highlighterIcon, size: 16),
+              ),
+              ToolbarIconButton(
+                tooltip: TapePen.currentTape.name,
+                selected: widget.currentTool is TapePen,
+                enabled: !widget.readOnly,
+                onPressed: () {
+                  if (widget.currentTool is TapePen) {
+                    toolOptionsType.value = toolOptionsType.value == .tape
+                        ? .hide
+                        : .tape;
+                  } else {
+                    toolOptionsType.value = .tape;
+                    widget.setTool(TapePen.currentTape);
+                  }
+                },
+                padding: buttonPadding,
+                child: const FaIcon(TapePen.tapeIcon, size: 16),
               ),
               ValueListenableBuilder(
                 valueListenable: showColorOptions,
@@ -604,4 +626,4 @@ class _ToolbarState extends State<Toolbar> {
   }
 }
 
-enum ToolOptions { hide, pen, highlighter, pencil, eraser, select }
+enum ToolOptions { hide, pen, highlighter, tape, pencil, eraser, select }
