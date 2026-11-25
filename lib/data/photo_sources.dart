@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 enum PhotoSource {
   /// Systemgalerie (auf Samsung: Samsung Galerie / Fotoauswahl des Systems).
   gallery('system', 'Galerie (System)'),
+  camera('camera', 'Kamera'),
   googlePhotos('google', 'Google Fotos'),
   ente('ente', 'Ente Fotos'),
 

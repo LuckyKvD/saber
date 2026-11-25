@@ -190,8 +190,8 @@ class _InnerCanvasState extends State<InnerCanvas> {
                     image: page.images[i],
                     pageSize: Size(widget.width, widget.height),
                     setAsBackground: widget.setAsBackground,
-                    readOnly:
-                        widget.coreInfo.readOnly || !widget.currentToolIsSelect,
+                    // Fotos sind mit jedem Werkzeug antippbar (Stift und Finger).
+                    readOnly: widget.coreInfo.readOnly,
                     selected:
                         widget.currentSelection?.images.contains(
                           page.images[i],

@@ -129,6 +129,16 @@
        </service>
 
        <provider
+           android:name="androidx.core.content.FileProvider"
+           android:authorities="${applicationId}.federprovider"
+           android:exported="false"
+           android:grantUriPermissions="true">
+           <meta-data
+               android:name="android.support.FILE_PROVIDER_PATHS"
+               android:resource="@xml/feder_file_paths" />
+       </provider>
+
+       <provider
            android:name="com.superlist.super_native_extensions.DataProvider"
            android:authorities="de.luckykvd.feder.SuperClipboardDataProvider"
            android:exported="true"

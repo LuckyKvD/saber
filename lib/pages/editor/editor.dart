@@ -746,6 +746,16 @@ class EditorState extends State<Editor> {
             _focalPointInWritingGuide(details.focalPoint, dragPageIndex!))) {
       // Finger auf dem Rahmen des Schreibfelds: Rahmen verschieben.
       return true;
+    } else if (currentTool is Select &&
+        (currentTool as Select).doneSelecting &&
+        currentPointerKind == PointerDeviceKind.touch &&
+        (currentTool as Select).selectResult.path.contains(
+          coreInfo.pages[dragPageIndex!].renderBox!.globalToLocal(
+            details.focalPoint,
+          ),
+        )) {
+      // Auswahl lässt sich auch mit dem Finger verschieben.
+      return true;
     } else if (stows.editorFingerDrawing.value ||
         currentPointerKind == PointerDeviceKind.stylus ||
         currentPointerKind == PointerDeviceKind.invertedStylus ||
@@ -1102,6 +1112,23 @@ class EditorState extends State<Editor> {
         } else {
           shouldSave = false;
           select.onDragEnd(page.strokes, page.images);
+
+          // Linien, die nur teilweise im Lasso liegen, am Rand abschneiden.
+          final cuts = select.cutStrokes(List.of(page.strokes));
+          if (cuts.isNotEmpty) {
+            final removed = <Stroke>[];
+            final added = <Stroke>[];
+            for (final (old, inside, outside) in cuts) {
+              page.strokes.remove(old);
+              removed.add(old);
+              for (final piece in [...inside, ...outside]) {
+                page.insertStroke(piece);
+                added.add(piece);
+              }
+            }
+            history.recordChange(HistoricReplace(removed: removed, added: added));
+            shouldSave = true;
+          }
 
           if (select.selectResult.isEmpty) {
             Select.currentSelect.unselect();
@@ -1588,6 +1615,7 @@ class EditorState extends State<Editor> {
               ListTile(
                 leading: Icon(switch (s) {
                   PhotoSource.gallery => Icons.photo_library,
+                  PhotoSource.camera => Icons.photo_camera,
                   PhotoSource.googlePhotos => Icons.cloud,
                   PhotoSource.ente => Icons.lock,
                   PhotoSource.files => Icons.folder_open,
@@ -2243,6 +2271,10 @@ class EditorState extends State<Editor> {
       body = Column(
         verticalDirection: editorToolbarAlignment == .up ? .up : .down,
         children: [
+          // Bei Leiste oben läuft die Spalte von unten nach oben: Das Schreibfeld
+          // steht dann als Erstes und damit ganz unten. Es ist immer unten.
+          if (showWritingPad && editorToolbarAlignment == .up)
+            _buildWritingPad(),
           Expanded(
             child: SafeArea(
               top: editorToolbarAlignment != .up,
@@ -2250,7 +2282,8 @@ class EditorState extends State<Editor> {
               child: canvas,
             ),
           ),
-          if (showWritingPad) _buildWritingPad(),
+          if (showWritingPad && editorToolbarAlignment != .up)
+            _buildWritingPad(),
           toolbar,
           readonlyBanner,
         ],

@@ -12,6 +12,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.FileProvider
 import java.io.File
 import java.io.FileOutputStream
 import androidx.core.view.ViewCompat
@@ -28,6 +29,7 @@ class MainActivity: FlutterFragmentActivity() {
     // Feder-Fotoauswahl: Galerie, Google Fotos, Ente; Bilder werden nativ verkleinert.
     private var photoResult: MethodChannel.Result? = null
     private var photoMaxSize = 2048
+    private var cameraFile: File? = null
     private val photoLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { res ->
@@ -77,7 +79,15 @@ class MainActivity: FlutterFragmentActivity() {
                     "ente" -> "io.ente.photos"
                     else -> null
                 }
-                val intent = if (source == "system" && Build.VERSION.SDK_INT >= 33) {
+                val intent = if (source == "camera") {
+                    val dir = File(cacheDir, "camera").apply { mkdirs() }
+                    val file = File(dir, "cam_${System.nanoTime()}.jpg")
+                    cameraFile = file
+                    val uri = FileProvider.getUriForFile(this, "$packageName.federprovider", file)
+                    Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+                        .putExtra(MediaStore.EXTRA_OUTPUT, uri)
+                        .addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                } else if (source == "system" && Build.VERSION.SDK_INT >= 33) {
                     Intent(MediaStore.ACTION_PICK_IMAGES).putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, 30)
                 } else {
                     Intent(Intent.ACTION_GET_CONTENT)
@@ -100,6 +110,25 @@ class MainActivity: FlutterFragmentActivity() {
     }
 
     private fun handlePhotoResult(result: MethodChannel.Result, code: Int, data: Intent?) {
+        val camFile = cameraFile
+        cameraFile = null
+        if (camFile != null) {
+            if (code != Activity.RESULT_OK || !camFile.exists() || camFile.length() == 0L) {
+                camFile.delete()
+                result.success(emptyList<Map<String, Any>>())
+                return
+            }
+            Thread {
+                val out = ArrayList<Map<String, Any>>()
+                try {
+                    val item = decodePhoto(Uri.fromFile(camFile), photoMaxSize)
+                    if (item != null) out.add(item)
+                } catch (e: Throwable) {}
+                camFile.delete()
+                runOnUiThread { result.success(out) }
+            }.start()
+            return
+        }
         if (code != Activity.RESULT_OK || data == null) {
             result.success(emptyList<Map<String, Any>>())
             return
