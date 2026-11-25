@@ -754,10 +754,6 @@ class EditorState extends State<Editor> {
             _focalPointInWritingGuide(details.focalPoint, dragPageIndex!))) {
       // Finger auf dem Rahmen des Schreibfelds: Rahmen verschieben.
       return true;
-    } else if (currentTool is Select &&
-        currentPointerKind == PointerDeviceKind.touch) {
-      // Lasso und Auswahl lassen sich auch mit dem Finger bedienen.
-      return true;
     } else if (stows.editorFingerDrawing.value ||
         currentPointerKind == PointerDeviceKind.stylus ||
         currentPointerKind == PointerDeviceKind.invertedStylus ||
@@ -1361,6 +1357,22 @@ class EditorState extends State<Editor> {
     await _renameFileNow();
 
     final filePath = coreInfo.filePath + Editor.extension;
+    // Fotos, die noch auf eine Datei zeigen, werden vor dem Speichern in den
+    // Arbeitsspeicher geholt. Sonst koennen sich die Dateinummern beim
+    // Speichern verschieben und ein Foto zeigt auf das Bild eines anderen.
+    for (final page in coreInfo.pages) {
+      for (final image in page.images) {
+        if (image is PngEditorImage && image.imageProvider is FileImage) {
+          final file = (image.imageProvider as FileImage).file;
+          try {
+            image.imageProvider = MemoryImage(await FileManager.readBytes(file));
+            image.notifyListeners();
+          } catch (e, st) {
+            log.severe('Foto konnte nicht eingelesen werden: $e', e, st);
+          }
+        }
+      }
+    }
     final Uint8List bson;
     final OrderedAssetCache assets;
     coreInfo.assetCache.allowRemovingAssets = false;
@@ -1372,18 +1384,15 @@ class EditorState extends State<Editor> {
       coreInfo.assetCache.allowRemovingAssets = true;
     }
     try {
+      // Erst alles lesen, dann schreiben (sonst werden Dateien ueberschrieben,
+      // die noch gelesen werden muessen).
+      final assetBytes = [
+        for (int i = 0; i < assets.length; ++i) await assets.getBytes(i),
+      ];
       await Future.wait([
         FileManager.writeFile(filePath, bson, awaitWrite: true),
-        for (int i = 0; i < assets.length; ++i)
-          assets
-              .getBytes(i)
-              .then(
-                (bytes) => FileManager.writeFile(
-                  '$filePath.$i',
-                  bytes,
-                  awaitWrite: true,
-                ),
-              ),
+        for (int i = 0; i < assetBytes.length; ++i)
+          FileManager.writeFile('$filePath.$i', assetBytes[i], awaitWrite: true),
         FileManager.removeUnusedAssets(filePath, numAssets: assets.length),
       ]);
       savingState.value = .saved;

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:defer_pointer/defer_pointer.dart';
@@ -5,6 +6,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:saber/components/canvas/canvas_image_dialog.dart';
+import 'package:saber/components/canvas/guide_tools.dart';
 import 'package:saber/components/canvas/image/editor_image.dart';
 import 'package:saber/components/canvas/image/image_clip.dart';
 import 'package:saber/components/theming/adaptive_alert_dialog.dart';
@@ -175,9 +177,12 @@ class _CanvasImageState extends State<CanvasImage> {
         children: [
           MouseRegion(
             cursor: active ? SystemMouseCursors.grab : MouseCursor.defer,
-            child: RawGestureDetector(
+            child: Listener(
               behavior: HitTestBehavior.opaque,
-              gestures: _gestures(),
+              onPointerDown: _onPointerDown,
+              onPointerMove: _onPointerMove,
+              onPointerUp: _onPointerUp,
+              onPointerCancel: _onPointerCancel,
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   border: Border.all(
@@ -241,53 +246,105 @@ class _CanvasImageState extends State<CanvasImage> {
     );
   }
 
-  Map<Type, GestureRecognizerFactory> _gestures() {
-    // Ohne Lasso-Werkzeug ignoriert das Foto den Stift: Der Stift schreibt
-    // dann einfach darüber. Der Finger bedient das Foto immer.
-    final devices = widget.acceptStylus
-        ? null
-        : <PointerDeviceKind>{
-            PointerDeviceKind.touch,
-            PointerDeviceKind.mouse,
-            PointerDeviceKind.trackpad,
-          };
-    return {
-      TapGestureRecognizer:
-          GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
-            TapGestureRecognizer.new,
-            (instance) {
-              instance
-                ..supportedDevices = devices
-                ..onTap = () {
-                  active = !active;
-                }
-                ..onSecondaryTap = active ? showModal : null;
-            },
-          ),
-      if (active)
-        LongPressGestureRecognizer:
-            GestureRecognizerFactoryWithHandlers<LongPressGestureRecognizer>(
-              LongPressGestureRecognizer.new,
-              (instance) {
-                instance
-                  ..supportedDevices = devices
-                  ..onLongPress = showModal;
-              },
-            ),
-      if (active)
-        PanGestureRecognizer:
-            GestureRecognizerFactoryWithHandlers<PanGestureRecognizer>(
-              PanGestureRecognizer.new,
-              (instance) {
-                instance
-                  ..supportedDevices = devices
-                  ..onStart = _onPanStart
-                  ..onUpdate = _onPanUpdate
-                  ..onEnd = _onPanEnd
-                  ..onCancel = _endDragOverlay;
-              },
-            ),
-    };
+  // Bedienung nur mit Stift (mit dem Lasso-Werkzeug) oder Maus.
+  // Der Finger scrollt die Seite und beruehrt das Foto nicht.
+  int? _pointer;
+  Offset _downPosition = Offset.zero;
+  bool _moved = false;
+  bool _longPressed = false;
+  bool _grabbed = false;
+  Timer? _longPressTimer;
+
+  bool _accepts(PointerEvent event) {
+    switch (event.kind) {
+      case PointerDeviceKind.mouse:
+        return true;
+      case PointerDeviceKind.stylus:
+      case PointerDeviceKind.invertedStylus:
+        return widget.acceptStylus;
+      default:
+        return false;
+    }
+  }
+
+  void _releaseGrab() {
+    if (_grabbed) {
+      _grabbed = false;
+      Guides.grabbing = false;
+    }
+  }
+
+  void _onPointerDown(PointerDownEvent event) {
+    if (widget.readOnly || _pointer != null || !_accepts(event)) return;
+    _pointer = event.pointer;
+    _downPosition = event.position;
+    _moved = false;
+    _longPressed = false;
+    if (event.kind == PointerDeviceKind.mouse &&
+        (event.buttons & kSecondaryMouseButton) != 0) {
+      if (active) showModal();
+      _pointer = null;
+      return;
+    }
+    if (active) {
+      // Seite nicht mitscrollen, Lasso nicht starten: das Foto wird gezogen.
+      _grabbed = true;
+      Guides.grabbing = true;
+      _longPressTimer = Timer(const Duration(milliseconds: 600), () {
+        if (_pointer == null || _moved) return;
+        _longPressed = true;
+        _releaseGrab();
+        showModal();
+      });
+    }
+  }
+
+  void _onPointerMove(PointerMoveEvent event) {
+    if (event.pointer != _pointer || _longPressed) return;
+    if (!_moved) {
+      if ((event.position - _downPosition).distance < 6) return;
+      _moved = true;
+      _longPressTimer?.cancel();
+      if (!active) return; // Lasso laeuft ganz normal weiter
+      _onPanStart(DragStartDetails(globalPosition: _downPosition));
+      _onPanUpdate(
+        DragUpdateDetails(
+          globalPosition: event.position,
+          delta: event.position - _downPosition,
+        ),
+      );
+      return;
+    }
+    if (!active || panStartRect == Rect.zero) return;
+    _onPanUpdate(
+      DragUpdateDetails(globalPosition: event.position, delta: event.delta),
+    );
+  }
+
+  void _onPointerUp(PointerUpEvent event) {
+    if (event.pointer != _pointer) return;
+    _pointer = null;
+    _longPressTimer?.cancel();
+    final wasMoved = _moved;
+    final wasLong = _longPressed;
+    _releaseGrab();
+    if (wasLong) return;
+    if (wasMoved) {
+      if (active && panStartRect != Rect.zero) {
+        _onPanEnd(DragEndDetails());
+      }
+    } else {
+      active = !active;
+    }
+  }
+
+  void _onPointerCancel(PointerCancelEvent event) {
+    if (event.pointer != _pointer) return;
+    _pointer = null;
+    _longPressTimer?.cancel();
+    _releaseGrab();
+    if (_moved && panStartRect != Rect.zero) _endDragOverlay();
+    panStartRect = .zero;
   }
 
   void _onPanStart(DragStartDetails details) {
@@ -299,9 +356,11 @@ class _CanvasImageState extends State<CanvasImage> {
   void _onPanUpdate(DragUpdateDetails details) {
     // Bei gedrehtem Foto liegt die Geste im gedrehten Koordinatensystem.
     final a = widget.image.angle;
+    final zoom = _dragScale <= 0 ? 1.0 : _dragScale;
+    final gx = details.delta.dx / zoom, gy = details.delta.dy / zoom;
     final delta = Offset(
-      details.delta.dx * cos(a) - details.delta.dy * sin(a),
-      details.delta.dx * sin(a) + details.delta.dy * cos(a),
+      gx * cos(a) - gy * sin(a),
+      gx * sin(a) + gy * cos(a),
     );
     setState(() {
       final fivePercent = min(
@@ -327,7 +386,10 @@ class _CanvasImageState extends State<CanvasImage> {
 
   void _onPanEnd(DragEndDetails details) {
     _endDragOverlay();
-    if (panStartRect == widget.image.dstRect) return;
+    if (panStartRect == widget.image.dstRect) {
+      panStartRect = .zero;
+      return;
+    }
     if (EditorImage.dropHandler?.call(widget.image, panStartRect) ?? false) {
       panStartRect = .zero;
       return;
@@ -412,6 +474,8 @@ class _CanvasImageState extends State<CanvasImage> {
 
   @override
   void dispose() {
+    _longPressTimer?.cancel();
+    _releaseGrab();
     _dragEntry?.remove();
     _dragEntry?.dispose();
     _dragEntry = null;
