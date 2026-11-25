@@ -51,6 +51,8 @@ class Toolbar extends StatefulWidget {
     required this.toggleWritingPad,
     required this.toggleRuler,
     required this.rulerVisible,
+    required this.toggleProtractor,
+    required this.protractorMode,
     required this.writingPadVisible,
     required this.paste,
     required this.duplicateSelection,
@@ -69,6 +71,10 @@ class Toolbar extends StatefulWidget {
   /// Virtuelles Lineal ein-/ausblenden.
   final VoidCallback toggleRuler;
   final bool rulerVisible;
+
+  /// Winkelmesser: tippen schaltet Aus, Halbkreis, Vollkreis durch.
+  final VoidCallback toggleProtractor;
+  final int protractorMode;
 
   final ValueChanged<Tool> setTool;
   final Tool currentTool;
@@ -529,6 +535,22 @@ class _ToolbarState extends State<Toolbar> {
                 onPressed: widget.toggleRuler,
                 padding: buttonPadding,
                 child: const Icon(Icons.straighten),
+              ),
+              ToolbarIconButton(
+                tooltip: widget.protractorMode == 0
+                    ? 'Winkelmesser (Halbkreis)'
+                    : widget.protractorMode == 1
+                    ? 'Winkelmesser (Vollkreis)'
+                    : 'Winkelmesser ausblenden',
+                selected: widget.protractorMode != 0,
+                enabled: !widget.readOnly,
+                onPressed: widget.toggleProtractor,
+                padding: buttonPadding,
+                child: Icon(
+                  widget.protractorMode == 2
+                      ? Icons.circle_outlined
+                      : Icons.architecture,
+                ),
               ),
               ToolbarIconButton(
                 tooltip: t.editor.toolbar.photo,

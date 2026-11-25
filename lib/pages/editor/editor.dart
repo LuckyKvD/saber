@@ -18,7 +18,7 @@ import 'package:pdfrx/pdfrx.dart';
 import 'package:saber/components/canvas/_asset_cache.dart';
 import 'package:saber/components/canvas/_stroke.dart';
 import 'package:saber/components/canvas/canvas.dart';
-import 'package:saber/components/canvas/ruler.dart';
+import 'package:saber/components/canvas/guide_tools.dart';
 import 'package:saber/components/canvas/canvas_gesture_detector.dart';
 import 'package:saber/components/canvas/canvas_image.dart';
 import 'package:saber/components/canvas/image/editor_image.dart';
@@ -204,39 +204,20 @@ class EditorState extends State<Editor> {
     );
   }
 
-  // Lineal: 0 = keine Lineal-Geste, 1 = verschieben, 2 = drehen.
-  int _rulerGesture = 0;
-  int? _rulerEdge;
-  Offset _rulerLast = Offset.zero;
+  GuideEdge? _guideEdge;
 
   void _toggleRuler() {
-    final old = RulerState.pageIndex;
-    final wasOn = RulerState.owner != null;
+    final index = currentPageIndex.clamp(0, coreInfo.pages.length - 1);
     setState(() {
-      if (wasOn) {
-        RulerState.clear();
-      } else {
-        final index = currentPageIndex.clamp(0, coreInfo.pages.length - 1);
-        RulerState.show(coreInfo, index, coreInfo.pages[index].size);
-      }
+      Guides.toggleRuler(coreInfo, index, coreInfo.pages[index].size);
     });
-    if (wasOn && old < coreInfo.pages.length) {
-      coreInfo.pages[old].redrawStrokes();
-    }
-    if (!wasOn) coreInfo.pages[RulerState.pageIndex].redrawStrokes();
   }
 
-  Size get _rulerPageSize => coreInfo.pages[RulerState.pageIndex].size;
-
-  Offset _rulerPoint(Offset focalPoint) =>
-      coreInfo.pages[RulerState.pageIndex].renderBox!.globalToLocal(focalPoint);
-
-  bool _rulerTouched(Offset focalPoint, int pageIndex) {
-    if (!RulerState.isActiveFor(coreInfo, pageIndex)) return false;
-    if (coreInfo.pages[pageIndex].renderBox == null) return false;
-    final p = _rulerPoint(focalPoint);
-    return RulerState.hitHandle(p, _rulerPageSize) ||
-        RulerState.hitBody(p, _rulerPageSize);
+  void _toggleProtractor() {
+    final index = currentPageIndex.clamp(0, coreInfo.pages.length - 1);
+    setState(() {
+      Guides.cycleProtractor(coreInfo, index, coreInfo.pages[index].size);
+    });
   }
 
   void _toggleWritingPad() {
@@ -755,10 +736,6 @@ class EditorState extends State<Editor> {
 
     if (currentTool == Tool.textEditing) {
       return false;
-    } else if (currentPointerKind == PointerDeviceKind.touch &&
-        _rulerTouched(details.focalPoint, dragPageIndex!)) {
-      // Finger auf dem Lineal: verschieben oder drehen.
-      return true;
     } else if (showWritingPad &&
         currentPointerKind == PointerDeviceKind.touch &&
         (_focalPointOnWritingHandle(details.focalPoint, dragPageIndex!) ||
@@ -782,21 +759,14 @@ class EditorState extends State<Editor> {
     final page = coreInfo.pages[dragPageIndex!];
     var position = page.renderBox!.globalToLocal(details.focalPoint);
 
-    _rulerGesture = 0;
-    _rulerEdge = null;
-    if (currentPointerKind == PointerDeviceKind.touch &&
-        _rulerTouched(details.focalPoint, dragPageIndex!)) {
-      _rulerGesture = RulerState.hitHandle(position, _rulerPageSize) ? 2 : 1;
-      _rulerLast = position;
-      return;
-    }
+    _guideEdge = null;
     if (currentTool is Pen &&
         currentPointerKind != PointerDeviceKind.touch &&
-        RulerState.isActiveFor(coreInfo, dragPageIndex!)) {
-      final edge = RulerState.edgeNear(position, page.size);
+        Guides.isActiveFor(coreInfo, dragPageIndex!)) {
+      final edge = Guides.edgeNear(position, page.size);
       if (edge != null) {
-        _rulerEdge = edge;
-        position = RulerState.project(position, edge, page.size);
+        _guideEdge = edge;
+        position = Guides.project(edge, position, page.size);
       }
     }
 
@@ -873,21 +843,6 @@ class EditorState extends State<Editor> {
   }
 
   void onDrawUpdate(ScaleUpdateDetails details) {
-    if (_rulerGesture != 0 && dragPageIndex != null) {
-      final page = coreInfo.pages[RulerState.pageIndex];
-      final box = page.renderBox;
-      if (box != null) {
-        final now = box.globalToLocal(details.focalPoint);
-        if (_rulerGesture == 2) {
-          RulerState.rotateTowards(now);
-        } else {
-          RulerState.moveBy(now - _rulerLast, page.size);
-        }
-        _rulerLast = now;
-        page.redrawStrokes();
-      }
-      return;
-    }
     if (_resizingWritingPad && dragPageIndex != null) {
       final box = coreInfo.pages[dragPageIndex!].renderBox;
       if (box != null) {
@@ -916,8 +871,8 @@ class EditorState extends State<Editor> {
     }
     final page = coreInfo.pages[dragPageIndex!];
     Offset position = page.renderBox!.globalToLocal(details.focalPoint);
-    if (_rulerEdge != null && currentTool is Pen) {
-      position = RulerState.project(position, _rulerEdge!, page.size);
+    if (_guideEdge != null && currentTool is Pen) {
+      position = Guides.project(_guideEdge!, position, page.size);
     }
     Offset offset = position - previousPosition;
 
@@ -1077,11 +1032,7 @@ class EditorState extends State<Editor> {
   }
 
   void onDrawEnd(ScaleEndDetails details) {
-    if (_rulerGesture != 0) {
-      _rulerGesture = 0;
-      return;
-    }
-    _rulerEdge = null;
+    _guideEdge = null;
     if (_placingWritingPad) {
       if (_draggingWritingPad) writingPadController.endMove();
       if (_resizingWritingPad) writingPadController.endResize();
@@ -2025,7 +1976,11 @@ class EditorState extends State<Editor> {
           pickPhoto: _pickPhotos,
           toggleWritingPad: _toggleWritingPad,
           toggleRuler: _toggleRuler,
-          rulerVisible: RulerState.owner != null,
+          rulerVisible: Guides.ruler != null,
+          toggleProtractor: _toggleProtractor,
+          protractorMode: Guides.protractor == null
+              ? 0
+              : (Guides.protractor!.full ? 2 : 1),
           writingPadVisible: showWritingPad,
           paste: paste,
           exportAsSba: exportAsSba,
@@ -2494,7 +2449,7 @@ class EditorState extends State<Editor> {
     if (Pen.onHoldShapeDetected == _setState) Pen.onHoldShapeDetected = null;
     writingPadController.removeListener(_onWritingPadChanged);
     WritingPadGuide.clear();
-    RulerState.clear();
+    Guides.clear();
     writingPadController.dispose();
 
     _delayedSaveTimer?.cancel();

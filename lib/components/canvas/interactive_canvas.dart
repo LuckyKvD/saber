@@ -17,6 +17,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:saber/components/canvas/guide_tools.dart';
 import 'package:vector_math/vector_math_64.dart' show Matrix4, Quad, Vector3;
 
 typedef InteractiveCanvasViewerWidgetBuilder = Widget Function(
@@ -738,6 +739,8 @@ class _InteractiveCanvasViewerState extends State<InteractiveCanvasViewer>
 
     _gestureType = null;
     _currentAxis = null;
+    // Ein Finger hält Lineal oder Winkelmesser: Seite bleibt stehen.
+    if (Guides.grabbing) return;
     _scaleStart = _transformer.value.getMaxScaleOnAxis();
     _referenceFocalPoint = _transformer.toScene(details.localFocalPoint);
     _rotationStart = _currentRotation;
@@ -751,6 +754,7 @@ class _InteractiveCanvasViewerState extends State<InteractiveCanvasViewer>
   // Handle an update to an ongoing gesture. All of pan, scale, and rotate are
   // handled with GestureDetector's scale gesture.
   void _onScaleUpdate(ScaleUpdateDetails details) {
+    if (Guides.grabbing && !isCurrentGestureADrawGesture) return;
     final double scale = _transformer.value.getMaxScaleOnAxis();
     _scaleAnimationFocalPoint = details.localFocalPoint;
     final Offset focalPointScene = _transformer.toScene(

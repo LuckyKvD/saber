@@ -6,7 +6,8 @@ import 'package:one_dollar_unistroke_recognizer/one_dollar_unistroke_recognizer.
 import 'package:saber/components/canvas/_canvas_background_painter.dart';
 import 'package:saber/components/canvas/_canvas_painter.dart';
 import 'package:saber/components/canvas/_stroke.dart';
-import 'package:saber/components/canvas/ruler.dart';
+import 'package:saber/components/canvas/guide_overlay.dart';
+import 'package:saber/components/canvas/guide_tools.dart';
 import 'package:saber/components/canvas/canvas_image.dart';
 import 'package:saber/components/canvas/image/editor_image.dart';
 import 'package:saber/data/editor/editor_core_info.dart';
@@ -155,11 +156,6 @@ class _InnerCanvasState extends State<InnerCanvas> {
             widget.coreInfo,
             widget.pageIndex,
           ),
-          ruler: RulerState.dataFor(
-            widget.coreInfo,
-            widget.pageIndex,
-            page.size,
-          ),
         ),
         isComplex: true,
         willChange: true,
@@ -202,6 +198,24 @@ class _InnerCanvasState extends State<InnerCanvas> {
                         ) ??
                         false,
                   ),
+                // Lineal und Winkelmesser: eigene Ebene ganz oben.
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  width: widget.width,
+                  height: widget.height,
+                  child: ListenableBuilder(
+                    listenable: Guides.notifier,
+                    builder: (context, _) =>
+                        Guides.isActiveFor(widget.coreInfo, widget.pageIndex)
+                        ? GuideOverlay(
+                            coreInfo: widget.coreInfo,
+                            pageIndex: widget.pageIndex,
+                            pageSize: Size(widget.width, widget.height),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+                ),
               ],
             ),
           ),
