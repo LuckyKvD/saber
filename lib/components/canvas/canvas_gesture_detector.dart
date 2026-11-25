@@ -2,8 +2,10 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:math';
 import 'dart:ui';
+import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
+import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/services.dart';
 import 'package:keybinder/keybinder.dart';
 import 'package:material_ui/material_ui.dart';
@@ -214,7 +216,7 @@ class CanvasGestureDetector extends StatefulWidget {
 }
 
 class CanvasGestureDetectorState extends State<CanvasGestureDetector>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late var containerBounds = const BoxConstraints();
 
   Timer? _pageSnapTimer;
@@ -230,6 +232,80 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
 
   /// Blättern: Seite, auf der die aktuelle Geste begonnen hat. Pro Geste
   /// kann nur eine Seite vor oder zurück geblättert werden.
+  // Umblätter-Effekt: Bild der ausgehenden Seite klappt am Falz weg.
+  final Map<int, GlobalKey> _pageKeys = {};
+  GlobalKey _pageKeyFor(int index) =>
+      _pageKeys.putIfAbsent(index, () => GlobalKey());
+  late final AnimationController _flipAnim = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 420),
+  );
+  ui.Image? _flipImage;
+  var _flipForward = true;
+  var _flipRect = Rect.zero;
+
+  Future<ui.Image?> _capturePage(int index) async {
+    final object = _pageKeys[index]?.currentContext?.findRenderObject();
+    if (object is! RenderRepaintBoundary) return null;
+    try {
+      return await object.toImage(
+        pixelRatio: min(MediaQuery.devicePixelRatioOf(context), 2.0),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _cancelFlip() {
+    if (_flipImage == null) return;
+    _flipAnim.stop();
+    _flipImage?.dispose();
+    _flipImage = null;
+    if (mounted) setState(() {});
+    _endGesture();
+  }
+
+  Future<void> _turnPage(int from, int to, double targetX) async {
+    final forward = to > from;
+    final image = await _capturePage(forward ? from : to);
+    if (!mounted) {
+      image?.dispose();
+      return;
+    }
+    final controller = widget._transformationController;
+    if (image == null) {
+      // Ersatz: einfaches seitliches Umschalten.
+      _snapFrom = controller.value.getTranslation().x;
+      _snapTo = targetX;
+      _snapAnim
+        ..reset()
+        ..forward();
+      return;
+    }
+    final matrix = controller.value.clone();
+    matrix.setTranslationRaw(targetX, matrix.getTranslation().y, 0);
+    controller.value = matrix;
+
+    final ratio = min(MediaQuery.devicePixelRatioOf(context), 2.0);
+    final w = image.width / ratio;
+    final h = image.height / ratio;
+    setState(() {
+      _flipImage = image;
+      _flipForward = forward;
+      _flipRect = Rect.fromLTWH(
+        (containerBounds.maxWidth - w) / 2,
+        matrix.getTranslation().y + Editor.gapBetweenPages,
+        w,
+        h,
+      );
+    });
+    await _flipAnim.forward(from: 0);
+    if (!mounted || _flipImage != image) return;
+    _flipImage?.dispose();
+    setState(() => _flipImage = null);
+    _endGesture();
+  }
+
   bool _gestureActive = false;
   int? _startPage;
 
@@ -258,6 +334,7 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
   }
 
   void _stopSnap() {
+    _cancelFlip();
     _pageSnapTimer?.cancel();
     _snapAnim.stop();
   }
@@ -296,6 +373,10 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
         .toDouble();
     if ((_snapTo - _snapFrom).abs() < 1) {
       _endGesture();
+      return;
+    }
+    if (page != start && _flipImage == null) {
+      _turnPage(start, page, _snapTo);
       return;
     }
     _snapAnim
@@ -762,6 +843,7 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
                       boundingBox: _axisAlignedBoundingBox(viewport),
                       containerWidth: containerBounds.maxWidth,
                       horizontal: widget.horizontal,
+                      pageKeyFor: _pageKeyFor,
                     );
                   },
                 );
@@ -769,6 +851,38 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
             ),
           ),
         ),
+        if (_flipImage != null)
+          Positioned.fromRect(
+            rect: _flipRect,
+            child: IgnorePointer(
+              child: AnimatedBuilder(
+                animation: _flipAnim,
+                builder: (context, _) {
+                  final t = Curves.easeInOut.transform(_flipAnim.value);
+                  final theta = (_flipForward ? t : 1 - t) * pi / 2;
+                  return Transform(
+                    alignment: Alignment.centerLeft,
+                    transform: Matrix4.identity()
+                      ..setEntry(3, 2, 0.0012)
+                      ..rotateY(theta),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        RawImage(image: _flipImage, fit: BoxFit.fill),
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(
+                              alpha: 0.35 * theta / (pi / 2),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
         Positioned.fill(
           child: CanvasHud(
             transformationController: widget._transformationController,
@@ -803,6 +917,8 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
       widget._transformationController.value,
     );
     _pageSnapTimer?.cancel();
+    _flipImage?.dispose();
+    _flipAnim.dispose();
     _snapAnim.dispose();
     widget._transformationController.removeListener(onTransformChanged);
     widget._transformationController.dispose();
@@ -838,8 +954,10 @@ class _PagesBuilder extends StatelessWidget {
     required this.boundingBox,
     required this.containerWidth,
     this.horizontal = false,
+    this.pageKeyFor,
   });
 
+  final GlobalKey Function(int index)? pageKeyFor;
   final List<EditorPage> pages;
   final Widget Function(BuildContext context, int pageIndex) pageBuilder;
   final Widget Function(BuildContext context, int pageIndex)
@@ -872,9 +990,12 @@ class _PagesBuilder extends StatelessWidget {
         SizedBox(
           width: pageWidth,
           height: pageHeight,
-          child: shouldRender
-              ? pageBuilder(context, pageIndex)
-              : placeholderPageBuilder(context, pageIndex),
+          child: RepaintBoundary(
+            key: pageKeyFor?.call(pageIndex),
+            child: shouldRender
+                ? pageBuilder(context, pageIndex)
+                : placeholderPageBuilder(context, pageIndex),
+          ),
         ),
       );
       children.add(const SizedBox.square(dimension: Editor.gapBetweenPages));
