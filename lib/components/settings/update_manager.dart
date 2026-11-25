@@ -31,16 +31,10 @@ abstract class UpdateManager {
     BuildContext context, {
     bool userTriggered = false,
   }) async {
-    if (!userTriggered) {
-      if (status.value == .upToDate) {
-        // check for updates if not already done
-        await stows.shouldCheckForUpdates.waitUntilRead();
-        if (!stows.shouldCheckForUpdates.value) return;
-        status.value = await _checkForUpdate();
-      }
-      if (status.value != .updateRecommended) return; // no update available
-      if (_hasShownUpdateDialog) return; // already shown
-    }
+    // Feder prüft nicht automatisch auf Updates: die Prüfung würde sonst
+    // Versionen der ursprünglichen Saber-App melden. Updates installiert Kay
+    // selbst aus den Builds (gleiche Signatur = Update über die alte App).
+    if (!userTriggered) return;
 
     if (!context.mounted) return;
     _hasShownUpdateDialog = true;

@@ -12,7 +12,9 @@ import 'package:saber/data/editor/page.dart';
 import 'package:saber/data/extensions/color_extensions.dart';
 import 'package:saber/data/tools/highlighter.dart';
 import 'package:saber/data/tools/laser_pointer.dart';
+import 'package:saber/data/tools/pen.dart';
 import 'package:saber/data/tools/select.dart';
+import 'package:saber/data/tools/shape_recognizer.dart';
 import 'package:saber/data/tools/shape_pen.dart';
 
 class CanvasPainter extends CustomPainter {
@@ -54,6 +56,7 @@ class CanvasPainter extends CustomPainter {
     for (final stroke in laserStrokes) _drawLaserStroke(canvas, stroke);
     _drawCurrentStroke(canvas);
     _drawDetectedShape(canvas);
+    _drawHeldShape(canvas);
     _drawSelection(canvas);
     _drawPageIndicator(canvas, size);
   }
@@ -189,6 +192,29 @@ class CanvasPainter extends CustomPainter {
         ),
     );
     canvas.drawPath(stroke.innerPath, Paint()..color = const Color(0xDDffffff));
+  }
+
+  void _drawHeldShape(Canvas canvas) {
+    final shape = Pen.heldShape;
+    if (shape == null || currentStroke == null) return;
+
+    final color = currentStroke!.color.withInversion(invert);
+    final paint = Paint()
+      ..color = Color.lerp(color, primaryColor, 0.5)!.withValues(alpha: 0.7)
+      ..style = .stroke
+      ..strokeWidth = currentStroke!.options.size;
+
+    switch (shape.kind) {
+      case HeldShapeKind.line:
+        canvas.drawLine(shape.outline.first, shape.outline.last, paint);
+      case HeldShapeKind.rectangle:
+        canvas.drawRect(shape.rect!, paint);
+      case HeldShapeKind.circle:
+        canvas.drawCircle(shape.center!, shape.radius!, paint);
+      case HeldShapeKind.ellipse:
+      case HeldShapeKind.polygon:
+        canvas.drawPath(Path()..addPolygon(shape.outline, true), paint);
+    }
   }
 
   void _drawDetectedShape(Canvas canvas) {

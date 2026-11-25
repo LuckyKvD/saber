@@ -12,6 +12,7 @@ import 'package:saber/components/theming/adaptive_icon.dart';
 import 'package:saber/components/theming/dynamic_material_app.dart';
 import 'package:saber/components/theming/uni_icon.dart';
 import 'package:saber/components/toolbar/color_bar.dart';
+import 'package:saber/components/toolbar/eraser_modal.dart';
 import 'package:saber/components/toolbar/export_bar.dart';
 import 'package:saber/components/toolbar/pen_modal.dart';
 import 'package:saber/components/toolbar/selection_bar.dart';
@@ -27,6 +28,7 @@ import 'package:saber/data/tools/laser_pointer.dart';
 import 'package:saber/data/tools/pen.dart';
 import 'package:saber/data/tools/pencil.dart';
 import 'package:saber/data/tools/select.dart';
+import 'package:saber/data/tools/shape_pen.dart';
 import 'package:saber/i18n/strings.g.dart';
 
 class Toolbar extends StatefulWidget {
@@ -90,8 +92,16 @@ class Toolbar extends StatefulWidget {
 
 class _ToolbarState extends State<Toolbar> {
   ValueNotifier<bool> showExportOptions = ValueNotifier(false);
-  ValueNotifier<bool> showColorOptions = ValueNotifier(false);
+  ValueNotifier<bool> showColorOptions = ValueNotifier(true);
   ValueNotifier<ToolOptions> toolOptionsType = ValueNotifier(ToolOptions.hide);
+
+  /// Zuletzt benutzter normaler Stift (Füller, Kugelschreiber, Kalligrafie),
+  /// damit der Formen-Stift den Stift-Knopf nicht überschreibt.
+  Pen? _lastRegularPen;
+  Pen get _regularPen {
+    if (Pen.currentPen is! ShapePen) _lastRegularPen = Pen.currentPen;
+    return _lastRegularPen ??= Pen.fountainPen();
+  }
 
   @override
   void initState() {
@@ -152,7 +162,8 @@ class _ToolbarState extends State<Toolbar> {
   }
 
   void toggleEraser() {
-    toolOptionsType.value = .hide;
+    final wasEraser = widget.currentTool is Eraser;
+    toolOptionsType.value = wasEraser ? .hide : .eraser;
     widget.setTool(Eraser()); // this toggles eraser
   }
 
@@ -239,6 +250,7 @@ class _ToolbarState extends State<Toolbar> {
                 getTool: () => Pencil.currentPencil,
                 setTool: widget.setTool,
               ),
+              .eraser => const EraserModal(),
               .select => SelectionBar(
                 duplicateSelection: widget.duplicateSelection,
                 deleteSelection: widget.deleteSelection,
@@ -320,23 +332,26 @@ class _ToolbarState extends State<Toolbar> {
             runSpacing: 8,
             children: [
               ToolbarIconButton(
-                tooltip: Pen.currentPen.name,
-                selected: widget.currentTool == Pen.currentPen,
+                tooltip: _regularPen.name,
+                selected:
+                    widget.currentTool == Pen.currentPen &&
+                    Pen.currentPen is! ShapePen,
                 enabled: !widget.readOnly,
                 onPressed: () {
-                  if (widget.currentTool == Pen.currentPen) {
+                  if (widget.currentTool == Pen.currentPen &&
+                      Pen.currentPen is! ShapePen) {
                     if (toolOptionsType.value == .pen) {
                       toolOptionsType.value = .hide;
                     } else {
                       toolOptionsType.value = .pen;
                     }
                   } else {
-                    toolOptionsType.value = .hide;
-                    widget.setTool(Pen.currentPen);
+                    toolOptionsType.value = .pen;
+                    widget.setTool(_regularPen);
                   }
                 },
                 padding: buttonPadding,
-                child: UniIcon(Pen.currentPen.icon, size: 16),
+                child: UniIcon(_regularPen.icon, size: 16),
               ),
               ToolbarIconButton(
                 tooltip: t.editor.pens.pencil,
@@ -350,7 +365,7 @@ class _ToolbarState extends State<Toolbar> {
                       toolOptionsType.value = .pencil;
                     }
                   } else {
-                    toolOptionsType.value = .hide;
+                    toolOptionsType.value = .pencil;
                     widget.setTool(Pencil.currentPencil);
                   }
                 },
@@ -369,7 +384,7 @@ class _ToolbarState extends State<Toolbar> {
                       toolOptionsType.value = .highlighter;
                     }
                   } else {
-                    toolOptionsType.value = .hide;
+                    toolOptionsType.value = .highlighter;
                     widget.setTool(Highlighter.currentHighlighter);
                   }
                 },
@@ -447,6 +462,23 @@ class _ToolbarState extends State<Toolbar> {
                 onPressed: toggleEraser,
                 padding: buttonPadding,
                 child: const FaIcon(FontAwesomeIcons.eraser, size: 16),
+              ),
+              ToolbarIconButton(
+                tooltip: t.editor.pens.shapePen,
+                selected: widget.currentTool is ShapePen,
+                enabled: !widget.readOnly,
+                onPressed: () {
+                  if (widget.currentTool is ShapePen) {
+                    toolOptionsType.value = toolOptionsType.value == .pen
+                        ? .hide
+                        : .pen;
+                  } else {
+                    toolOptionsType.value = .pen;
+                    widget.setTool(ShapePen());
+                  }
+                },
+                padding: buttonPadding,
+                child: const FaIcon(ShapePen.shapePenIcon, size: 16),
               ),
               ToolbarIconButton(
                 tooltip: t.editor.toolbar.photo,
@@ -572,4 +604,4 @@ class _ToolbarState extends State<Toolbar> {
   }
 }
 
-enum ToolOptions { hide, pen, highlighter, pencil, select }
+enum ToolOptions { hide, pen, highlighter, pencil, eraser, select }

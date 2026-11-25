@@ -184,6 +184,7 @@ class EditorState extends State<Editor> {
   @override
   void initState() {
     DynamicMaterialApp.addFullscreenListener(_setState);
+    Pen.onHoldShapeDetected = _setState;
 
     _initAsync();
     _assignKeybindings();
@@ -1953,7 +1954,9 @@ class EditorState extends State<Editor> {
       coreInfo: coreInfo,
       currentStroke: currentStroke,
       currentStrokeDetectedShape:
-          currentTool is ShapePen && currentStroke != null
+          (currentTool is ShapePen ||
+              (currentTool is Pen && stows.autoShape.value)) &&
+              currentStroke != null
           ? ShapePen.detectedShape
           : null,
       currentSelection: () {
@@ -2149,6 +2152,7 @@ class EditorState extends State<Editor> {
     unawaited(_cleanUpAsync());
 
     DynamicMaterialApp.removeFullscreenListener(_setState);
+    if (Pen.onHoldShapeDetected == _setState) Pen.onHoldShapeDetected = null;
 
     _delayedSaveTimer?.cancel();
     _watchServerTimer?.cancel();

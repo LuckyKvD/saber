@@ -169,6 +169,12 @@ class Stows {
     500,
     volatile: !_isOnMainIsolate,
   );
+  /// Formen-Halten für alle Stifte (Knopf in der Stift-Leiste).
+  final autoShape = PlainStow(
+    'autoShape',
+    false,
+    volatile: !_isOnMainIsolate,
+  );
   final autoStraightenLines = PlainStow(
     'autoStraightenLines',
     true,

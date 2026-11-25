@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:perfect_freehand/perfect_freehand.dart';
@@ -7,6 +9,8 @@ import 'package:saber/data/prefs.dart';
 import 'package:saber/data/tools/_tool.dart';
 import 'package:saber/data/tools/highlighter.dart';
 import 'package:saber/data/tools/pencil.dart';
+import 'package:saber/data/tools/shape_pen.dart';
+import 'package:saber/data/tools/shape_recognizer.dart';
 import 'package:saber/i18n/strings.g.dart';
 import 'package:sbn/tool_id.dart';
 
@@ -92,21 +96,73 @@ class Pen extends Tool {
       page: page,
       toolId: toolId,
     );
+    if (holdToShape) _resetHold();
     onDragUpdate(position, pressure);
+  }
+
+  /// Formen-Halten: Bleibt der Stift am Ende eines Strichs kurz stehen,
+  /// wird die erkannte Form (Linie, Rechteck, Kreis, Dreieck) angezeigt und
+  /// beim Abheben übernommen. Gilt für alle Stifte außer dem Formen-Stift
+  /// (der erkennt immer).
+  bool get holdToShape => stows.autoShape.value && this is! ShapePen;
+
+  static const holdToShapeDelay = Duration(milliseconds: 400);
+
+  /// Bewegung unterhalb dieser Strecke (in Seitenpunkten) gilt als "Stillhalten".
+  /// Wichtig: Stifte liefern auch im Stillstand winzige Bewegungs-Ereignisse.
+  static const holdMoveTolerance = 4.0;
+  static Timer? _holdTimer;
+  static Offset? _holdAnchor;
+
+  /// Beim Halten erkannte Form (Vorschau und Übernahme beim Abheben).
+  static HeldShape? heldShape;
+
+  /// Wird aufgerufen, wenn eine Form im Halten erkannt wurde (Editor zeichnet neu).
+  static VoidCallback? onHoldShapeDetected;
+
+  static void _resetHold() {
+    _holdTimer?.cancel();
+    _holdTimer = null;
+    _holdAnchor = null;
+    heldShape = null;
   }
 
   void onDragUpdate(Offset position, double? pressure) {
     currentStroke?.addPoint(position, pressure);
+
+    if (holdToShape) {
+      final anchor = _holdAnchor;
+      if (anchor == null || (position - anchor).distance > holdMoveTolerance) {
+        _holdAnchor = position;
+        final hadShape = heldShape != null;
+        heldShape = null;
+        _holdTimer?.cancel();
+        _holdTimer = Timer(holdToShapeDelay, () {
+          final stroke = Pen.currentStroke;
+          if (stroke == null) return;
+          heldShape = ShapeRecognizer.recognize([
+            for (final p in stroke.points) Offset(p.dx, p.dy),
+          ]);
+          onHoldShapeDetected?.call();
+        });
+        if (hadShape) onHoldShapeDetected?.call();
+      }
+    }
   }
 
   Stroke? onDragEnd() {
+    final held = holdToShape ? heldShape : null;
+    if (holdToShape) _resetHold();
+
     final stroke = currentStroke;
     currentStroke = null;
     if (stroke == null) return null;
 
-    return stroke
+    stroke
       ..options.isComplete = true
       ..markPolygonNeedsUpdating();
+    if (held != null) return held.applyTo(this, stroke);
+    return stroke;
   }
 
   /// The default stroke options.
