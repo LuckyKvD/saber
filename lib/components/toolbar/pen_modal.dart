@@ -9,6 +9,7 @@ import 'package:saber/data/tools/calligraphy_pen.dart';
 import 'package:saber/data/tools/highlighter.dart';
 import 'package:saber/data/tools/pen.dart';
 import 'package:saber/data/tools/pencil.dart';
+import 'package:saber/data/tools/tape_pen.dart';
 import 'package:saber/i18n/strings.g.dart';
 
 class PenModal<T extends Pen> extends StatefulWidget {
@@ -41,7 +42,7 @@ class _PenModalState<T extends Pen> extends State<PenModal<T>> {
       children: [
         SizePicker(axis: axis, pen: pen),
 
-        if (pen is! Highlighter && pen is! Pencil) ...[
+        if (pen is! Highlighter && pen is! Pencil && pen is! TapePen) ...[
           _PenSelector(
             isSelected: Pen.currentPen.icon == Pen.fountainPenIcon,
             onPressed: () => setState(() {

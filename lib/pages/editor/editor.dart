@@ -43,6 +43,7 @@ import 'package:saber/data/prefs.dart';
 import 'package:saber/data/tools/_tool.dart';
 import 'package:saber/data/tools/eraser.dart';
 import 'package:saber/data/tools/highlighter.dart';
+import 'package:saber/data/tools/tape_pen.dart';
 import 'package:saber/data/tools/laser_pointer.dart';
 import 'package:saber/data/tools/pen.dart';
 import 'package:saber/data/tools/pencil.dart';
@@ -142,6 +143,8 @@ class EditorState extends State<Editor> {
         return Pen.currentPen;
       case .highlighter:
         return Highlighter.currentHighlighter;
+      case .tape:
+        return TapePen.currentTape;
       case .pencil:
         return Pencil.currentPencil;
       case .eraser:
@@ -1553,6 +1556,8 @@ class EditorState extends State<Editor> {
 
             if (tool is Highlighter) {
               Highlighter.currentHighlighter = tool;
+            } else if (tool is TapePen) {
+              TapePen.currentTape = tool;
             } else if (tool is Pencil) {
               Pencil.currentPencil = tool;
             } else if (tool is Pen) {
@@ -1634,6 +1639,10 @@ class EditorState extends State<Editor> {
               if (currentTool is Highlighter) {
                 (currentTool as Highlighter).color = color.withAlpha(
                   Highlighter.alpha,
+                );
+              } else if (currentTool is TapePen) {
+                (currentTool as TapePen).color = color.withAlpha(
+                  TapePen.alpha,
                 );
               } else if (currentTool is Pen) {
                 (currentTool as Pen).color = color;
@@ -2164,6 +2173,7 @@ class EditorState extends State<Editor> {
     stows.lastFountainPenOptions.notifyListeners();
     stows.lastBallpointPenOptions.notifyListeners();
     stows.lastHighlighterOptions.notifyListeners();
+    stows.lastTapeOptions.notifyListeners();
     stows.lastPencilOptions.notifyListeners();
     stows.lastShapePenOptions.notifyListeners();
 

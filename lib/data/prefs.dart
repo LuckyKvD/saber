@@ -313,6 +313,12 @@ class Stows {
         fromJson: _strokeOptionsFromJson,
         volatile: !_isOnMainIsolate,
       ),
+      lastTapeOptions = PlainStow.json(
+        'lastTapeProperties',
+        Pen.tapeOptions,
+        fromJson: _strokeOptionsFromJson,
+        volatile: !_isOnMainIsolate,
+      ),
       lastPencilOptions = PlainStow.json(
         'lastPencilProperties',
         Pen.pencilOptions,
