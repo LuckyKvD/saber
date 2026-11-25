@@ -1,7 +1,9 @@
+import 'package:defer_pointer/defer_pointer.dart';
 import 'package:flutter/gestures.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:saber/components/canvas/_canvas_background_painter.dart';
 import 'package:saber/components/canvas/_canvas_painter.dart';
+import 'package:saber/components/canvas/canvas_image.dart';
 import 'package:saber/components/canvas/inner_canvas.dart';
 import 'package:saber/components/toolbar/writing_pad_guide.dart';
 import 'package:saber/data/editor/editor_core_info.dart';
@@ -177,6 +179,98 @@ class _WritingPadState extends State<WritingPad> {
                   final markerX = _marker * constraints.maxWidth;
                   return Stack(
                     children: [
+                      // 1. Hintergrund (Kästchen, Linien)
+                      Positioned.fill(
+                        child: ClipRect(
+                          child: CustomPaint(
+                            painter: _LupeBackgroundPainter(
+                              controller: c,
+                              page: page,
+                              invert: invert,
+                              backgroundColor:
+                                  widget.coreInfo.backgroundColor ??
+                                  InnerCanvas.defaultBackgroundColor,
+                              pattern: widget.coreInfo.backgroundPattern,
+                              lineHeight: widget.coreInfo.lineHeight,
+                              lineThickness: widget.coreInfo.lineThickness,
+                              primaryColor: colorScheme.primary.withInversion(
+                                invertColorScheme,
+                              ),
+                              secondaryColor: colorScheme.secondary
+                                  .withInversion(invertColorScheme),
+                            ),
+                          ),
+                        ),
+                      ),
+                      // 2. Hintergrundbild und Bilder (wie auf dem Blatt)
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: ClipRect(
+                            child: OverflowBox(
+                              alignment: Alignment.topLeft,
+                              minWidth: 0,
+                              minHeight: 0,
+                              maxWidth: double.infinity,
+                              maxHeight: double.infinity,
+                              child: Transform(
+                                alignment: Alignment.topLeft,
+                                transform: Matrix4.identity()
+                                  ..scale(_zoom, _zoom)
+                                  ..translate(-c.left, -c.top),
+                                child: SizedBox(
+                                  width: page.size.width,
+                                  height: page.size.height,
+                                  child: DeferredPointerHandler(
+                                    child: Stack(
+                                    children: [
+                                      if (page.backgroundImage != null)
+                                        CanvasImage(
+                                          filePath: widget.coreInfo.filePath,
+                                          image: page.backgroundImage!,
+                                          pageSize: page.size,
+                                          setAsBackground: null,
+                                          isBackground: true,
+                                          readOnly: true,
+                                        ),
+                                      for (final image in page.images)
+                                        CanvasImage(
+                                          filePath: widget.coreInfo.filePath,
+                                          image: image,
+                                          pageSize: page.size,
+                                          setAsBackground: null,
+                                          readOnly: true,
+                                        ),
+                                    ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      // 3. Striche und Umbruch-Marke
+                      Positioned.fill(
+                        child: ClipRect(
+                          child: CustomPaint(
+                            painter: _LupeStrokesPainter(
+                              controller: c,
+                              page: page,
+                              pageIndex: c.pageIndex,
+                              totalPages: pages.length,
+                              invert: invert,
+                              primaryColor: colorScheme.primary.withInversion(
+                                invertColorScheme,
+                              ),
+                              textStyle: theme.textTheme.bodyMedium!,
+                              markerX: markerX,
+                              markerColor: colorScheme.primary,
+                              divider: colorScheme.outlineVariant,
+                            ),
+                          ),
+                        ),
+                      ),
+                      // 4. Eingabefläche für den Stift
                       Positioned.fill(
                         child: Listener(
                           behavior: HitTestBehavior.opaque,
@@ -184,33 +278,6 @@ class _WritingPadState extends State<WritingPad> {
                           onPointerMove: _pointerMove,
                           onPointerUp: _pointerUp,
                           onPointerCancel: _pointerUp,
-                          child: ClipRect(
-                            child: CustomPaint(
-                              size: Size.infinite,
-                              painter: _LupePainter(
-                                controller: c,
-                                page: page,
-                                pageIndex: c.pageIndex,
-                                totalPages: pages.length,
-                                invert: invert,
-                                backgroundColor:
-                                    widget.coreInfo.backgroundColor ??
-                                    InnerCanvas.defaultBackgroundColor,
-                                pattern: widget.coreInfo.backgroundPattern,
-                                lineHeight: widget.coreInfo.lineHeight,
-                                lineThickness: widget.coreInfo.lineThickness,
-                                primaryColor: colorScheme.primary.withInversion(
-                                  invertColorScheme,
-                                ),
-                                secondaryColor: colorScheme.secondary
-                                    .withInversion(invertColorScheme),
-                                textStyle: theme.textTheme.bodyMedium!,
-                                markerX: markerX,
-                                markerColor: colorScheme.primary,
-                                divider: colorScheme.outlineVariant,
-                              ),
-                            ),
-                          ),
                         ),
                       ),
                       // Umbruch-Marke: nach links/rechts schiebbar.
@@ -245,14 +312,18 @@ class _WritingPadState extends State<WritingPad> {
   }
 }
 
-/// Zeichnet den Rahmen-Ausschnitt des Blatts vergrößert:
-/// Hintergrund (Kästchen, Linien) und Striche, wie auf dem Blatt selbst.
-class _LupePainter extends CustomPainter {
-  _LupePainter({
+/// Gemeinsame Abbildung: Seitenkoordinaten -> Feld (Rahmen füllt das Feld).
+void _applyWindow(Canvas canvas, Size size, Rect window) {
+  canvas.clipRect(Offset.zero & size);
+  canvas.scale(size.width / window.width);
+  canvas.translate(-window.left, -window.top);
+}
+
+/// Unterste Ebene: Hintergrund (Kästchen, Linien) des Ausschnitts, vergrößert.
+class _LupeBackgroundPainter extends CustomPainter {
+  _LupeBackgroundPainter({
     required this.controller,
     required this.page,
-    required this.pageIndex,
-    required this.totalPages,
     required this.invert,
     required this.backgroundColor,
     required this.pattern,
@@ -260,16 +331,10 @@ class _LupePainter extends CustomPainter {
     required this.lineThickness,
     required this.primaryColor,
     required this.secondaryColor,
-    required this.textStyle,
-    required this.markerX,
-    required this.markerColor,
-    required this.divider,
-  }) : super(repaint: Listenable.merge([controller, page]));
+  }) : super(repaint: controller);
 
   final WritingPadController controller;
   final EditorPage page;
-  final int pageIndex;
-  final int totalPages;
   final bool invert;
   final Color backgroundColor;
   final CanvasBackgroundPattern pattern;
@@ -277,21 +342,13 @@ class _LupePainter extends CustomPainter {
   final int lineThickness;
   final Color primaryColor;
   final Color secondaryColor;
-  final TextStyle textStyle;
-  final double markerX;
-  final Color markerColor;
-  final Color divider;
 
   @override
   void paint(Canvas canvas, Size size) {
     final window = controller.rect;
     if (window.width <= 0) return;
-    final zoom = size.width / window.width;
-
-    canvas.clipRect(Offset.zero & size);
     canvas.save();
-    canvas.scale(zoom);
-    canvas.translate(-window.left, -window.top);
+    _applyWindow(canvas, size, window);
 
     final hasBackgroundImage = page.backgroundImage != null;
     CanvasBackgroundPainter(
@@ -306,6 +363,46 @@ class _LupePainter extends CustomPainter {
       secondaryColor: secondaryColor,
     ).paint(canvas, page.size);
 
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_LupeBackgroundPainter oldDelegate) => true;
+}
+
+/// Oberste Ebene: Striche des Ausschnitts, vergrößert, dazu die Umbruch-Marke.
+class _LupeStrokesPainter extends CustomPainter {
+  _LupeStrokesPainter({
+    required this.controller,
+    required this.page,
+    required this.pageIndex,
+    required this.totalPages,
+    required this.invert,
+    required this.primaryColor,
+    required this.textStyle,
+    required this.markerX,
+    required this.markerColor,
+    required this.divider,
+  }) : super(repaint: Listenable.merge([controller, page]));
+
+  final WritingPadController controller;
+  final EditorPage page;
+  final int pageIndex;
+  final int totalPages;
+  final bool invert;
+  final Color primaryColor;
+  final TextStyle textStyle;
+  final double markerX;
+  final Color markerColor;
+  final Color divider;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final window = controller.rect;
+    if (window.width <= 0) return;
+
+    canvas.save();
+    _applyWindow(canvas, size, window);
     final current = Pen.currentStroke;
     CanvasPainter(
       invert: invert,
@@ -321,7 +418,6 @@ class _LupePainter extends CustomPainter {
       currentScale: 1,
       defaultTextStyle: textStyle,
     ).paint(canvas, page.size);
-
     canvas.restore();
 
     // Grauer Bereich hinter der Marke: hier rückt der Ausschnitt weiter.
@@ -346,7 +442,7 @@ class _LupePainter extends CustomPainter {
       ..close();
     canvas.drawPath(pin, Paint()..color = markerColor);
     canvas.drawLine(
-      Offset(0, 0),
+      Offset.zero,
       Offset(size.width, 0),
       Paint()
         ..color = divider
@@ -355,5 +451,5 @@ class _LupePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_LupePainter oldDelegate) => true;
+  bool shouldRepaint(_LupeStrokesPainter oldDelegate) => true;
 }
