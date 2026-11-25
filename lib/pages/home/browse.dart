@@ -18,6 +18,8 @@ import 'package:saber/components/home/path_components.dart';
 import 'package:saber/components/home/rename_note_button.dart';
 import 'package:saber/components/home/sort_button.dart';
 import 'package:saber/components/home/syncing_button.dart';
+import 'package:saber/components/shelf/cover_dialogs.dart';
+import 'package:saber/components/shelf/shelf_files.dart';
 import 'package:saber/components/theming/saber_theme.dart';
 import 'package:saber/data/file_manager/file_manager.dart';
 import 'package:saber/data/prefs.dart';
@@ -198,14 +200,22 @@ class _BrowsePageState extends State<BrowsePage> {
                 // Allow space for the FloatingActionButton
                 bottom: 70,
               ),
-              sliver: MasonryFiles(
-                crossAxisCount: crossAxisCount,
-                files: [
-                  for (final filePath in children?.files ?? const [])
-                    "${path ?? ""}/$filePath",
-                ],
-                selectedFiles: selectedFiles,
-              ),
+              sliver: stows.homeLayout.value == HomeLayout.shelf
+                  ? ShelfFiles(
+                      files: [
+                        for (final filePath in children?.files ?? const [])
+                          "${path ?? ""}/$filePath",
+                      ],
+                      selectedFiles: selectedFiles,
+                    )
+                  : MasonryFiles(
+                      crossAxisCount: crossAxisCount,
+                      files: [
+                        for (final filePath in children?.files ?? const [])
+                          "${path ?? ""}/$filePath",
+                      ],
+                      selectedFiles: selectedFiles,
+                    ),
             ),
           ],
         ],
@@ -221,6 +231,16 @@ class _BrowsePageState extends State<BrowsePage> {
                 axis: .vertical,
                 collapsed: selectedFiles.value.length != 1,
                 child: RenameNoteButton(
+                  existingPath: selectedFiles.value.isEmpty
+                      ? ''
+                      : selectedFiles.value.first,
+                  unselectNotes: () => selectedFiles.value = [],
+                ),
+              ),
+              Collapsible(
+                axis: .vertical,
+                collapsed: selectedFiles.value.length != 1,
+                child: CoverNoteButton(
                   existingPath: selectedFiles.value.isEmpty
                       ? ''
                       : selectedFiles.value.first,

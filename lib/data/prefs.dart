@@ -411,9 +411,10 @@ class Stows {
         volatile: !_isOnMainIsolate,
       );
 
+  // Feder: neuer Schluessel, damit das Regal als Standard gilt.
   final homeLayout = PlainStow(
-    'homeLayout',
-    HomeLayout.masonryGrid,
+    'homeLayoutFeder',
+    HomeLayout.shelf,
     codec: HomeLayout.codec,
     volatile: !_isOnMainIsolate,
   );

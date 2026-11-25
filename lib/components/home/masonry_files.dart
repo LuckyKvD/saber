@@ -62,7 +62,7 @@ class _MasonryFilesState extends State<MasonryFiles> {
     return SliverPadding(
       padding: const .symmetric(horizontal: 16, vertical: 8),
       sliver: switch (stows.homeLayout.value) {
-        .masonryGrid => SliverMasonryGrid.count(
+        .masonryGrid || .shelf => SliverMasonryGrid.count(
           crossAxisCount: widget.crossAxisCount,
           mainAxisSpacing: 8,
           crossAxisSpacing: 8,

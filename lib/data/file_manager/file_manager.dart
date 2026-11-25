@@ -41,7 +41,7 @@ class FileManager {
 
   /// A regex that matches the file names/paths of asset files,
   /// including previews, e.g. `mynote.sbn2.1`.
-  static final assetFileRegex = RegExp(r'\.sbn2?\.[\dp]+$');
+  static final assetFileRegex = RegExp(r'\.sbn2?\.[\dpc]+$');
 
   /// Forbidden names for files and directories (on any/all platforms).
   /// These patterns match the base name only (not the full path).
@@ -441,8 +441,8 @@ class FileManager {
           break;
         }
       }
-      {
-        const assetNumber = 'p';
+      for (final assetNumber in const ['p', 'c']) {
+        // p = Vorschaubild, c = Einband (Notizbuch)
         final assetFile = getFile('$fromPath.$assetNumber');
         if (assetFile.existsSync()) {
           assets.add(assetNumber);
@@ -490,11 +490,14 @@ class FileManager {
       }
 
       final previewFile = getFile('$filePath.p');
+      final coverFile = getFile('$filePath.c');
       await Future.wait([
         for (final assetNumber in assets)
           deleteFile('$filePath.$assetNumber', alsoDeleteAssets: false),
         if (previewFile.existsSync())
           deleteFile('$filePath.p', alsoDeleteAssets: false),
+        if (coverFile.existsSync())
+          deleteFile('$filePath.c', alsoDeleteAssets: false),
       ]);
     }
   }
