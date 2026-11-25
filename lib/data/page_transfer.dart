@@ -26,7 +26,8 @@ Future<int> copyPagesToNote({
       final assets = OrderedAssetCache();
       final json = source.pages[index].toJson(assets);
       final bytes = <Uint8List>[
-        for (var i = 0; i < assets.length; ++i) await assets.getBytes(i),
+        for (var i = 0; i < assets.length; ++i)
+          Uint8List.fromList(await assets.getBytes(i)),
       ];
       final page = EditorPage.fromJson(
         json,
@@ -67,7 +68,7 @@ Future<int> copyPagesToNote({
     // Erst alles lesen, dann schreiben.
     final assetBytes = <Uint8List>[
       for (var i = 0; i < targetAssets.length; ++i)
-        await targetAssets.getBytes(i),
+        Uint8List.fromList(await targetAssets.getBytes(i)),
     ];
     final filePath = targetPath + Editor.extension;
     await Future.wait([
