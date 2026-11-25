@@ -97,7 +97,8 @@ class DynamicMaterialAppState extends State<DynamicMaterialApp>
     useListenable(stows.hyperlegibleFont);
 
     // Use Yaru theme, with or without [chosenAccentColor]
-    if (platform == .linux) {
+    // Feder: ohne eigene Akzentfarbe gilt auch hier das Nachtblau/Gold-Schema.
+    if (platform == .linux && chosenAccentColor != null) {
       return YaruBuilder(
         primary: chosenAccentColor, // if null, falls back to system color
         platform: platform,

@@ -63,11 +63,23 @@ class ResponsiveNavbar extends HookWidget {
 
     if (isLargeScreen && theme.platform == .linux) {
       return Scaffold(
-        appBar: TopAdwaitaNavbar(
-          selectedIndex: selectedIndex,
-          onDestinationSelected: (i) => onDestinationSelected(context, i),
+        body: Column(
+          crossAxisAlignment: .stretch,
+          children: [
+            TopAdwaitaNavbar(
+              selectedIndex: selectedIndex,
+              onDestinationSelected: (i) => onDestinationSelected(context, i),
+            ),
+            Expanded(
+              // Der obere Rand (Statusleiste) ist schon von der Leiste belegt.
+              child: MediaQuery.removePadding(
+                context: context,
+                removeTop: true,
+                child: body,
+              ),
+            ),
+          ],
         ),
-        body: body,
       );
     }
 
