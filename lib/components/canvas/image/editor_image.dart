@@ -47,6 +47,16 @@ sealed class EditorImage extends ChangeNotifier {
 
   /// Schnittebenen (Lasso-Ausschnitt); leer = ganzes Foto sichtbar.
   List<ImageClip> clip = const [];
+  final clipCache = ImageClipCache();
+
+  /// Sichtbarer Ausschnitt als Anteil des ganzen Fotos (0..1). [dstRect] ist
+  /// der Rahmen dieses Ausschnitts; so passt sich der Rahmen dem Zuschnitt an.
+  Rect crop = const Rect.fromLTWH(0, 0, 1, 1);
+  bool get isCropped =>
+      crop.left != 0 || crop.top != 0 || crop.width != 1 || crop.height != 1;
+
+  /// Drehung des Fotos um seine Mitte (Bogenmaß).
+  double angle = 0;
 
   /// Wunschmitte für ein neu eingefügtes Bild (Seitenkoordinaten).
   Offset? centerHint;
@@ -155,6 +165,16 @@ sealed class EditorImage extends ChangeNotifier {
       assetCache: assetCache,
     );
     image.clip = ImageClip.listFromJson(json['cl']);
+    final cr = json['cr'];
+    if (cr is List && cr.length == 4) {
+      image.crop = Rect.fromLTWH(
+        (cr[0] as num).toDouble(),
+        (cr[1] as num).toDouble(),
+        (cr[2] as num).toDouble(),
+        (cr[3] as num).toDouble(),
+      );
+    }
+    image.angle = (json['r'] as num?)?.toDouble() ?? 0;
     return image;
   }
 
@@ -206,6 +226,8 @@ sealed class EditorImage extends ChangeNotifier {
     'w': dstRect.width,
     'h': dstRect.height,
     if (clip.isNotEmpty) 'cl': [for (final c in clip) c.toJson()],
+    if (isCropped) 'cr': [crop.left, crop.top, crop.width, crop.height],
+    if (angle != 0) 'r': angle,
     if (srcRect.left != 0) 'sx': srcRect.left,
     if (srcRect.top != 0) 'sy': srcRect.top,
     if (srcRect.width != 0) 'sw': srcRect.width,
@@ -300,7 +322,10 @@ sealed class EditorImage extends ChangeNotifier {
   EditorImage copy();
 
   /// Wie [copy], aber mit Schnittebenen.
-  EditorImage clone() => copy()..clip = List.of(clip);
+  EditorImage clone() => copy()
+    ..clip = List.of(clip)
+    ..crop = crop
+    ..angle = angle;
 
   /// Resizes [before] to fit inside [max] while maintaining aspect ratio.
   ///

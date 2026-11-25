@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:defer_pointer/defer_pointer.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:saber/components/canvas/canvas_image_dialog.dart';
@@ -21,6 +22,7 @@ class CanvasImage extends StatefulHookWidget {
     this.isBackground = false,
     this.readOnly = false,
     this.selected = false,
+    this.acceptStylus = true,
   }) : super(key: Key('CanvasImage$filePath/${image.id}'));
 
   /// The path to the note that this image is in.
@@ -32,6 +34,10 @@ class CanvasImage extends StatefulHookWidget {
   final bool isBackground;
   final bool readOnly;
   final bool selected;
+
+  /// Reagiert das Foto auf den Stift? Nur mit dem Lasso-Werkzeug; sonst
+  /// schreibt der Stift über das Foto.
+  final bool acceptStylus;
 
   /// When notified, all [CanvasImages] will have their [active] property set to false.
   static var activeListener = ChangeNotifier();
@@ -169,75 +175,9 @@ class _CanvasImageState extends State<CanvasImage> {
         children: [
           MouseRegion(
             cursor: active ? SystemMouseCursors.grab : MouseCursor.defer,
-            child: GestureDetector(
+            child: RawGestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTap: () {
-                active = !active;
-              },
-              onLongPress: active ? showModal : null,
-              onSecondaryTap: active ? showModal : null,
-              onPanStart: active
-                  ? (details) {
-                      panStartRect = widget.image.dstRect;
-                      _startDragOverlay(details);
-                      if (_dragEntry != null) setState(() {});
-                    }
-                  : null,
-              onPanUpdate: active
-                  ? (details) {
-                      setState(() {
-                        final fivePercent = min(
-                          widget.pageSize.width * 0.05,
-                          widget.pageSize.height * 0.05,
-                        );
-                        // Auch über den Seitenrand hinaus ziehbar: beim
-                        // Loslassen wechselt das Bild auf die Nachbarseite.
-                        widget.image.dstRect = .fromLTWH(
-                          (widget.image.dstRect.left + details.delta.dx)
-                              .clamp(
-                                fivePercent - widget.image.dstRect.width,
-                                widget.pageSize.width - fivePercent,
-                              )
-                              .toDouble(),
-                          (widget.image.dstRect.top + details.delta.dy)
-                              .clamp(
-                                -widget.image.dstRect.height -
-                                    widget.pageSize.height,
-                                widget.pageSize.height * 2,
-                              )
-                              .toDouble(),
-                          widget.image.dstRect.width,
-                          widget.image.dstRect.height,
-                        );
-                      });
-                      _updateDragOverlay(details);
-                    }
-                  : null,
-              onPanCancel: _endDragOverlay,
-              onPanEnd: active
-                  ? (details) {
-                      _endDragOverlay();
-                      if (panStartRect == widget.image.dstRect) return;
-                      if (EditorImage.dropHandler?.call(
-                            widget.image,
-                            panStartRect,
-                          ) ??
-                          false) {
-                        panStartRect = .zero;
-                        return;
-                      }
-                      widget.image.onMoveImage?.call(
-                        widget.image,
-                        .fromLTRB(
-                          widget.image.dstRect.left - panStartRect.left,
-                          widget.image.dstRect.top - panStartRect.top,
-                          widget.image.dstRect.right - panStartRect.right,
-                          widget.image.dstRect.bottom - panStartRect.bottom,
-                        ),
-                      );
-                      panStartRect = .zero;
-                    }
-                  : null,
+              gestures: _gestures(),
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   border: Border.all(
@@ -245,34 +185,7 @@ class _CanvasImageState extends State<CanvasImage> {
                     width: 2,
                   ),
                 ),
-                child: Center(
-                  child: _clipped(SizedBox(
-                    width: widget.isBackground
-                        ? widget.pageSize.width
-                        : max(
-                            widget.image.dstRect.width,
-                            CanvasImage.minImageSize,
-                          ),
-                    height: widget.isBackground
-                        ? widget.pageSize.height
-                        : max(
-                            widget.image.dstRect.height,
-                            CanvasImage.minImageSize,
-                          ),
-                    child: SizedOverflowBox(
-                      size: widget.image.srcRect.size,
-                      child: Transform.translate(
-                        offset: -widget.image.srcRect.topLeft,
-                        child: widget.image.buildImageWidget(
-                          context: context,
-                          overrideBoxFit: widget.overrideBoxFit,
-                          isBackground: widget.isBackground,
-                          invert: imageBrightness == .dark,
-                        ),
-                      ),
-                    ),
-                  )),
-                ),
+                child: Center(child: _buildContent(context)),
               ),
             ),
           ),
@@ -289,6 +202,12 @@ class _CanvasImageState extends State<CanvasImage> {
                     parent: this,
                     afterDrag: () => setState(() {}),
                   ),
+          if (!widget.readOnly && !widget.isBackground)
+            _CanvasImageRotateHandle(
+              active: active,
+              image: widget.image,
+              parent: this,
+            ),
         ],
       ),
     );
@@ -316,16 +235,177 @@ class _CanvasImageState extends State<CanvasImage> {
       width: max(widget.image.dstRect.width, CanvasImage.minInteractiveSize),
       height: max(widget.image.dstRect.height, CanvasImage.minInteractiveSize),
 
-      child: unpositioned,
+      child: widget.image.angle == 0
+          ? unpositioned
+          : Transform.rotate(angle: widget.image.angle, child: unpositioned),
     );
   }
 
-  /// Wendet die Lasso-Schnittebenen des Fotos an.
-  Widget _clipped(Widget child) {
-    final content = widget.image.clip.isEmpty
-        ? child
-        : ClipPath(clipper: ImageClipper(widget.image.clip), child: child);
-    _dragContent = content;
+  Map<Type, GestureRecognizerFactory> _gestures() {
+    // Ohne Lasso-Werkzeug ignoriert das Foto den Stift: Der Stift schreibt
+    // dann einfach darüber. Der Finger bedient das Foto immer.
+    final devices = widget.acceptStylus
+        ? null
+        : <PointerDeviceKind>{
+            PointerDeviceKind.touch,
+            PointerDeviceKind.mouse,
+            PointerDeviceKind.trackpad,
+          };
+    return {
+      TapGestureRecognizer:
+          GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
+            TapGestureRecognizer.new,
+            (instance) {
+              instance
+                ..supportedDevices = devices
+                ..onTap = () {
+                  active = !active;
+                }
+                ..onSecondaryTap = active ? showModal : null;
+            },
+          ),
+      if (active)
+        LongPressGestureRecognizer:
+            GestureRecognizerFactoryWithHandlers<LongPressGestureRecognizer>(
+              LongPressGestureRecognizer.new,
+              (instance) {
+                instance
+                  ..supportedDevices = devices
+                  ..onLongPress = showModal;
+              },
+            ),
+      if (active)
+        PanGestureRecognizer:
+            GestureRecognizerFactoryWithHandlers<PanGestureRecognizer>(
+              PanGestureRecognizer.new,
+              (instance) {
+                instance
+                  ..supportedDevices = devices
+                  ..onStart = _onPanStart
+                  ..onUpdate = _onPanUpdate
+                  ..onEnd = _onPanEnd
+                  ..onCancel = _endDragOverlay;
+              },
+            ),
+    };
+  }
+
+  void _onPanStart(DragStartDetails details) {
+    panStartRect = widget.image.dstRect;
+    _startDragOverlay(details);
+    if (_dragEntry != null) setState(() {});
+  }
+
+  void _onPanUpdate(DragUpdateDetails details) {
+    // Bei gedrehtem Foto liegt die Geste im gedrehten Koordinatensystem.
+    final a = widget.image.angle;
+    final delta = Offset(
+      details.delta.dx * cos(a) - details.delta.dy * sin(a),
+      details.delta.dx * sin(a) + details.delta.dy * cos(a),
+    );
+    setState(() {
+      final fivePercent = min(
+        widget.pageSize.width * 0.05,
+        widget.pageSize.height * 0.05,
+      );
+      final r = widget.image.dstRect;
+      // Auch über den Seitenrand hinaus ziehbar: beim Loslassen wechselt
+      // das Foto auf die Nachbarseite.
+      widget.image.dstRect = .fromLTWH(
+        (r.left + delta.dx)
+            .clamp(fivePercent - r.width, widget.pageSize.width - fivePercent)
+            .toDouble(),
+        (r.top + delta.dy)
+            .clamp(-r.height - widget.pageSize.height, widget.pageSize.height * 2)
+            .toDouble(),
+        r.width,
+        r.height,
+      );
+    });
+    _updateDragOverlay(details);
+  }
+
+  void _onPanEnd(DragEndDetails details) {
+    _endDragOverlay();
+    if (panStartRect == widget.image.dstRect) return;
+    if (EditorImage.dropHandler?.call(widget.image, panStartRect) ?? false) {
+      panStartRect = .zero;
+      return;
+    }
+    widget.image.onMoveImage?.call(
+      widget.image,
+      .fromLTRB(
+        widget.image.dstRect.left - panStartRect.left,
+        widget.image.dstRect.top - panStartRect.top,
+        widget.image.dstRect.right - panStartRect.right,
+        widget.image.dstRect.bottom - panStartRect.bottom,
+      ),
+    );
+    panStartRect = .zero;
+  }
+
+  /// Foto samt Zuschnitt (Rahmen) und Lasso-Schnittebenen.
+  Widget _buildContent(BuildContext context) {
+    final image = widget.image;
+    final frameW = widget.isBackground
+        ? widget.pageSize.width
+        : max(image.dstRect.width, CanvasImage.minImageSize);
+    final frameH = widget.isBackground
+        ? widget.pageSize.height
+        : max(image.dstRect.height, CanvasImage.minImageSize);
+
+    Widget inner(double w, double h) => SizedBox(
+      width: w,
+      height: h,
+      child: SizedOverflowBox(
+        size: image.srcRect.size,
+        child: Transform.translate(
+          offset: -image.srcRect.topLeft,
+          child: image.buildImageWidget(
+            context: context,
+            overrideBoxFit: widget.overrideBoxFit,
+            isBackground: widget.isBackground,
+            invert: imageBrightness == .dark,
+          ),
+        ),
+      ),
+    );
+
+    final crop = image.crop;
+    final fullW = frameW / crop.width;
+    final fullH = frameH / crop.height;
+    Widget full = inner(fullW, fullH);
+    if (image.clip.isNotEmpty) {
+      full = ClipPath(
+        clipper: ImageClipper(image.clip, image.clipCache),
+        child: full,
+      );
+    }
+    final Widget content;
+    if (!image.isCropped) {
+      content = full;
+    } else {
+      content = SizedBox(
+        width: frameW,
+        height: frameH,
+        child: ClipRect(
+          child: OverflowBox(
+            alignment: Alignment.topLeft,
+            minWidth: fullW,
+            maxWidth: fullW,
+            minHeight: fullH,
+            maxHeight: fullH,
+            child: Transform.translate(
+              offset: Offset(-crop.left * fullW, -crop.top * fullH),
+              child: full,
+            ),
+          ),
+        ),
+      );
+    }
+    _dragContent = image.angle == 0
+        ? content
+        : Transform.rotate(angle: image.angle, child: content);
     // Während des Ziehens zeigt die Überlagerung das Foto, nicht die Seite.
     return Opacity(opacity: _dragEntry != null ? 0 : 1, child: content);
   }
@@ -495,6 +575,63 @@ class _CanvasImageResizeHandle extends StatelessWidget {
                   border: Border.all(color: colorScheme.surface, width: 2),
                 ),
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Drehknopf oberhalb des aktiven Fotos.
+class _CanvasImageRotateHandle extends StatelessWidget {
+  const new({
+    required this.active,
+    required this.image,
+    required this.parent,
+  });
+
+  final bool active;
+  final EditorImage image;
+  final _CanvasImageState parent;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = ColorScheme.of(context);
+    return Positioned(
+      left: image.dstRect.width / 2 - 20,
+      top: -64,
+      child: DeferPointer(
+        paintOnTop: true,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onPanUpdate: active
+              ? (details) {
+                  final box = parent.context.findRenderObject() as RenderBox?;
+                  if (box == null) return;
+                  final center = box.localToGlobal(box.size.center(Offset.zero));
+                  var a = (details.globalPosition - center).direction + pi / 2;
+                  // leichtes Einrasten bei Vielfachen von 15 Grad
+                  final deg = a * 180 / pi;
+                  final snapped = (deg / 15).roundToDouble() * 15;
+                  if ((deg - snapped).abs() < 3) a = snapped * pi / 180;
+                  image.angle = a;
+                  image.notifyListeners();
+                }
+              : null,
+          onPanEnd: active ? (details) => image.onMiscChange?.call() : null,
+          child: AnimatedOpacity(
+            opacity: active ? 1 : 0,
+            duration: const Duration(milliseconds: 100),
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: colorScheme.onSurface,
+                shape: .circle,
+                border: Border.all(color: colorScheme.surface, width: 2),
+              ),
+              child: Icon(Icons.rotate_right, color: colorScheme.surface, size: 24),
             ),
           ),
         ),

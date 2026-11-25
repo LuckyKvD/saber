@@ -54,13 +54,32 @@ class ImageClip {
   }
 }
 
+/// Merkt sich den berechneten Schnittpfad, damit er nicht bei jedem Bild
+/// neu berechnet wird (Path.combine ist teuer).
+class ImageClipCache {
+  List<ImageClip>? _layers;
+  Size? _size;
+  Path? _path;
+
+  Path get(List<ImageClip> layers, Size size) {
+    if (!identical(_layers, layers) || _size != size || _path == null) {
+      _path = ImageClip.pathFor(layers, size);
+      _layers = layers;
+      _size = size;
+    }
+    return _path!;
+  }
+}
+
 class ImageClipper extends CustomClipper<Path> {
-  const ImageClipper(this.layers);
+  const ImageClipper(this.layers, this.cache);
   final List<ImageClip> layers;
+  final ImageClipCache cache;
 
   @override
-  Path getClip(Size size) => ImageClip.pathFor(layers, size);
+  Path getClip(Size size) => cache.get(layers, size);
 
   @override
-  bool shouldReclip(ImageClipper oldClipper) => true;
+  bool shouldReclip(ImageClipper oldClipper) =>
+      !identical(oldClipper.layers, layers);
 }

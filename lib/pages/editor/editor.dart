@@ -1629,24 +1629,51 @@ class EditorState extends State<Editor> {
         select.selectResult.images.add(image);
         continue;
       }
+      // Das ganze (ungeschnittene) Foto in Seitenkoordinaten.
+      final fullW = rect.width / image.crop.width;
+      final fullH = rect.height / image.crop.height;
+      final fullLeft = rect.left - image.crop.left * fullW;
+      final fullTop = rect.top - image.crop.top * fullH;
       final fractions = [
         for (final p in lasso)
-          Offset(
-            (p.dx - rect.left) / rect.width,
-            (p.dy - rect.top) / rect.height,
-          ),
+          Offset((p.dx - fullLeft) / fullW, (p.dy - fullTop) / fullH),
       ];
-      EditorImage piece(bool isInside) => image.clone()
-        ..id = coreInfo.nextImageId++
-        ..newImage = false
-        ..clip = [...image.clip, ImageClip(inside: isInside, points: fractions)];
+      EditorImage? piece(bool isInside) {
+        final layers = [
+          ...image.clip,
+          ImageClip(inside: isInside, points: fractions),
+        ];
+        final visible = ImageClip.pathFor(layers, Size(fullW, fullH)).getBounds();
+        final cropNew = Rect.fromLTRB(
+          visible.left / fullW,
+          visible.top / fullH,
+          visible.right / fullW,
+          visible.bottom / fullH,
+        ).intersect(image.crop);
+        if (cropNew.isEmpty || cropNew.width < 0.005 || cropNew.height < 0.005) {
+          return null;
+        }
+        return image.clone()
+          ..id = coreInfo.nextImageId++
+          ..newImage = false
+          ..clip = layers
+          ..crop = cropNew
+          ..dstRect = Rect.fromLTWH(
+            fullLeft + cropNew.left * fullW,
+            fullTop + cropNew.top * fullH,
+            cropNew.width * fullW,
+            cropNew.height * fullH,
+          );
+      }
+
       final inner = piece(true);
       final outer = piece(false);
       page.images.remove(image);
-      page.images.addAll([outer, inner]);
+      final pieces = [?outer, ?inner];
+      page.images.addAll(pieces);
       removedImages.add(image);
-      addedImages.addAll([outer, inner]);
-      select.selectResult.images.add(inner);
+      addedImages.addAll(pieces);
+      if (inner != null) select.selectResult.images.add(inner);
     }
   }
 
