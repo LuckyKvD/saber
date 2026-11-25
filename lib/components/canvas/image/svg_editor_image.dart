@@ -152,7 +152,7 @@ class SvgEditorImage extends EditorImage {
         final Size dstSize = pageSize != null
             ? EditorImage.resize(naturalSize, pageSize!)
             : naturalSize;
-        dstRect = dstRect.topLeft & dstSize;
+        dstRect = placeRect(dstSize);
       }
     }
 

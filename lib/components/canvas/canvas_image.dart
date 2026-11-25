@@ -134,6 +134,8 @@ class _CanvasImageState extends State<CanvasImage> {
                           widget.pageSize.width * 0.05,
                           widget.pageSize.height * 0.05,
                         );
+                        // Auch über den Seitenrand hinaus ziehbar: beim
+                        // Loslassen wechselt das Bild auf die Nachbarseite.
                         widget.image.dstRect = .fromLTWH(
                           (widget.image.dstRect.left + details.delta.dx)
                               .clamp(
@@ -143,8 +145,9 @@ class _CanvasImageState extends State<CanvasImage> {
                               .toDouble(),
                           (widget.image.dstRect.top + details.delta.dy)
                               .clamp(
-                                fivePercent - widget.image.dstRect.height,
-                                widget.pageSize.height - fivePercent,
+                                -widget.image.dstRect.height -
+                                    widget.pageSize.height,
+                                widget.pageSize.height * 2,
                               )
                               .toDouble(),
                           widget.image.dstRect.width,
@@ -156,6 +159,14 @@ class _CanvasImageState extends State<CanvasImage> {
               onPanEnd: active
                   ? (details) {
                       if (panStartRect == widget.image.dstRect) return;
+                      if (EditorImage.dropHandler?.call(
+                            widget.image,
+                            panStartRect,
+                          ) ??
+                          false) {
+                        panStartRect = .zero;
+                        return;
+                      }
                       widget.image.onMoveImage?.call(
                         widget.image,
                         .fromLTRB(
@@ -271,6 +282,7 @@ class _CanvasImageState extends State<CanvasImage> {
             toggleAsBackground: () {
               widget.setAsBackground?.call(widget.image);
             },
+            chooseTarget: () => EditorImage.targetHandler?.call(widget.image),
           ),
           actions: const [],
         );

@@ -43,6 +43,31 @@ sealed class EditorImage extends ChangeNotifier {
   }
 
   int pageIndex;
+
+  /// Wunschmitte für ein neu eingefügtes Bild (Seitenkoordinaten).
+  Offset? centerHint;
+
+  /// Vom Editor gesetzt: Bild wurde losgelassen, ggf. auf eine andere Seite.
+  /// Gibt true zurück, wenn der Editor die Bewegung selbst verbucht hat.
+  static bool Function(EditorImage image, Rect startRect)? dropHandler;
+
+  /// Vom Editor gesetzt: Ziel für dieses Bild per Antippen wählen.
+  static void Function(EditorImage image)? targetHandler;
+
+  /// Rechteck für die erste Platzierung: um [centerHint] herum, sonst oben links.
+  Rect placeRect(Size size) {
+    final hint = centerHint;
+    if (hint == null) return dstRect.topLeft & size;
+    var left = hint.dx - size.width / 2;
+    var top = hint.dy - size.height / 2;
+    final ps = pageSize;
+    if (ps != null && ps.isFinite) {
+      left = left.clamp(0, max(0, ps.width - size.width)).toDouble();
+      top = top.clamp(0, max(0, ps.height - size.height)).toDouble();
+    }
+    return Rect.fromLTWH(left, top, size.width, size.height);
+  }
+
   void Function(EditorImage, Rect)? onMoveImage;
   void Function(EditorImage)? onDeleteImage;
   void Function()? onMiscChange;
