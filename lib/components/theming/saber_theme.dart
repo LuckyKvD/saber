@@ -51,7 +51,10 @@ abstract class SaberTheme {
     ColorScheme colorScheme,
     TargetPlatform platform,
   ) {
+    final isFeder = colorScheme == federLight || colorScheme == federDark;
     colorScheme = _adjustColorScheme(colorScheme, platform);
+    const navy = Color(0xFF0B1A33);
+    const gold = Color(0xFFE3B84B);
 
     return ThemeData(
       useMaterial3: true,
@@ -62,7 +65,36 @@ abstract class SaberTheme {
       cardColor: colorScheme.surface,
       cardTheme: _Components.cardTheme(colorScheme),
       cupertinoOverrideTheme: _Components.cupertinoOverrideTheme,
-      appBarTheme: _Components.appBarTheme,
+      appBarTheme: isFeder
+          ? _Components.appBarTheme.copyWith(
+              backgroundColor: navy,
+              foregroundColor: gold,
+              iconTheme: const IconThemeData(color: gold),
+              actionsIconTheme: const IconThemeData(color: gold),
+            )
+          : _Components.appBarTheme,
+      navigationRailTheme: isFeder
+          ? const NavigationRailThemeData(
+              backgroundColor: navy,
+              indicatorColor: Color(0xFF5A4410),
+              selectedIconTheme: IconThemeData(color: gold),
+              unselectedIconTheme: IconThemeData(color: Color(0xFFB9C3D6)),
+              selectedLabelTextStyle: TextStyle(color: gold),
+              unselectedLabelTextStyle: TextStyle(color: Color(0xFFB9C3D6)),
+            )
+          : null,
+      navigationBarTheme: isFeder
+          ? const NavigationBarThemeData(
+              backgroundColor: navy,
+              indicatorColor: Color(0xFF5A4410),
+            )
+          : null,
+      floatingActionButtonTheme: isFeder
+          ? const FloatingActionButtonThemeData(
+              backgroundColor: gold,
+              foregroundColor: navy,
+            )
+          : null,
     );
   }
 
