@@ -21,7 +21,7 @@ class const TopAdwaitaNavbar({
       child: ColoredBox(
         color: _navy,
         child: Padding(
-          padding: EdgeInsets.fromLTRB(14, topInset + 14, 14, 12),
+          padding: EdgeInsets.fromLTRB(14, topInset + 10, 14, 10),
           child: Semantics(
         role: SemanticsRole.tabBar,
         explicitChildNodes: true,
@@ -74,9 +74,9 @@ class const _Tab({
             backgroundColor: selected ? _gold : Colors.transparent,
             foregroundColor: selected ? _navy : const Color(0xFFD9DFEA),
             iconColor: selected ? _navy : const Color(0xFFD9DFEA),
-            iconSize: 28,
-            minimumSize: const Size(0, 58),
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+            iconSize: 24,
+            minimumSize: const Size(0, 50),
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
             overlayColor: selected ? Colors.transparent : null,
           ),
           child: _TabContent(route: route),
@@ -92,12 +92,12 @@ class const _TabContent({required final HomeRoute route})
   Widget build(BuildContext context) {
     return Row(
       mainAxisSize: .min,
-      spacing: 8,
+      spacing: 6,
       children: [
         route.destination.icon,
         Text(
           route.destination.label,
-          style: const TextStyle(fontWeight: .w600, fontSize: 19),
+          style: const TextStyle(fontWeight: .w600, fontSize: 16),
         ),
       ],
     );
