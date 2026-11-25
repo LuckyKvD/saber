@@ -356,17 +356,17 @@ class Stows {
         Colors.black.toARGB32(),
         volatile: !_isOnMainIsolate,
       );
-  /// Schreibfeld: Verkleinerung in Prozent (Schrift in der Notiz).
-  final easyWritingScale = PlainStow(
-    'easyWritingScale',
-    40,
+  /// Schreibfeld: Höhe einer Zeile in Kästchen der Notiz (1 bis 3).
+  final easyWritingCells = PlainStow(
+    'easyWritingCells',
+    2,
     volatile: !_isOnMainIsolate,
   );
 
   /// Schreibfeld: Strichstärke in Prozent der Stiftdicke.
   final easyWritingThickness = PlainStow(
     'easyWritingThickness',
-    40,
+    25,
     volatile: !_isOnMainIsolate,
   );
 

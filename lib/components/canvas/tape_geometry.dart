@@ -4,7 +4,11 @@ import 'package:material_ui/material_ui.dart';
 import 'package:perfect_freehand/perfect_freehand.dart';
 
 /// Anzahl der Klebeband-Muster.
-const tapePatternCount = 12;
+const tapePatternCount = 13;
+
+/// Reihenfolge in der Auswahl. Die Nummern bleiben unverändert (sie stehen
+/// in den Notizen), nur die Anzeige ist umsortiert: neue Muster zuerst.
+const tapePatternOrder = [9, 10, 11, 12, 0, 1, 2, 3, 4, 5, 6, 7, 8];
 
 const tapePatternNames = [
   'Kreuze',
@@ -18,7 +22,8 @@ const tapePatternNames = [
   'Halbkreise',
   'Rote Herzen',
   'Pirat',
-  'Namensband',
+  'Namensband blau',
+  'Namensband schwarz',
 ];
 
 /// Umriss eines Klebebands von [a] nach [b] mit gezackten Enden.
@@ -265,7 +270,8 @@ void paintTapePattern(Canvas canvas, int pattern, double length, double width) {
         _skull(canvas, Offset(x, -r * 0.1), r);
       }
     case 11: // Blaues Band mit weißer Schrift
-      bg(0xFF1E5AA8);
+    case 12: // Schwarzes Band mit weißer Schrift
+      bg(pattern == 11 ? 0xFF1E5AA8 : 0xFF111111);
       final tp = _namePainter(width);
       final tileWidth = tp.width + width * 0.35;
       for (var x = 0.0; x < x1; x += tileWidth) {

@@ -29,6 +29,7 @@ class WritingPad extends StatefulWidget {
     required this.controller,
     required this.owner,
     required this.onGuideChanged,
+    required this.cell,
   });
 
   /// Stift, dessen Farbe und Dicke verwendet werden.
@@ -48,6 +49,9 @@ class WritingPad extends StatefulWidget {
   /// Notiz, zu der das Schreibfeld gehört (für den Rahmen auf dem Blatt).
   final Object owner;
 
+  /// Kästchengröße (Zeilenhöhe) der Notiz in Notiz-Einheiten.
+  final double cell;
+
   /// Der Rahmen auf dem Blatt hat sich bewegt: Seite neu zeichnen.
   final VoidCallback onGuideChanged;
 
@@ -57,7 +61,6 @@ class WritingPad extends StatefulWidget {
 
 class _WritingPadState extends State<WritingPad> {
   static const _noteMargin = 40.0;
-  static const _lineGap = 1.25;
 
   late int pageIndex;
   double lineY = _noteMargin;
@@ -78,7 +81,16 @@ class _WritingPadState extends State<WritingPad> {
   double padWidth = 600;
   double padHeight = 200;
 
-  double get scale => stows.easyWritingScale.value / 100;
+  double get cell => math.max(10, widget.cell);
+
+  /// Höhe einer Schreibzeile in Kästchen (1 bis 3).
+  int get cells => stows.easyWritingCells.value;
+
+  /// Verkleinerung: das Feld ([padHeight] hoch) entspricht genau [cells] Kästchen.
+  double get scale => _lineHeight / padHeight;
+
+  /// Kleiner Leerraum links, damit Striche links vom ersten Strich im Rahmen bleiben.
+  double get _slackV => padWidth * 0.03;
 
   @override
   void initState() {
@@ -104,13 +116,26 @@ class _WritingPadState extends State<WritingPad> {
       pageIndex = c.targetPage!.clamp(0, widget.pages.length - 1);
       final page = widget.pages[pageIndex];
       startX = target.dx.clamp(0, page.size.width - 200).toDouble();
-      lineY = (target.dy - _lineHeight / 2)
-          .clamp(0, page.size.height - _lineHeight)
-          .toDouble();
+      lineY = _snapY(
+        (target.dy - _lineHeight / 2).clamp(0, page.size.height - _lineHeight),
+      );
       padStrokes.clear();
       lineStartV = viewX;
       c.target = null;
       c.targetPage = null;
+    }
+    final delta = c.moveDelta;
+    if (delta != null) {
+      final page = widget.pages[pageIndex];
+      startX = (startX + delta.dx).clamp(0, page.size.width - 200).toDouble();
+      lineY = (lineY + delta.dy)
+          .clamp(0, page.size.height - _lineHeight)
+          .toDouble();
+      c.moveDelta = null;
+    }
+    if (c.snapRequested) {
+      c.snapRequested = false;
+      lineY = _snapY(lineY);
     }
     if (mounted) setState(() {});
     _publishGuide();
@@ -123,18 +148,18 @@ class _WritingPadState extends State<WritingPad> {
     WritingPadGuide.owner = widget.owner;
     WritingPadGuide.pageIndex = pageIndex;
     WritingPadGuide.rect = Rect.fromLTWH(
-      startX,
+      startX - _slackV * scale,
       lineY,
       math.max(100, page.size.width - _noteMargin - startX),
       _lineHeight,
-    );
+    ).inflate(3);
     widget.onGuideChanged();
   }
 
-  void _nudge(double lines) {
+  void _nudge(int cellsDown) {
     setState(() {
       final page = widget.pages[pageIndex];
-      lineY = (lineY + lines * _lineHeight)
+      lineY = (_snapY(lineY) + cellsDown * cell)
           .clamp(0, page.size.height - _lineHeight)
           .toDouble();
     });
@@ -143,12 +168,18 @@ class _WritingPadState extends State<WritingPad> {
 
   double _firstFreeY(int index) {
     final page = widget.pages[index];
-    if (page.strokes.isEmpty) return _noteMargin;
+    if (page.strokes.isEmpty) return _snapY(_noteMargin);
     var maxY = 0.0;
     for (final stroke in page.strokes) {
       maxY = math.max(maxY, stroke.maxY);
     }
-    return maxY + _noteMargin * 0.5;
+    return _snapY(maxY + cell * 0.5, up: true);
+  }
+
+  /// Rastet [y] auf das Kästchenraster der Notiz ein.
+  double _snapY(double y, {bool up = false}) {
+    final n = y / cell;
+    return (up ? n.ceil() : n.round()) * cell;
   }
 
   Offset _toNote(double vx, double py) => Offset(
@@ -156,7 +187,7 @@ class _WritingPadState extends State<WritingPad> {
     lineY + py * scale,
   );
 
-  double get _lineHeight => padHeight * scale;
+  double get _lineHeight => cells * cell;
 
   /// Strichstärke in der Notiz: dünner als normal und mit wenig Druckvarianz,
   /// damit kleine Schrift lesbar bleibt.
@@ -164,21 +195,21 @@ class _WritingPadState extends State<WritingPad> {
     final factor = stows.easyWritingThickness.value / 100;
     final options = pen.options.copyWith(isComplete: true);
     options.size = math.max(0.8, pen.options.size * factor);
-    options.thinning = math.min(pen.options.thinning, 0.2);
+    options.thinning = math.min(pen.options.thinning, 0.05);
     return options;
   }
 
   void _newLine({double? startAtV}) {
     setState(() {
       padStrokes.clear();
-      lineY += _lineHeight * _lineGap;
+      lineY += _lineHeight;
       final page = widget.pages[pageIndex];
       if (lineY + _lineHeight > page.size.height - _noteMargin) {
         pageIndex++;
         widget.ensurePage(pageIndex);
-        lineY = _noteMargin;
+        lineY = _snapY(_noteMargin);
       }
-      lineStartV = startAtV ?? (viewX + padWidth * 0.03);
+      lineStartV = startAtV ?? (viewX + _slackV);
     });
     _publishGuide();
   }
@@ -194,9 +225,9 @@ class _WritingPadState extends State<WritingPad> {
 
     if (padStrokes.isEmpty) {
       // Erster Strich einer Zeile beginnt genau am linken Rand der Notiz.
-      lineStartV = vx;
+      lineStartV = vx - _slackV;
     } else if (_toNote(vx, 0).dx > page.size.width - _noteMargin) {
-      _newLine(startAtV: vx);
+      _newLine(startAtV: vx - _slackV);
     }
 
     final pen = widget.pen;
@@ -307,15 +338,15 @@ class _WritingPadState extends State<WritingPad> {
                   children: [
                     const SizedBox(width: 8),
                     _chips(
-                      'Größe',
-                      stows.easyWritingScale,
-                      const [(30, 'Klein'), (40, 'Mittel'), (55, 'Groß')],
+                      'Höhe',
+                      stows.easyWritingCells,
+                      const [(1, '1 Kästchen'), (2, '2 Kästchen'), (3, '3 Kästchen')],
                     ),
                     const SizedBox(width: 12),
                     _chips(
                       'Strich',
                       stows.easyWritingThickness,
-                      const [(40, 'Fein'), (65, 'Mittel'), (100, 'Kräftig')],
+                      const [(25, 'Fein'), (45, 'Mittel'), (70, 'Kräftig')],
                     ),
                     const SizedBox(width: 8),
                     IconButton(
@@ -327,13 +358,13 @@ class _WritingPadState extends State<WritingPad> {
                       icon: const Icon(Icons.ads_click),
                     ),
                     IconButton(
-                      tooltip: 'Zeile nach oben',
-                      onPressed: () => _nudge(-0.5),
+                      tooltip: 'Zeile ein Kästchen nach oben',
+                      onPressed: () => _nudge(-1),
                       icon: const Icon(Icons.arrow_upward),
                     ),
                     IconButton(
-                      tooltip: 'Zeile nach unten',
-                      onPressed: () => _nudge(0.5),
+                      tooltip: 'Zeile ein Kästchen nach unten',
+                      onPressed: () => _nudge(1),
                       icon: const Icon(Icons.arrow_downward),
                     ),
                     IconButton(

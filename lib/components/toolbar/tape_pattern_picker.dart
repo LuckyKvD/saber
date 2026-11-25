@@ -54,7 +54,7 @@ class TapePatternPicker extends StatelessWidget {
               ),
               'Einfarbig (Farbe aus der Leiste)',
             ),
-            for (var i = 0; i < tapePatternCount; i++)
+            for (final i in tapePatternOrder)
               swatch(
                 i,
                 CustomPaint(painter: _SwatchPainter(i), size: Size.infinite),

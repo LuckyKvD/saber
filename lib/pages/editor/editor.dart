@@ -128,6 +128,8 @@ class EditorState extends State<Editor> {
   bool showWritingPad = false;
   final writingPadController = WritingPadController();
   bool _placingWritingPad = false;
+  bool _draggingWritingPad = false;
+  Offset _guideDragLast = Offset.zero;
 
   /// Stift für das Schreibfeld: der aktuelle Stift, sonst der letzte normale.
   Pen get _writingPadPen {
@@ -163,6 +165,7 @@ class EditorState extends State<Editor> {
       close: () => setState(() => showWritingPad = false),
       controller: writingPadController,
       owner: coreInfo,
+      cell: coreInfo.lineHeight.toDouble(),
       onGuideChanged: () {
         if (mounted) setState(() {});
       },
@@ -551,6 +554,13 @@ class EditorState extends State<Editor> {
   int? dragPageIndex;
   PointerDeviceKind? currentPointerKind;
   double? currentPressure;
+  bool _focalPointInWritingGuide(Offset focalPoint, int pageIndex) {
+    final rect = WritingPadGuide.rectFor(coreInfo, pageIndex);
+    final box = coreInfo.pages[pageIndex].renderBox;
+    if (rect == null || box == null) return false;
+    return rect.inflate(12).contains(box.globalToLocal(focalPoint));
+  }
+
   bool isDrawGesture(ScaleStartDetails details) {
     if (coreInfo.readOnly) return false;
 
@@ -582,6 +592,11 @@ class EditorState extends State<Editor> {
 
     if (currentTool == Tool.textEditing) {
       return false;
+    } else if (showWritingPad &&
+        currentPointerKind == PointerDeviceKind.touch &&
+        _focalPointInWritingGuide(details.focalPoint, dragPageIndex!)) {
+      // Finger auf dem Rahmen des Schreibfelds: Rahmen verschieben.
+      return true;
     } else if (stows.editorFingerDrawing.value ||
         currentPointerKind == PointerDeviceKind.stylus ||
         currentPointerKind == PointerDeviceKind.invertedStylus ||
@@ -599,6 +614,14 @@ class EditorState extends State<Editor> {
     final page = coreInfo.pages[dragPageIndex!];
     final position = page.renderBox!.globalToLocal(details.focalPoint);
 
+    if (showWritingPad &&
+        currentPointerKind == PointerDeviceKind.touch &&
+        _focalPointInWritingGuide(details.focalPoint, dragPageIndex!)) {
+      _placingWritingPad = true;
+      _draggingWritingPad = true;
+      _guideDragLast = position;
+      return;
+    }
     if (showWritingPad && writingPadController.armed) {
       // "Ort wählen": dieser Tipp setzt nur den Startpunkt, es wird nichts gezeichnet.
       _placingWritingPad = true;
@@ -659,6 +682,15 @@ class EditorState extends State<Editor> {
   }
 
   void onDrawUpdate(ScaleUpdateDetails details) {
+    if (_draggingWritingPad && dragPageIndex != null) {
+      final box = coreInfo.pages[dragPageIndex!].renderBox;
+      if (box != null) {
+        final now = box.globalToLocal(details.focalPoint);
+        writingPadController.move(now - _guideDragLast);
+        _guideDragLast = now;
+      }
+      return;
+    }
     if (dragPageIndex == null || _placingWritingPad) {
       return;
     }
@@ -823,7 +855,9 @@ class EditorState extends State<Editor> {
 
   void onDrawEnd(ScaleEndDetails details) {
     if (_placingWritingPad) {
+      if (_draggingWritingPad) writingPadController.endMove();
       _placingWritingPad = false;
+      _draggingWritingPad = false;
       return;
     }
     if (dragPageIndex == null) {

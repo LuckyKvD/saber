@@ -30,6 +30,8 @@ class WritingPadController extends ChangeNotifier {
   bool armed = false;
   int? targetPage;
   Offset? target;
+  Offset? moveDelta;
+  bool snapRequested = false;
 
   void arm() {
     armed = true;
@@ -39,6 +41,18 @@ class WritingPadController extends ChangeNotifier {
   void disarm() {
     if (!armed) return;
     armed = false;
+    notifyListeners();
+  }
+
+  /// Verschiebt die Schreibzeile (Ziehen mit dem Finger).
+  void move(Offset delta) {
+    moveDelta = (moveDelta ?? Offset.zero) + delta;
+    notifyListeners();
+  }
+
+  /// Finger losgelassen: Zeile auf das Kästchenraster einrasten.
+  void endMove() {
+    snapRequested = true;
     notifyListeners();
   }
 
