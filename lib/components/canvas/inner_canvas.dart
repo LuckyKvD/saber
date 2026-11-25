@@ -6,6 +6,7 @@ import 'package:one_dollar_unistroke_recognizer/one_dollar_unistroke_recognizer.
 import 'package:saber/components/canvas/_canvas_background_painter.dart';
 import 'package:saber/components/canvas/_canvas_painter.dart';
 import 'package:saber/components/canvas/_stroke.dart';
+import 'package:saber/components/canvas/ruler.dart';
 import 'package:saber/components/canvas/canvas_image.dart';
 import 'package:saber/components/canvas/image/editor_image.dart';
 import 'package:saber/data/editor/editor_core_info.dart';
@@ -153,6 +154,11 @@ class _InnerCanvasState extends State<InnerCanvas> {
           writingGuide: WritingPadGuide.rectFor(
             widget.coreInfo,
             widget.pageIndex,
+          ),
+          ruler: RulerState.dataFor(
+            widget.coreInfo,
+            widget.pageIndex,
+            page.size,
           ),
         ),
         isComplex: true,

@@ -49,6 +49,8 @@ class Toolbar extends StatefulWidget {
     required this.toggleFingerDrawing,
     required this.pickPhoto,
     required this.toggleWritingPad,
+    required this.toggleRuler,
+    required this.rulerVisible,
     required this.writingPadVisible,
     required this.paste,
     required this.duplicateSelection,
@@ -63,6 +65,10 @@ class Toolbar extends StatefulWidget {
   /// Schreibfeld (Easy-Writing) ein-/ausblenden.
   final VoidCallback toggleWritingPad;
   final bool writingPadVisible;
+
+  /// Virtuelles Lineal ein-/ausblenden.
+  final VoidCallback toggleRuler;
+  final bool rulerVisible;
 
   final ValueChanged<Tool> setTool;
   final Tool currentTool;
@@ -515,6 +521,14 @@ class _ToolbarState extends State<Toolbar> {
                 onPressed: widget.toggleWritingPad,
                 padding: buttonPadding,
                 child: const Icon(Icons.edit_note),
+              ),
+              ToolbarIconButton(
+                tooltip: 'Lineal',
+                selected: widget.rulerVisible,
+                enabled: !widget.readOnly,
+                onPressed: widget.toggleRuler,
+                padding: buttonPadding,
+                child: const Icon(Icons.straighten),
               ),
               ToolbarIconButton(
                 tooltip: t.editor.toolbar.photo,

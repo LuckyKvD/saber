@@ -8,6 +8,7 @@ import 'package:perfect_freehand/perfect_freehand.dart';
 import 'package:saber/components/canvas/_circle_stroke.dart';
 import 'package:saber/components/canvas/_rectangle_stroke.dart';
 import 'package:saber/components/canvas/_stroke.dart';
+import 'package:saber/components/canvas/ruler.dart';
 import 'package:saber/components/canvas/tape_geometry.dart';
 import 'package:saber/data/editor/page.dart';
 import 'package:saber/data/extensions/color_extensions.dart';
@@ -34,6 +35,7 @@ class CanvasPainter extends CustomPainter {
     required this.currentScale,
     required this.defaultTextStyle,
     this.writingGuide,
+    this.ruler,
   });
 
   final bool invert;
@@ -51,6 +53,7 @@ class CanvasPainter extends CustomPainter {
 
   /// Rahmen der nächsten Zeile des Schreibfelds (nur in der offenen Notiz).
   final Rect? writingGuide;
+  final RulerData? ruler;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -64,6 +67,7 @@ class CanvasPainter extends CustomPainter {
     _drawHeldShape(canvas);
     _drawSelection(canvas);
     _drawWritingGuide(canvas);
+    _drawRuler(canvas);
     _drawPageIndicator(canvas, size);
   }
 
@@ -84,7 +88,8 @@ class CanvasPainter extends CustomPainter {
         pageIndex != oldDelegate.pageIndex ||
         totalPages != oldDelegate.totalPages ||
         currentScale != oldDelegate.currentScale ||
-        writingGuide != oldDelegate.writingGuide;
+        writingGuide != oldDelegate.writingGuide ||
+        ruler != oldDelegate.ruler;
   }
 
   void _drawHighlighterStrokes(Canvas canvas, Rect canvasRect) {
@@ -223,6 +228,92 @@ class CanvasPainter extends CustomPainter {
         ),
     );
     canvas.drawPath(stroke.innerPath, Paint()..color = const Color(0xDDffffff));
+  }
+
+  void _drawRuler(Canvas canvas) {
+    final r = ruler;
+    if (r == null) return;
+    final ppc = r.pxPerCm;
+    final len = RulerState.lengthCm * ppc;
+    final wid = RulerState.widthCm * ppc;
+    const ink = Color(0xFF3E2F00);
+
+    canvas.save();
+    canvas.translate(r.center.dx, r.center.dy);
+    canvas.rotate(r.angle);
+
+    final body = RRect.fromRectAndRadius(
+      Rect.fromCenter(center: Offset.zero, width: len, height: wid),
+      Radius.circular(ppc * 0.2),
+    );
+    canvas.drawRRect(body, Paint()..color = const Color(0x66FFD54F));
+    canvas.drawRRect(
+      body,
+      Paint()
+        ..color = const Color(0xFF8D6E00)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
+
+    // Millimeter-Skala an beiden Längskanten, Zahlen an der oberen.
+    final tick = Paint()
+      ..color = ink
+      ..strokeWidth = 1;
+    final mm = (RulerState.lengthCm * 10).round();
+    for (var i = 0; i <= mm; i++) {
+      final x = -len / 2 + i * ppc / 10;
+      final tl = i % 10 == 0
+          ? ppc * 0.45
+          : i % 5 == 0
+          ? ppc * 0.3
+          : ppc * 0.18;
+      canvas.drawLine(Offset(x, -wid / 2), Offset(x, -wid / 2 + tl), tick);
+      canvas.drawLine(Offset(x, wid / 2), Offset(x, wid / 2 - tl), tick);
+      if (i % 10 == 0 && i > 0 && i < mm) {
+        final tp = TextPainter(
+          text: TextSpan(
+            text: '${i ~/ 10}',
+            style: TextStyle(color: ink, fontSize: ppc * 0.38),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        tp.paint(canvas, Offset(x - tp.width / 2, -wid / 2 + ppc * 0.5));
+      }
+    }
+
+    // Drehgriff.
+    final h = RulerState.handleLocal(ppc);
+    final hr = RulerState.handleRadius(ppc);
+    canvas.drawCircle(h, hr, Paint()..color = const Color(0x55FFFFFF));
+    final ring = Paint()
+      ..color = ink
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5;
+    canvas.drawCircle(h, hr, ring);
+    canvas.drawArc(
+      Rect.fromCircle(center: h, radius: hr * 0.55),
+      -pi * 0.8,
+      pi * 1.5,
+      false,
+      ring,
+    );
+
+    // Winkelanzeige, immer lesbar (nicht kopfüber).
+    if (cos(r.angle) < 0) canvas.rotate(pi);
+    final label = TextPainter(
+      text: TextSpan(
+        text: RulerState.degreesLabel,
+        style: TextStyle(
+          color: ink,
+          fontSize: ppc * 0.9,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    label.paint(canvas, Offset(-label.width / 2, -label.height / 2));
+
+    canvas.restore();
   }
 
   void _drawWritingGuide(Canvas canvas) {
