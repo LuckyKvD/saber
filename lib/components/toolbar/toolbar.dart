@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:io';
 
 import 'package:collapsible/collapsible.dart';
@@ -49,6 +50,10 @@ class Toolbar extends StatefulWidget {
     required this.toggleFingerDrawing,
     required this.pickPhoto,
     required this.toggleWritingPad,
+    required this.toggleRuler,
+    required this.rulerVisible,
+    required this.toggleProtractor,
+    required this.protractorMode,
     required this.writingPadVisible,
     required this.paste,
     required this.duplicateSelection,
@@ -63,6 +68,14 @@ class Toolbar extends StatefulWidget {
   /// Schreibfeld (Easy-Writing) ein-/ausblenden.
   final VoidCallback toggleWritingPad;
   final bool writingPadVisible;
+
+  /// Virtuelles Lineal ein-/ausblenden.
+  final VoidCallback toggleRuler;
+  final bool rulerVisible;
+
+  /// Winkelmesser: tippen schaltet Aus, Halbkreis, Vollkreis durch.
+  final VoidCallback toggleProtractor;
+  final int protractorMode;
 
   final ValueChanged<Tool> setTool;
   final Tool currentTool;
@@ -517,6 +530,35 @@ class _ToolbarState extends State<Toolbar> {
                 child: const Icon(Icons.edit_note),
               ),
               ToolbarIconButton(
+                tooltip: 'Lineal',
+                selected: widget.rulerVisible,
+                enabled: !widget.readOnly,
+                onPressed: widget.toggleRuler,
+                padding: buttonPadding,
+                child: const Icon(Icons.straighten),
+              ),
+              ToolbarIconButton(
+                tooltip: widget.protractorMode == 0
+                    ? 'Winkelmesser (Halbkreis)'
+                    : widget.protractorMode == 1
+                    ? 'Winkelmesser (Vollkreis)'
+                    : 'Winkelmesser ausblenden',
+                selected: widget.protractorMode != 0,
+                enabled: !widget.readOnly,
+                onPressed: widget.toggleProtractor,
+                padding: buttonPadding,
+                child: Builder(
+                  builder: (context) => CustomPaint(
+                    size: const Size(24, 24),
+                    painter: _ProtractorIconPainter(
+                      IconTheme.of(context).color ??
+                          Theme.of(context).colorScheme.onSurface,
+                      full: widget.protractorMode == 2,
+                    ),
+                  ),
+                ),
+              ),
+              ToolbarIconButton(
                 tooltip: t.editor.toolbar.photo,
                 enabled: !widget.readOnly,
                 onPressed: widget.pickPhoto,
@@ -641,3 +683,39 @@ class _ToolbarState extends State<Toolbar> {
 }
 
 enum ToolOptions { hide, pen, highlighter, tape, pencil, eraser, select }
+
+/// Kleines Winkelmesser-Symbol (Halbkreis oder Vollkreis mit Skalenstrichen).
+class _ProtractorIconPainter extends CustomPainter {
+  _ProtractorIconPainter(this.color, {required this.full});
+
+  final Color color;
+  final bool full;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.8
+      ..strokeCap = StrokeCap.round;
+    final c = full
+        ? Offset(size.width / 2, size.height / 2)
+        : Offset(size.width / 2, size.height * 0.75);
+    final r = size.width * 0.45;
+    if (full) {
+      canvas.drawCircle(c, r, paint);
+    } else {
+      canvas.drawArc(Rect.fromCircle(center: c, radius: r), 3.14159265, 3.14159265, false, paint);
+      canvas.drawLine(Offset(c.dx - r, c.dy), Offset(c.dx + r, c.dy), paint);
+    }
+    for (var d = 0; d <= (full ? 330 : 180); d += 30) {
+      final a = d * 3.14159265 / 180;
+      final dir = Offset(math.cos(a), -math.sin(a));
+      canvas.drawLine(c + dir * (r - 4), c + dir * r, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_ProtractorIconPainter old) =>
+      old.color != color || old.full != full;
+}

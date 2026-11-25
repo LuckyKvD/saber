@@ -18,6 +18,7 @@ import 'package:pdfrx/pdfrx.dart';
 import 'package:saber/components/canvas/_asset_cache.dart';
 import 'package:saber/components/canvas/_stroke.dart';
 import 'package:saber/components/canvas/canvas.dart';
+import 'package:saber/components/canvas/guide_tools.dart';
 import 'package:saber/components/canvas/canvas_gesture_detector.dart';
 import 'package:saber/components/canvas/canvas_image.dart';
 import 'package:saber/components/canvas/image/editor_image.dart';
@@ -201,6 +202,22 @@ class EditorState extends State<Editor> {
       cell: coreInfo.lineHeight.toDouble(),
       owner: coreInfo,
     );
+  }
+
+  GuideEdge? _guideEdge;
+
+  void _toggleRuler() {
+    final index = currentPageIndex.clamp(0, coreInfo.pages.length - 1);
+    setState(() {
+      Guides.toggleRuler(coreInfo, index, coreInfo.pages[index].size);
+    });
+  }
+
+  void _toggleProtractor() {
+    final index = currentPageIndex.clamp(0, coreInfo.pages.length - 1);
+    setState(() {
+      Guides.cycleProtractor(coreInfo, index, coreInfo.pages[index].size);
+    });
   }
 
   void _toggleWritingPad() {
@@ -740,7 +757,18 @@ class EditorState extends State<Editor> {
 
   void onDrawStart(ScaleStartDetails details) {
     final page = coreInfo.pages[dragPageIndex!];
-    final position = page.renderBox!.globalToLocal(details.focalPoint);
+    var position = page.renderBox!.globalToLocal(details.focalPoint);
+
+    _guideEdge = null;
+    if (currentTool is Pen &&
+        currentPointerKind != PointerDeviceKind.touch &&
+        Guides.isActiveFor(coreInfo, dragPageIndex!)) {
+      final edge = Guides.edgeNear(position, page.size);
+      if (edge != null) {
+        _guideEdge = edge;
+        position = Guides.project(edge, position, page.size);
+      }
+    }
 
     if (showWritingPad &&
         currentPointerKind == PointerDeviceKind.touch &&
@@ -843,6 +871,9 @@ class EditorState extends State<Editor> {
     }
     final page = coreInfo.pages[dragPageIndex!];
     Offset position = page.renderBox!.globalToLocal(details.focalPoint);
+    if (_guideEdge != null && currentTool is Pen) {
+      position = Guides.project(_guideEdge!, position, page.size);
+    }
     Offset offset = position - previousPosition;
 
     if (currentTool is Pen) {
@@ -1001,6 +1032,7 @@ class EditorState extends State<Editor> {
   }
 
   void onDrawEnd(ScaleEndDetails details) {
+    _guideEdge = null;
     if (_placingWritingPad) {
       if (_draggingWritingPad) writingPadController.endMove();
       if (_resizingWritingPad) writingPadController.endResize();
@@ -1943,6 +1975,12 @@ class EditorState extends State<Editor> {
           },
           pickPhoto: _pickPhotos,
           toggleWritingPad: _toggleWritingPad,
+          toggleRuler: _toggleRuler,
+          rulerVisible: Guides.ruler != null,
+          toggleProtractor: _toggleProtractor,
+          protractorMode: Guides.protractor == null
+              ? 0
+              : (Guides.protractor!.full ? 2 : 1),
           writingPadVisible: showWritingPad,
           paste: paste,
           exportAsSba: exportAsSba,
@@ -2411,6 +2449,7 @@ class EditorState extends State<Editor> {
     if (Pen.onHoldShapeDetected == _setState) Pen.onHoldShapeDetected = null;
     writingPadController.removeListener(_onWritingPadChanged);
     WritingPadGuide.clear();
+    Guides.clear();
     writingPadController.dispose();
 
     _delayedSaveTimer?.cancel();
