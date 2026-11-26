@@ -268,6 +268,9 @@ class _CanvasImageState extends State<CanvasImage> {
       case PointerDeviceKind.stylus:
       case PointerDeviceKind.invertedStylus:
         return widget.acceptStylus;
+      case PointerDeviceKind.touch:
+        // Frisch gesetzter Text-Stempel: auch mit dem Finger verschiebbar.
+        return widget.image.stamp && active;
       default:
         return false;
     }
@@ -339,7 +342,8 @@ class _CanvasImageState extends State<CanvasImage> {
       if (active && panStartRect != Rect.zero) {
         _onPanEnd(DragEndDetails());
       }
-    } else {
+    } else if (!widget.image.stamp) {
+      // Stempel bleiben aktiv, bis man woanders hintippt.
       active = !active;
     }
   }

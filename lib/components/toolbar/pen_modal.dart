@@ -141,6 +141,21 @@ class _PenModalState<T extends Pen> extends State<PenModal<T>> {
             tooltip: 'Text-Stempel (VERTRAULICH, ERLEDIGT …)',
             icon: const FaIcon(StampPen.stampIcon),
           ),
+          if (!isPencil && Pen.currentPen.icon == GlitterPen.glitterIcon)
+            ToolSettingChips<bool>(
+              label: 'Farbe',
+              pref: stows.glitterRainbow,
+              options: [(true, 'Regenbogen'), (false, 'Einfarbig')],
+            ),
+          if (!isPencil && Pen.currentPen.icon == DashedPen.dashedIcon)
+            ToolSettingChips<int>(
+              label: 'Muster',
+              pref: stows.patternSymbol,
+              options: [
+                for (var i = 0; i < symbolBrushNames.length; i++)
+                  (i, symbolBrushNames[i]),
+              ],
+            ),
           if (!isPencil && Pen.currentPen.icon == CalligraphyPen.calligraphyIcon)
             ToolSettingChips<int>(
               label: 'Winkel',

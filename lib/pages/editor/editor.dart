@@ -1624,6 +1624,9 @@ class EditorState extends State<Editor> {
     if (!mounted) return;
     _lastPickedImages = const [];
     await _pickPhotos([_PhotoInfo(bytes, '.png')]);
+    for (final image in _lastPickedImages) {
+      image.stamp = true;
+    }
     await Future<void>.delayed(const Duration(milliseconds: 350));
     if (!mounted) return;
     for (final image in _lastPickedImages) {

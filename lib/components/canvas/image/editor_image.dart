@@ -127,6 +127,10 @@ sealed class EditorImage extends ChangeNotifier {
   /// Feder: Bild nochmals aktivieren (z. B. Text-Stempel nach dem Dialog).
   bool reactivate = false;
 
+  /// Feder: Text-Stempel. Bleibt aktiv (verschiebbar, auch mit dem Finger),
+  /// bis man woanders hintippt. Wird nicht gespeichert.
+  bool stamp = false;
+
   /// Whether this image is inverted if Prefs.editorAutoInvert.value
   bool invertible;
 
