@@ -27,7 +27,7 @@ abstract class FederPen extends Pen {
     this.penStyle,
   });
 
-  final int? penStyle;
+  int? penStyle;
 
   @override
   void onDragStart(
@@ -74,34 +74,40 @@ class BrushPen extends FederPen {
   static var current = BrushPen();
 }
 
-/// Fineliner: gleichmäßig dünne, saubere Linie ohne Druckeffekt.
+/// Fineliner: gleichmäßig dünne, harte Linie mit eckigen Enden
+/// (technischer Stil, ohne Druckeffekt und ohne rundes Auslaufen).
 class FinelinerPen extends FederPen {
   new()
     : super(
         name: 'Fineliner',
-        sizeMin: 1,
-        sizeMax: 10,
+        sizeMin: 0.5,
+        sizeMax: 6,
         sizeStep: 0.5,
         icon: finelinerIcon,
         options: Pen.defaultOptions.copyWith(
-          size: 2,
-          smoothing: 0.4,
-          streamline: 0.5,
+          size: 1.5,
+          smoothing: 0.3,
+          streamline: 0.3,
         ),
         pressureEnabled: false,
-        color: Color(stows.lastBallpointPenColor.value),
+        color: const Color(0xFF1A237E),
         toolId: .ballpointPen,
+        penStyle: Stroke.styleLiner,
       );
 
   static const finelinerIcon = FontAwesomeIcons.penNib;
   static var current = FinelinerPen();
+
+  @override
+  bool get holdToShape => false;
 }
 
-/// Gestrichelter Stift für Rahmen, Formulare und Diagramme.
+/// Muster-Stift: gestrichelt oder eine Kette aus Zeichen (Punkte, Sterne …),
+/// je nach Auswahl in `stows.patternSymbol`.
 class DashedPen extends FederPen {
   new()
     : super(
-        name: 'Gestrichelt',
+        name: 'Muster-Stift',
         sizeMin: 1,
         sizeMax: 14,
         sizeStep: 1,
@@ -119,6 +125,18 @@ class DashedPen extends FederPen {
 
   static const dashedIcon = FontAwesomeIcons.ellipsis;
   static var current = DashedPen();
+
+  @override
+  void onDragStart(
+    Offset position,
+    EditorPage page,
+    int pageIndex,
+    double? pressure,
+  ) {
+    final n = stows.patternSymbol.value;
+    penStyle = n <= 0 ? Stroke.styleDashed : Stroke.styleSymbolBase + n;
+    super.onDragStart(position, page, pageIndex, pressure);
+  }
 
   @override
   bool get holdToShape => false;
@@ -172,6 +190,9 @@ class StampPen extends FederPen {
 
   static const stampIcon = FontAwesomeIcons.stamp;
   static var current = StampPen();
+
+  /// Vom Editor gesetzt: legt einen Text-Stempel als Bild aufs Blatt.
+  static void Function(String text, Color color)? onPlaceText;
 
   static const symbolNames = ['Häkchen', 'Kreuz', 'Stern', 'Herz', 'Pfeil', 'Kästchen'];
 

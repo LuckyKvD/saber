@@ -1,7 +1,9 @@
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:saber/components/canvas/symbol_geometry.dart';
 import 'package:saber/components/toolbar/size_picker.dart';
+import 'package:saber/components/toolbar/text_stamp.dart';
 import 'package:saber/components/toolbar/tape_pattern_picker.dart';
 import 'package:saber/components/toolbar/tool_setting_chips.dart';
 import 'package:saber/data/extensions/axis_extensions.dart';
@@ -33,6 +35,7 @@ class _PenModalState<T extends Pen> extends State<PenModal<T>> {
   Widget build(BuildContext context) {
     final axis = stows.editorToolbarAlignment.value.axis.opposite;
     final pen = widget.getTool();
+    final isPencil = pen is Pencil;
 
     return Center(
       child: SingleChildScrollView(
@@ -51,9 +54,9 @@ class _PenModalState<T extends Pen> extends State<PenModal<T>> {
           ),
         if (pen is TapePen) const TapePatternPicker(),
 
-        if (pen is! Highlighter && pen is! Pencil && pen is! TapePen) ...[
+        if (pen is! Highlighter && pen is! TapePen) ...[
           _PenSelector(
-            isSelected: Pen.currentPen.icon == Pen.fountainPenIcon,
+            isSelected: !isPencil && Pen.currentPen.icon == Pen.fountainPenIcon,
             onPressed: () => setState(() {
               widget.setTool(Pen.fountainPen());
             }),
@@ -70,7 +73,7 @@ class _PenModalState<T extends Pen> extends State<PenModal<T>> {
             ),
           ),
           _PenSelector(
-            isSelected: Pen.currentPen.icon == CalligraphyPen.calligraphyIcon,
+            isSelected: !isPencil && Pen.currentPen.icon == CalligraphyPen.calligraphyIcon,
             onPressed: () => setState(() {
               widget.setTool(CalligraphyPen.current);
             }),
@@ -78,7 +81,7 @@ class _PenModalState<T extends Pen> extends State<PenModal<T>> {
             icon: const FaIcon(CalligraphyPen.calligraphyIcon),
           ),
           _PenSelector(
-            isSelected: Pen.currentPen.icon == Pen.ballpointPenIcon,
+            isSelected: !isPencil && Pen.currentPen.icon == Pen.ballpointPenIcon,
             onPressed: () => setState(() {
               widget.setTool(Pen.ballpointPen());
             }),
@@ -95,37 +98,63 @@ class _PenModalState<T extends Pen> extends State<PenModal<T>> {
             ),
           ),
           _PenSelector(
-            isSelected: Pen.currentPen.icon == BrushPen.brushIcon,
+            isSelected: isPencil,
+            onPressed: () =>
+                setState(() => widget.setTool(Pencil.currentPencil)),
+            tooltip: t.editor.pens.pencil,
+            icon: const FaIcon(Pencil.pencilIcon),
+          ),
+          _PenSelector(
+            isSelected: !isPencil && Pen.currentPen.icon == BrushPen.brushIcon,
             onPressed: () => setState(() => widget.setTool(BrushPen.current)),
             tooltip: 'Pinsel',
             icon: const FaIcon(BrushPen.brushIcon),
           ),
           _PenSelector(
-            isSelected: Pen.currentPen.icon == FinelinerPen.finelinerIcon,
+            isSelected: !isPencil && Pen.currentPen.icon == FinelinerPen.finelinerIcon,
             onPressed: () =>
                 setState(() => widget.setTool(FinelinerPen.current)),
             tooltip: 'Fineliner',
             icon: const FaIcon(FinelinerPen.finelinerIcon),
           ),
           _PenSelector(
-            isSelected: Pen.currentPen.icon == DashedPen.dashedIcon,
+            isSelected: !isPencil && Pen.currentPen.icon == DashedPen.dashedIcon,
             onPressed: () => setState(() => widget.setTool(DashedPen.current)),
-            tooltip: 'Gestrichelt',
+            tooltip: 'Muster-Stift (gestrichelt, Punkte, Sterne …)',
             icon: const FaIcon(DashedPen.dashedIcon),
           ),
           _PenSelector(
-            isSelected: Pen.currentPen.icon == GlitterPen.glitterIcon,
+            isSelected: !isPencil && Pen.currentPen.icon == GlitterPen.glitterIcon,
             onPressed: () => setState(() => widget.setTool(GlitterPen.current)),
             tooltip: 'Glitzer',
             icon: const FaIcon(GlitterPen.glitterIcon),
           ),
           _PenSelector(
-            isSelected: Pen.currentPen.icon == StampPen.stampIcon,
+            isSelected: !isPencil && Pen.currentPen.icon == StampPen.stampIcon,
             onPressed: () => setState(() => widget.setTool(StampPen.current)),
             tooltip: 'Stempel',
             icon: const FaIcon(StampPen.stampIcon),
           ),
-          if (Pen.currentPen.icon == StampPen.stampIcon) ...[
+          if (!isPencil && Pen.currentPen.icon == DashedPen.dashedIcon)
+            ToolSettingChips<int>(
+              label: 'Muster',
+              pref: stows.patternSymbol,
+              options: [
+                for (var i = 0; i < symbolBrushNames.length; i++)
+                  (i, symbolBrushNames[i]),
+              ],
+            ),
+          if (!isPencil && Pen.currentPen.icon == StampPen.stampIcon) ...[
+            TextButton.icon(
+              icon: const Icon(Icons.text_fields),
+              label: const Text('Text-Stempel …'),
+              onPressed: () async {
+                final result = await showTextStampDialog(context);
+                if (result != null) {
+                  StampPen.onPlaceText?.call(result.$1, result.$2);
+                }
+              },
+            ),
             ToolSettingChips<int>(
               label: 'Symbol',
               pref: stows.stampSymbol,
@@ -140,7 +169,7 @@ class _PenModalState<T extends Pen> extends State<PenModal<T>> {
               options: [(28, 'Klein'), (48, 'Mittel'), (80, 'Groß')],
             ),
           ],
-          if (Pen.currentPen.icon == CalligraphyPen.calligraphyIcon)
+          if (!isPencil && Pen.currentPen.icon == CalligraphyPen.calligraphyIcon)
             ToolSettingChips<int>(
               label: 'Winkel',
               pref: stows.calligraphyNibAngle,
@@ -152,7 +181,7 @@ class _PenModalState<T extends Pen> extends State<PenModal<T>> {
                 (75, '75°'),
               ],
             ),
-          if (Pen.currentPen.icon == Pen.fountainPenIcon)
+          if (!isPencil && Pen.currentPen.icon == Pen.fountainPenIcon)
             ToolSettingChips<int>(
               label: 'Druck',
               pref: stows.fountainThinning,

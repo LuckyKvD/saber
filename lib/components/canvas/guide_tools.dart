@@ -108,6 +108,9 @@ class Guides {
 
   static Object? owner;
   static int pageIndex = 0;
+
+  /// Seitengrößen der Notiz, damit Hilfsmittel auf andere Seiten wechseln können.
+  static List<Size> pageSizes = const [];
   static GuideShape? ruler;
   static GuideShape? protractor;
 
@@ -192,10 +195,61 @@ class Guides {
   }
 
   static void moveBy(GuideShape shape, Offset delta, Size pageSize) {
+    final dy = shape.center.dy + delta.dy;
+    // Über den Seitenrand hinaus: auf die Nachbarseite wechseln.
+    if (dy < 0 && pageIndex > 0 && pageIndex <= pageSizes.length) {
+      _handOver(shape, -1, dy + pageSizes[pageIndex - 1].height, delta);
+      return;
+    }
+    if (dy > pageSize.height && pageIndex + 1 < pageSizes.length) {
+      _handOver(shape, 1, dy - pageSize.height, delta);
+      return;
+    }
     shape.center = Offset(
       (shape.center.dx + delta.dx).clamp(0, pageSize.width).toDouble(),
-      (shape.center.dy + delta.dy).clamp(0, pageSize.height).toDouble(),
+      dy.clamp(0, pageSize.height).toDouble(),
     );
+  }
+
+  static void _handOver(GuideShape shape, int dir, double newDy, Offset delta) {
+    final oldH = pageSizes[pageIndex].height;
+    final other = identical(shape, ruler) ? protractor : ruler;
+    pageIndex += dir;
+    final size = pageSizes[pageIndex];
+    shape.center = Offset(
+      (shape.center.dx + delta.dx).clamp(0, size.width).toDouble(),
+      newDy.clamp(0, size.height).toDouble(),
+    );
+    if (other != null) {
+      final shift = dir < 0 ? size.height : -oldH;
+      other.center = Offset(
+        other.center.dx.clamp(0, size.width).toDouble(),
+        (other.center.dy + shift).clamp(0, size.height).toDouble(),
+      );
+    }
+    grabbing = false; // der Griff an der alten Seite endet hier
+    notifier.ping();
+  }
+
+  /// Hilfsmittel auf die Seite verschieben, die gerade im Bild ist.
+  static void moveToPage(int index) {
+    if (!anyVisible || index == pageIndex) return;
+    if (index < 0 || index >= pageSizes.length) return;
+    if (pageIndex >= pageSizes.length) return;
+    final old = pageSizes[pageIndex];
+    final size = pageSizes[index];
+    for (final shape in [ruler, protractor]) {
+      if (shape == null) continue;
+      shape.center = Offset(
+        shape.center.dx.clamp(0, size.width).toDouble(),
+        (shape.center.dy / old.height * size.height)
+            .clamp(0, size.height)
+            .toDouble(),
+      );
+    }
+    pageIndex = index;
+    grabbing = false;
+    notifier.ping();
   }
 
   /// Nächstliegende Kante in Reichweite des Stifts.

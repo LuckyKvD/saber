@@ -258,6 +258,13 @@ class Stows {
   final stampSymbol = PlainStow('stampSymbol', 0, volatile: !_isOnMainIsolate);
   final stampScale = PlainStow('stampScale', 48, volatile: !_isOnMainIsolate);
 
+  /// Muster-Stift: 0 = gestrichelt, sonst Zeichen-Nummer.
+  final patternSymbol = PlainStow(
+    'patternSymbol',
+    0,
+    volatile: !_isOnMainIsolate,
+  );
+
   /// Textmarker zieht gerade Linien.
   final highlighterStraight = PlainStow(
     'highlighterStraight',

@@ -173,6 +173,16 @@ class WritingPadController extends ChangeNotifier {
   void moveBy(Offset delta) {
     left += delta.dx;
     top += delta.dy;
+    // Über den Seitenrand hinaus: auf die Nachbarseite wechseln.
+    while (top < -height * 0.5 && pageIndex > 0) {
+      pageIndex--;
+      top += _pageSize.height;
+    }
+    while (top > _pageSize.height - height * 0.5 &&
+        pageIndex + 1 < _pages.length) {
+      top -= _pageSize.height;
+      pageIndex++;
+    }
     _changed();
   }
 

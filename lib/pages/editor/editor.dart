@@ -20,6 +20,8 @@ import 'package:saber/components/canvas/_asset_cache.dart';
 import 'package:saber/components/canvas/_stroke.dart';
 import 'package:saber/components/canvas/canvas.dart';
 import 'package:saber/components/canvas/guide_tools.dart';
+import 'package:saber/components/toolbar/text_stamp.dart';
+import 'package:saber/data/tools/extra_pens.dart';
 import 'package:saber/components/canvas/image/image_clip.dart';
 import 'package:saber/data/photo_sources.dart';
 import 'package:saber/components/canvas/canvas_gesture_detector.dart';
@@ -252,7 +254,21 @@ class EditorState extends State<Editor> {
 
   GuideEdge? _guideEdge;
 
+  /// Hilfsmittel folgen der Seite, die gerade im Bild ist.
+  void _syncGuidesToPage() {
+    if (!mounted || !Guides.anyVisible || !identical(Guides.owner, coreInfo)) {
+      return;
+    }
+    Guides.pageSizes = [for (final p in coreInfo.pages) p.size];
+    final index = currentPageIndex;
+    if (index == Guides.pageIndex) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !Guides.grabbing) Guides.moveToPage(index);
+    });
+  }
+
   void _toggleRuler() {
+    Guides.pageSizes = [for (final p in coreInfo.pages) p.size];
     final index = currentPageIndex.clamp(0, coreInfo.pages.length - 1);
     setState(() {
       Guides.toggleRuler(coreInfo, index, coreInfo.pages[index].size);
@@ -260,6 +276,7 @@ class EditorState extends State<Editor> {
   }
 
   void _toggleProtractor() {
+    Guides.pageSizes = [for (final p in coreInfo.pages) p.size];
     final index = currentPageIndex.clamp(0, coreInfo.pages.length - 1);
     setState(() {
       Guides.cycleProtractor(coreInfo, index, coreInfo.pages[index].size);
@@ -416,6 +433,8 @@ class EditorState extends State<Editor> {
     DynamicMaterialApp.addFullscreenListener(_setState);
     Pen.onHoldShapeDetected = _setState;
     writingPadController.addListener(_onWritingPadChanged);
+    _transformationController.addListener(_syncGuidesToPage);
+    StampPen.onPlaceText = _placeTextStamp;
     EditorImage.dropHandler = _onDropImage;
     EditorImage.targetHandler = _startImageTarget;
 
@@ -1556,6 +1575,13 @@ class EditorState extends State<Editor> {
       stows.recentColorsChronological.notifyListeners();
       stows.recentColorsPositioned.notifyListeners();
     }
+  }
+
+  /// Feder: Text-Stempel als Bild in die Bildmitte legen.
+  Future<void> _placeTextStamp(String text, Color color) async {
+    final bytes = await renderTextStamp(text, color);
+    if (!mounted) return;
+    await _pickPhotos([_PhotoInfo(bytes, '.png')]);
   }
 
   /// Prompts the user to pick photos from their device.
@@ -2934,6 +2960,8 @@ class EditorState extends State<Editor> {
     DynamicMaterialApp.removeFullscreenListener(_setState);
     if (Pen.onHoldShapeDetected == _setState) Pen.onHoldShapeDetected = null;
     writingPadController.removeListener(_onWritingPadChanged);
+    _transformationController.removeListener(_syncGuidesToPage);
+    StampPen.onPlaceText = null;
     WritingPadGuide.clear();
     Guides.clear();
     if (EditorImage.dropHandler == _onDropImage) EditorImage.dropHandler = null;

@@ -57,6 +57,13 @@ class _GuideOverlayState extends State<GuideOverlay> {
     final shape = _active;
     final prev = _positions[e.pointer];
     if (shape == null || prev == null) return;
+    if (!Guides.grabbing) {
+      // Hilfsmittel ist auf eine andere Seite gewechselt: Griff beenden.
+      _active = null;
+      _ids.clear();
+      _positions.clear();
+      return;
+    }
     final now = e.localPosition;
     final size = widget.pageSize;
 

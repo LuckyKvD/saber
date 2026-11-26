@@ -51,6 +51,11 @@ class Stroke {
 
   static const styleDashed = 1;
   static const styleGlitter = 2;
+  static const styleLiner = 3;
+
+  /// 10 + n: Muster-Stift mit Zeichen Nummer n (siehe symbol_geometry.dart).
+  static const styleSymbolBase = 10;
+  bool get isSymbolBrush => (penStyle ?? 0) > styleSymbolBase;
 
   List<Offset>? _lowQualityPolygon, _highQualityPolygon;
   List<Offset> get lowQualityPolygon =>
