@@ -424,6 +424,7 @@ class FileManager {
       log.warning('Tried to move non-existent file from $fromPath to $toPath');
     }
 
+    _markPendingDelete(fromPath);
     syncer.uploader.enqueueRel(fromPath);
     syncer.uploader.enqueueRel(toPath);
 
@@ -462,6 +463,14 @@ class FileManager {
     return toPath;
   }
 
+  /// Feder: Merkt einen lokal entfernten Pfad vor, bis die Löschung auf dem
+  /// Server angekommen ist (verhindert das Zurückladen der alten Datei).
+  static void _markPendingDelete(String relativePath) {
+    if (!stows.loggedIn) return;
+    stows.fileSyncPendingDeletes.value.add(relativePath);
+    stows.fileSyncPendingDeletes.notifyListeners();
+  }
+
   static Future deleteFile(
     String filePath, {
     bool alsoUpload = true,
@@ -473,7 +482,10 @@ class FileManager {
     if (!file.existsSync()) return;
     await file.delete();
 
-    if (alsoUpload) syncer.uploader.enqueueRel(filePath);
+    if (alsoUpload) {
+      _markPendingDelete(filePath);
+      syncer.uploader.enqueueRel(filePath);
+    }
 
     _removeReferences(filePath);
     broadcastFileWrite(FileOperationType.delete, filePath);
@@ -571,6 +583,7 @@ class FileManager {
       broadcastFileWrite(FileOperationType.write, newPath + child);
       // Feder: Sync ueber die Aenderung informieren. Ohne das bleiben die
       // alten Dateien auf dem Server liegen und werden zurueckgeladen.
+      _markPendingDelete(directoryPath + child);
       syncer.uploader.enqueueRel(directoryPath + child);
       syncer.uploader.enqueueRel(newPath + child);
     }

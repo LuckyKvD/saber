@@ -443,6 +443,15 @@ class Stows {
     volatile: !_isOnMainIsolate,
   );
 
+  /// Feder: Pfade, die lokal gelöscht/verschoben wurden und deren Löschung
+  /// noch nicht auf dem Server angekommen ist. Solange sie hier stehen, wird
+  /// die alte Server-Datei nicht zurückgeladen.
+  final fileSyncPendingDeletes = PlainStow(
+    'fileSyncPendingDeletes',
+    <String>{},
+    volatile: !_isOnMainIsolate,
+  );
+
   /// File paths that are known to be corrupted on Nextcloud
   final fileSyncCorruptFiles = PlainStow(
     'fileSyncCorruptFiles',

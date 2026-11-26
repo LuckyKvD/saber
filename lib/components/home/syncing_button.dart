@@ -30,8 +30,11 @@ class const SyncingButton({super.key}) extends HookWidget {
     // Don't refresh if we're already refreshing.
     if (syncer.downloader.isRefreshing || syncer.uploader.isRefreshing) return;
 
-    // Reset progress indicator
-    filesTransferred.value = 0;
+    // Reset progress indicator (nur wenn nichts mehr ansteht, sonst
+    // verschwindet die Fortschrittsanzeige mitten im Sync)
+    if (syncer.downloader.numPending + syncer.uploader.numPending == 0) {
+      filesTransferred.value = 0;
+    }
 
     syncer.downloader.refresh();
     syncer.uploader.refresh();
