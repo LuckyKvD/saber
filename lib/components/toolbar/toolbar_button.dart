@@ -9,7 +9,16 @@ class ToolbarIconButton extends StatelessWidget {
     required this.onPressed,
     required this.padding,
     required this.child,
+    this.compact = false,
+    this.tinted = false,
   });
+
+  /// Schmale Variante (kleineres Symbol, weniger Innenabstand).
+  final bool compact;
+
+  /// Symbol hat eine eigene Farbe: gewählt wird dann mit Rahmen statt
+  /// Vollfläche markiert, damit die Symbolfarbe lesbar bleibt.
+  final bool tinted;
 
   final String? tooltip;
   final bool selected;
@@ -27,7 +36,7 @@ class ToolbarIconButton extends StatelessWidget {
           !states.contains(WidgetState.selected)) {
         return Colors.transparent;
       }
-      return colorScheme.primary;
+      return tinted ? colorScheme.secondaryContainer : colorScheme.primary;
     });
     final foregroundColor = WidgetStateProperty.resolveWith((states) {
       if (states.contains(WidgetState.disabled)) {
@@ -42,8 +51,18 @@ class ToolbarIconButton extends StatelessWidget {
       backgroundColor: backgroundColor,
       iconColor: foregroundColor,
       foregroundColor: foregroundColor,
-      iconSize: const WidgetStatePropertyAll(20),
-      padding: const WidgetStatePropertyAll(EdgeInsets.all(8)),
+      iconSize: WidgetStatePropertyAll(compact ? 18 : 20),
+      minimumSize: WidgetStatePropertyAll(Size.square(compact ? 30 : 36)),
+      padding: WidgetStatePropertyAll(EdgeInsets.all(compact ? 6 : 8)),
+      side: tinted
+          ? WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.selected) &&
+                  !states.contains(WidgetState.disabled)) {
+                return BorderSide(color: colorScheme.primary, width: 2);
+              }
+              return BorderSide.none;
+            })
+          : null,
       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
     );
 

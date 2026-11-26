@@ -166,70 +166,74 @@ class ColorBar extends StatefulWidget {
 class _ColorBarState extends State<ColorBar> {
   static var pickedColor = const Color.fromRGBO(255, 0, 0, 1);
 
+  /// Feder: Wie viele zuletzt benutzte Farben in der schmalen Leiste stehen.
+  static const _quickRecentCount = 4;
+
+  Widget _dot(Color color) {
+    final colorScheme = ColorScheme.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: color.withInversion(widget.invert),
+        shape: .circle,
+        border: Border.all(
+          color: colorScheme.onSurface.withValues(alpha: 0.2),
+          width: 1,
+        ),
+      ),
+    );
+  }
+
+  bool _isCurrent(Color color) =>
+      widget.currentColor?.withAlpha(255).toARGB32() == color.toARGB32();
+
+  ColorOption _option(
+    Color color, {
+    VoidCallback? afterTap,
+    VoidCallback? onLongPress,
+  }) {
+    return ColorOption(
+      isSelected: _isCurrent(color),
+      enabled: widget.currentColor != null,
+      onTap: () {
+        widget.setColor(color);
+        afterTap?.call();
+      },
+      onLongPress: onLongPress,
+      tooltip: ColorBar.findColorName(color),
+      child: _dot(color),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = ColorScheme.of(context);
 
+    final recent = [
+      for (final c in stows.recentColorsChronological.value.reversed.take(
+        _quickRecentCount,
+      ))
+        c,
+    ];
+
     final children = <Widget>[
-      // pinned colors
-      if (stows.pinnedColors.value.isNotEmpty) ...[
-        const ColorOptionSeparatorIcon(icon: Icons.pin_drop),
-        for (final colorString in stows.pinnedColors.value)
-          ColorOption(
-            isSelected:
-                widget.currentColor?.withAlpha(255).toARGB32() ==
-                int.parse(colorString),
-            enabled: widget.currentColor != null,
-            onTap: () => widget.setColor(Color(int.parse(colorString))),
-            onLongPress: () =>
-                setState(() => ColorBar.toggleColorPinned(colorString)),
-            tooltip: ColorBar.findColorName(Color(int.parse(colorString))),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: Color(int.parse(colorString))
-                    .withInversion(widget.invert),
-                shape: .circle,
-                border: Border.all(
-                  color: colorScheme.onSurface.withValues(alpha: 0.2),
-                  width: 1,
-                ),
-              ),
-            ),
-          ),
-      ],
-
-      const ColorOptionSeparatorIcon(icon: Icons.history),
-
-      // recent colors
-      for (final colorString in stows.recentColorsPositioned.value.reversed)
-        ColorOption(
-          isSelected:
-              widget.currentColor?.withAlpha(255).toARGB32() ==
-              int.parse(colorString),
-          enabled: widget.currentColor != null,
-          onTap: () => widget.setColor(Color(int.parse(colorString))),
+      // angeheftete Farben
+      for (final colorString in stows.pinnedColors.value)
+        _option(
+          Color(int.parse(colorString)),
           onLongPress: () =>
               setState(() => ColorBar.toggleColorPinned(colorString)),
-          tooltip: ColorBar.findColorName(Color(int.parse(colorString))),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: Color(int.parse(colorString)).withInversion(widget.invert),
-              shape: .circle,
-              border: Border.all(
-                color: colorScheme.onSurface.withValues(alpha: 0.2),
-                width: 1,
-              ),
-            ),
-          ),
         ),
-      // placeholders for `recentColorsLength` recent colors
-      for (
-        int i = 0;
-        i <
-            stows.recentColorsLength.value -
-                stows.recentColorsPositioned.value.length;
-        ++i
-      )
+      if (stows.pinnedColors.value.isNotEmpty)
+        const SizedBox(width: 6, height: 6),
+
+      // zuletzt benutzte Farben (nur die letzten paar)
+      for (final colorString in recent)
+        _option(
+          Color(int.parse(colorString)),
+          onLongPress: () =>
+              setState(() => ColorBar.toggleColorPinned(colorString)),
+        ),
+      for (int i = recent.length; i < _quickRecentCount; ++i)
         ColorOption(
           isSelected: false,
           enabled: widget.currentColor != null,
@@ -247,51 +251,108 @@ class _ColorBarState extends State<ColorBar> {
           ),
         ),
 
-      const ColorOptionSeparatorIcon(icon: Icons.palette),
+      const SizedBox(width: 6, height: 6),
 
-      // custom color
+      // alle weiteren Farben
       ColorOption(
-        isSelected:
-            widget.currentColor?.withAlpha(255).toARGB32() ==
-            pickedColor.toARGB32(),
-        enabled: true,
-        onTap: () => openColorPicker(context),
-        tooltip: t.editor.colors.colorPicker,
-        child: const DecoratedBox(
-          decoration: BoxDecoration(color: Colors.transparent, shape: .circle),
-          child: Center(child: FaIcon(FontAwesomeIcons.droplet, size: 16)),
-        ),
+        isSelected: false,
+        enabled: widget.currentColor != null,
+        onTap: () => _openPalette(context),
+        tooltip: 'Alle Farben',
+        child: const Center(child: Icon(Icons.palette_outlined, size: 18)),
       ),
-
-      // color presets
-      for (final namedColor in ColorBar.colorPresets)
-        ColorOption(
-          isSelected:
-              widget.currentColor?.withAlpha(255).toARGB32() ==
-              namedColor.color.toARGB32(),
-          enabled: widget.currentColor != null,
-          onTap: () => widget.setColor(namedColor.color),
-          tooltip: namedColor.name,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: namedColor.color.withInversion(widget.invert),
-              shape: .circle,
-              border: Border.all(
-                color: colorScheme.onSurface.withValues(alpha: 0.2),
-                width: 1,
-              ),
-            ),
-          ),
-        ),
     ];
 
     return Center(
       child: Padding(
-        padding: const .all(8),
+        padding: const .symmetric(horizontal: 8, vertical: 2),
         child: SingleChildScrollView(
           scrollDirection: widget.axis,
           child: Flex(direction: widget.axis, children: children),
         ),
+      ),
+    );
+  }
+
+  /// Feder: Fenster mit allen Farben (angeheftet, zuletzt, Vorgaben, frei wählbar).
+  Future<void> _openPalette(BuildContext context) {
+    return showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) {
+          void close() => Navigator.of(dialogContext).pop();
+          Widget section(String title, List<Widget> items) {
+            if (items.isEmpty) return const SizedBox.shrink();
+            return Padding(
+              padding: const .only(bottom: 12),
+              child: Column(
+                crossAxisAlignment: .start,
+                children: [
+                  Padding(
+                    padding: const .only(left: 4, bottom: 6),
+                    child: Text(
+                      title,
+                      style: Theme.of(dialogContext).textTheme.labelLarge,
+                    ),
+                  ),
+                  Wrap(spacing: 4, runSpacing: 8, children: items),
+                ],
+              ),
+            );
+          }
+
+          return Dialog(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: SingleChildScrollView(
+                padding: const .all(16),
+                child: Column(
+                  mainAxisSize: .min,
+                  crossAxisAlignment: .start,
+                  children: [
+                    section('Angeheftet (lange drücken zum Lösen)', [
+                      for (final c in stows.pinnedColors.value)
+                        _option(
+                          Color(int.parse(c)),
+                          afterTap: close,
+                          onLongPress: () => setDialogState(
+                            () => ColorBar.toggleColorPinned(c),
+                          ),
+                        ),
+                    ]),
+                    section('Zuletzt benutzt (lange drücken zum Anheften)', [
+                      for (final c
+                          in stows.recentColorsPositioned.value.reversed)
+                        _option(
+                          Color(int.parse(c)),
+                          afterTap: close,
+                          onLongPress: () => setDialogState(
+                            () => ColorBar.toggleColorPinned(c),
+                          ),
+                        ),
+                    ]),
+                    section('Farben', [
+                      ColorOption(
+                        isSelected: _isCurrent(pickedColor),
+                        enabled: true,
+                        onTap: () {
+                          close();
+                          openColorPicker(context);
+                        },
+                        tooltip: t.editor.colors.colorPicker,
+                        child: const Center(
+                          child: FaIcon(FontAwesomeIcons.droplet, size: 16),
+                        ),
+                      ),
+                      for (final namedColor in ColorBar.colorPresets)
+                        _option(namedColor.color, afterTap: close),
+                    ]),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }

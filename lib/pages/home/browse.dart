@@ -25,6 +25,7 @@ import 'package:saber/components/import/saber_import_tile.dart';
 import 'package:saber/components/shelf/shelf_tabs.dart';
 import 'package:saber/components/theming/saber_theme.dart';
 import 'package:saber/data/file_manager/file_manager.dart';
+import 'package:saber/data/quick_note.dart';
 import 'package:saber/data/prefs.dart';
 import 'package:saber/data/routes.dart';
 import 'package:saber/i18n/strings.g.dart';
@@ -243,6 +244,8 @@ class _BrowsePageState extends State<BrowsePage> {
               deleteFolder: deleteShelf,
               isFolderEmpty: isShelfEmpty,
               moveFolder: moveShelf,
+              onQuickNote: () =>
+                  context.push(RoutePaths.editFilePath(QuickNote.path)),
             ),
           ),
           // Nur für ältere, tiefer verschachtelte Ordner

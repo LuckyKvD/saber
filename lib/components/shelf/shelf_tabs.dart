@@ -4,8 +4,9 @@ import 'package:saber/components/home/new_folder_dialog.dart';
 import 'package:saber/components/home/rename_folder_button.dart';
 import 'package:saber/components/shelf/pick_folder_dialog.dart';
 
-/// Leiste mit Regal-Schildern: Hauptregal, je ein Schild pro Ordner
-/// und "+ Neues Regal".
+/// Schmale Leiste: Schnellnotiz (eigener Reiter), Hauptregal, das gewählte
+/// Regal und ein Knopf "Regale", der alle Regale in einem Fenster zeigt
+/// (so bleibt die Leiste auch bei sehr vielen Regalen gleich klein).
 class ShelfTabs extends StatelessWidget {
   const new({
     super.key,
@@ -17,7 +18,11 @@ class ShelfTabs extends StatelessWidget {
     required this.deleteFolder,
     required this.isFolderEmpty,
     required this.moveFolder,
+    required this.onQuickNote,
   });
+
+  /// Öffnet die Schnellnotiz.
+  final VoidCallback onQuickNote;
 
   final List<String> folders;
 
@@ -96,8 +101,83 @@ class ShelfTabs extends StatelessWidget {
     }
   }
 
+  Future<void> _newShelf(BuildContext context) {
+    return showDialog(
+      context: context,
+      builder: (context) =>
+          NewFolderDialog(createFolder: createFolder, doesFolderExist: _exists),
+    );
+  }
+
+  Future<void> _showAll(BuildContext context) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.7,
+          ),
+          child: SingleChildScrollView(
+            padding: const .fromLTRB(16, 8, 16, 16),
+            child: Column(
+              crossAxisAlignment: .start,
+              children: [
+                Padding(
+                  padding: const .only(bottom: 10),
+                  child: Text(
+                    'Regale (lange drücken zum Verwalten)',
+                    style: Theme.of(sheetContext).textTheme.titleMedium,
+                  ),
+                ),
+                Wrap(
+                  runSpacing: 8,
+                  children: [
+                    _Tab(
+                      label: 'Hauptregal',
+                      icon: Icons.collections_bookmark,
+                      selected: selected == null,
+                      onTap: () {
+                        Navigator.of(sheetContext).pop();
+                        onSelect(null);
+                      },
+                    ),
+                    for (final folder in folders)
+                      _Tab(
+                        label: folder,
+                        selected: selected == folder,
+                        onTap: () {
+                          Navigator.of(sheetContext).pop();
+                          onSelect(folder);
+                        },
+                        onLongPress: () async {
+                          Navigator.of(sheetContext).pop();
+                          if (context.mounted) await _showMenu(context, folder);
+                        },
+                      ),
+                    _Tab(
+                      label: 'Neues Regal',
+                      icon: Icons.add,
+                      selected: false,
+                      outlined: true,
+                      onTap: () async {
+                        Navigator.of(sheetContext).pop();
+                        if (context.mounted) await _newShelf(context);
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final current = selected;
     return SizedBox(
       height: 52,
       child: ListView(
@@ -105,30 +185,34 @@ class ShelfTabs extends StatelessWidget {
         padding: const .symmetric(horizontal: 12, vertical: 6),
         children: [
           _Tab(
+            label: 'Schnellnotiz',
+            icon: Icons.sticky_note_2,
+            selected: false,
+            onTap: onQuickNote,
+          ),
+          _Tab(
             label: 'Hauptregal',
             icon: Icons.collections_bookmark,
-            selected: selected == null,
+            selected: current == null,
             onTap: () => onSelect(null),
           ),
-          for (final folder in folders)
-            _Tab(
-              label: folder,
-              selected: selected == folder,
-              onTap: () => onSelect(folder),
-              onLongPress: () => _showMenu(context, folder),
-            ),
-          _Tab(
-            label: 'Neues Regal',
-            icon: Icons.add,
-            selected: false,
-            outlined: true,
-            onTap: () => showDialog(
-              context: context,
-              builder: (context) => NewFolderDialog(
-                createFolder: createFolder,
-                doesFolderExist: _exists,
+          if (current != null)
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 170),
+              child: _Tab(
+                label: current,
+                selected: true,
+                onTap: () => onSelect(current),
+                onLongPress: () => _showMenu(context, current),
               ),
             ),
+          _Tab(
+            label: folders.isEmpty ? 'Neues Regal' : 'Regale (${folders.length})',
+            icon: folders.isEmpty ? Icons.add : Icons.expand_more,
+            selected: false,
+            outlined: true,
+            onTap: () =>
+                folders.isEmpty ? _newShelf(context) : _showAll(context),
           ),
         ],
       ),
@@ -183,11 +267,15 @@ class _Tab extends StatelessWidget {
                   Icon(icon, size: 18, color: foreground),
                   const SizedBox(width: 6),
                 ],
-                Text(
+                Flexible(
+                  child: Text(
                   label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: outlined ? colorScheme.onSurface : foreground,
                     fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  ),
                   ),
                 ),
               ],

@@ -1,5 +1,6 @@
-import 'dart:math' as math;
+import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:collapsible/collapsible.dart';
 import 'package:cupertino_ui/cupertino_ui.dart';
@@ -9,7 +10,6 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:keybinder/keybinder.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:material_ui/material_ui.dart';
-import 'package:saber/components/theming/adaptive_icon.dart';
 import 'package:saber/components/theming/dynamic_material_app.dart';
 import 'package:saber/components/theming/uni_icon.dart';
 import 'package:saber/components/toolbar/color_bar.dart';
@@ -18,12 +18,15 @@ import 'package:saber/components/toolbar/export_bar.dart';
 import 'package:saber/components/toolbar/pen_modal.dart';
 import 'package:saber/components/toolbar/selection_bar.dart';
 import 'package:saber/components/toolbar/size_picker.dart';
+import 'package:saber/components/toolbar/text_stamp.dart';
 import 'package:saber/components/toolbar/toolbar_button.dart';
 import 'package:saber/data/editor/page.dart';
 import 'package:saber/data/extensions/color_extensions.dart';
 import 'package:saber/data/prefs.dart';
 import 'package:saber/data/tools/_tool.dart';
+import 'package:saber/data/tools/calligraphy_pen.dart';
 import 'package:saber/data/tools/eraser.dart';
+import 'package:saber/data/tools/extra_pens.dart';
 import 'package:saber/data/tools/highlighter.dart';
 import 'package:saber/data/tools/laser_pointer.dart';
 import 'package:saber/data/tools/pen.dart';
@@ -115,14 +118,6 @@ class _ToolbarState extends State<Toolbar> {
   ValueNotifier<bool> showColorOptions = ValueNotifier(true);
   ValueNotifier<ToolOptions> toolOptionsType = ValueNotifier(ToolOptions.hide);
 
-  /// Zuletzt benutzter normaler Stift (Füller, Kugelschreiber, Kalligrafie),
-  /// damit der Formen-Stift den Stift-Knopf nicht überschreibt.
-  Pen? _lastRegularPen;
-  Pen get _regularPen {
-    if (Pen.currentPen is! ShapePen) _lastRegularPen = Pen.currentPen;
-    return _lastRegularPen ??= Pen.fountainPen();
-  }
-
   @override
   void initState() {
     _assignKeybindings();
@@ -210,6 +205,7 @@ class _ToolbarState extends State<Toolbar> {
     required Widget icon,
     required bool selected,
     required List<_MenuEntry> entries,
+    bool compact = false,
   }) {
     return Builder(
       builder: (buttonContext) => ToolbarIconButton(
@@ -234,11 +230,13 @@ class _ToolbarState extends State<Toolbar> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
+                      UniIcon(
                         entry.icon,
-                        color: entry.selected
-                            ? ColorScheme.of(buttonContext).primary
-                            : null,
+                        color:
+                            entry.tint ??
+                            (entry.selected
+                                ? ColorScheme.of(buttonContext).primary
+                                : null),
                       ),
                       const SizedBox(width: 12),
                       Text(entry.label),
@@ -258,119 +256,333 @@ class _ToolbarState extends State<Toolbar> {
           picked?.call();
         },
         padding: padding,
+        compact: compact,
         child: icon,
       ),
     );
   }
 
-  /// Hilfsmittel: Formstift, Schreibfeld, Lineal, Winkelmesser, Laserpointer.
-  Widget _helpersMenu(BuildContext context, EdgeInsets padding) {
-    final readOnly = widget.readOnly;
-    final shapeSelected = widget.currentTool is ShapePen;
-    final laserSelected =
-        widget.currentTool == LaserPointer.currentLaserPointer;
-    return _menuButton(
-      context,
-      padding,
-      tooltip: 'Hilfsmittel',
-      icon: const Icon(Icons.straighten),
-      selected:
-          shapeSelected ||
-          laserSelected ||
-          widget.writingPadVisible ||
-          widget.rulerVisible ||
-          widget.protractorMode != 0,
-      entries: [
-        _MenuEntry(
-          icon: Icons.edit_note,
-          label: 'Schreibfeld',
-          selected: widget.writingPadVisible,
-          enabled: !readOnly,
-          onTap: widget.toggleWritingPad,
-        ),
-        _MenuEntry(
-          icon: Icons.straighten,
-          label: 'Lineal',
-          selected: widget.rulerVisible,
-          enabled: !readOnly,
-          onTap: widget.toggleRuler,
-        ),
-        _MenuEntry(
-          icon: Icons.square_foot,
-          label: widget.protractorMode == 0
-              ? 'Winkelmesser (Halbkreis)'
-              : widget.protractorMode == 1
-              ? 'Winkelmesser (Vollkreis)'
-              : 'Winkelmesser ausblenden',
-          selected: widget.protractorMode != 0,
-          enabled: !readOnly,
-          onTap: widget.toggleProtractor,
-        ),
-        _MenuEntry(
-          icon: Icons.category_outlined,
-          label: t.editor.pens.shapePen,
-          selected: shapeSelected,
-          enabled: !readOnly,
-          onTap: () {
-            if (shapeSelected) {
-              toolOptionsType.value = toolOptionsType.value == .pen
-                  ? .hide
-                  : .pen;
-            } else {
-              toolOptionsType.value = .pen;
-              widget.setTool(ShapePen());
-            }
-          },
-        ),
-        _MenuEntry(
-          icon: Symbols.stylus_laser_pointer,
-          label: t.editor.pens.laserPointer,
-          selected: laserSelected,
-          enabled: true,
-          onTap: () {
-            toolOptionsType.value = .hide;
-            widget.setTool(LaserPointer.currentLaserPointer);
-          },
-        ),
-      ],
+  /// Breite (bzw. Höhe) eines Knopfes samt Abstand in der Werkzeugleiste.
+  static const double _slot = 32;
+
+  Color _tint(Color color, bool invert) =>
+      color.withInversion(invert).withValues(alpha: 1);
+
+  bool _isPen(IconData icon) {
+    final tool = widget.currentTool;
+    return tool is Pen &&
+        tool is! Highlighter &&
+        tool is! TapePen &&
+        tool.icon == icon;
+  }
+
+  void _onPenTap(bool selected, Pen Function() make) {
+    if (selected) {
+      toolOptionsType.value = toolOptionsType.value == .pen ? .hide : .pen;
+    } else {
+      widget.setTool(make());
+      // Ist schon eine Einstellungsleiste offen, zeigt sie jetzt diesen Stift.
+      if (toolOptionsType.value != .hide) toolOptionsType.value = .pen;
+    }
+  }
+
+  /// Stift-Knopf mit Symbol in der zuletzt benutzten Farbe dieses Stifts.
+  _ToolItem _penItem(Pen Function() make, bool invert) {
+    final pen = make();
+    final icon = pen.icon as IconData;
+    final selected = _isPen(icon);
+    var color = pen.color;
+    if (selected) {
+      color = (widget.currentTool as Pen).color;
+    } else {
+      try {
+        final saved = (jsonDecode(stows.penColors.value) as Map)[pen.name];
+        if (saved is int) color = Color(saved);
+      } catch (_) {}
+    }
+    return _ToolItem(
+      tooltip: pen.name,
+      icon: icon,
+      tint: _tint(color, invert),
+      selected: selected,
+      enabled: !widget.readOnly,
+      onTap: () => _onPenTap(selected, make),
     );
   }
 
-  /// Mehr: Fingerzeichnen, Vollbild, Teilen/Export.
-  Widget _moreMenu(BuildContext context, EdgeInsets padding) {
+  /// Alle Werkzeuge in der Reihenfolge ihrer Wichtigkeit. Was nicht in die
+  /// Reihe passt, landet automatisch im Aufklappmenü.
+  List<_ToolItem> _toolItems(BuildContext context, bool invert) {
     final readOnly = widget.readOnly;
-    return _menuButton(
-      context,
-      padding,
-      tooltip: 'Mehr',
-      icon: const Icon(Icons.more_horiz),
-      selected: showExportOptions.value || DynamicMaterialApp.isFullscreen,
-      entries: [
-        if (!stows.hideFingerDrawingToggle.value)
-          _MenuEntry(
-            icon: CupertinoIcons.hand_draw,
-            label: t.editor.toolbar.toggleFingerDrawing,
-            selected: stows.editorFingerDrawing.value,
-            enabled: !readOnly,
-            onTap: widget.toggleFingerDrawing,
+    final highlighterSelected =
+        widget.currentTool == Highlighter.currentHighlighter;
+    final shapeSelected = widget.currentTool is ShapePen;
+    final laserSelected =
+        widget.currentTool == LaserPointer.currentLaserPointer;
+    return [
+      _penItem(Pen.ballpointPen, invert),
+      _penItem(() => Pencil.currentPencil, invert),
+      _penItem(Pen.fountainPen, invert),
+      _penItem(() => CalligraphyPen.current, invert),
+      _penItem(() => GlitterPen.current, invert),
+      _penItem(() => DashedPen.current, invert),
+      _ToolItem(
+        tooltip: t.editor.pens.highlighter,
+        icon: Highlighter.highlighterIcon,
+        tint: _tint(Highlighter.currentHighlighter.color, invert),
+        selected: highlighterSelected,
+        enabled: !readOnly,
+        onTap: () {
+          if (highlighterSelected) {
+            toolOptionsType.value = toolOptionsType.value == .highlighter
+                ? .hide
+                : .highlighter;
+          } else {
+            toolOptionsType.value = .highlighter;
+            widget.setTool(Highlighter.currentHighlighter);
+          }
+        },
+      ),
+      _ToolItem(
+        tooltip: TapePen.currentTape.name,
+        icon: TapePen.tapeIcon,
+        tint: _tint(TapePen.currentTape.color, invert),
+        selected: widget.currentTool is TapePen,
+        enabled: !readOnly,
+        onTap: () {
+          if (widget.currentTool is TapePen) {
+            toolOptionsType.value = toolOptionsType.value == .tape
+                ? .hide
+                : .tape;
+          } else {
+            toolOptionsType.value = .tape;
+            widget.setTool(TapePen.currentTape);
+          }
+        },
+      ),
+      _ToolItem(
+        tooltip: t.editor.toolbar.toggleEraser,
+        icon: FontAwesomeIcons.eraser,
+        selected: widget.currentTool is Eraser,
+        enabled: !readOnly,
+        onTap: toggleEraser,
+      ),
+      _ToolItem(
+        tooltip: t.editor.toolbar.select,
+        icon: CupertinoIcons.lasso,
+        selected: widget.currentTool is Select,
+        enabled: !readOnly,
+        onTap: () {
+          toolOptionsType.value = .hide;
+          widget.setTool(Select.currentSelect);
+        },
+      ),
+      _ToolItem(
+        tooltip: t.editor.toolbar.undo,
+        icon: Icons.undo,
+        enabled: !readOnly && widget.isUndoPossible,
+        onTap: widget.undo,
+      ),
+      _ToolItem(
+        tooltip: t.editor.toolbar.redo,
+        icon: Icons.redo,
+        enabled: !readOnly && widget.isRedoPossible,
+        onTap: widget.redo,
+      ),
+      _ToolItem(
+        tooltip: 'Text-Stempel (VERTRAULICH, ERLEDIGT …)',
+        icon: StampPen.stampIcon,
+        tint: _tint(const Color(0xFFD32F2F), invert),
+        enabled: !readOnly,
+        onTap: () async {
+          final result = await showTextStampDialog(context);
+          if (result != null) {
+            StampPen.onPlaceText?.call(result.$1, result.$2);
+          }
+        },
+      ),
+      _ToolItem(
+        tooltip: 'Lineal',
+        icon: Icons.straighten,
+        selected: widget.rulerVisible,
+        enabled: !readOnly,
+        onTap: widget.toggleRuler,
+      ),
+      _ToolItem(
+        tooltip: 'Schreibfeld',
+        icon: Icons.edit_note,
+        selected: widget.writingPadVisible,
+        enabled: !readOnly,
+        onTap: widget.toggleWritingPad,
+      ),
+      _ToolItem(
+        tooltip: t.editor.toolbar.photo,
+        icon: Icons.photo,
+        enabled: !readOnly,
+        onTap: widget.pickPhoto,
+      ),
+      _ToolItem(
+        tooltip: t.editor.toolbar.text,
+        icon: Icons.text_fields,
+        selected: widget.textEditing,
+        enabled: !readOnly,
+        onTap: widget.toggleTextEditing,
+      ),
+      _penItem(() => BrushPen.current, invert),
+      _penItem(() => FinelinerPen.current, invert),
+      _ToolItem(
+        tooltip: widget.protractorMode == 0
+            ? 'Winkelmesser (Halbkreis)'
+            : widget.protractorMode == 1
+            ? 'Winkelmesser (Vollkreis)'
+            : 'Winkelmesser ausblenden',
+        icon: Icons.square_foot,
+        selected: widget.protractorMode != 0,
+        enabled: !readOnly,
+        onTap: widget.toggleProtractor,
+      ),
+      _ToolItem(
+        tooltip: t.editor.pens.shapePen,
+        icon: Icons.category_outlined,
+        selected: shapeSelected,
+        enabled: !readOnly,
+        onTap: () {
+          if (shapeSelected) {
+            toolOptionsType.value = toolOptionsType.value == .pen
+                ? .hide
+                : .pen;
+          } else {
+            toolOptionsType.value = .pen;
+            widget.setTool(ShapePen());
+          }
+        },
+      ),
+      _ToolItem(
+        tooltip: t.editor.pens.laserPointer,
+        icon: Symbols.stylus_laser_pointer,
+        selected: laserSelected,
+        onTap: () {
+          toolOptionsType.value = .hide;
+          widget.setTool(LaserPointer.currentLaserPointer);
+        },
+      ),
+    ];
+  }
+
+  /// Einträge, die immer nur im Aufklappmenü stehen.
+  List<_ToolItem> _extraItems() {
+    final readOnly = widget.readOnly;
+    return [
+      if (!stows.hideFingerDrawingToggle.value)
+        _ToolItem(
+          tooltip: t.editor.toolbar.toggleFingerDrawing,
+          icon: CupertinoIcons.hand_draw,
+          selected: stows.editorFingerDrawing.value,
+          enabled: !readOnly,
+          onTap: widget.toggleFingerDrawing,
+        ),
+      _ToolItem(
+        tooltip: 'Farbleiste',
+        icon: Icons.palette_outlined,
+        selected: showColorOptions.value,
+        enabled: !readOnly,
+        onTap: toggleColorOptions,
+      ),
+      _ToolItem(
+        tooltip: t.editor.toolbar.fullscreen,
+        icon: DynamicMaterialApp.isFullscreen
+            ? Icons.fullscreen_exit
+            : Icons.fullscreen,
+        selected: DynamicMaterialApp.isFullscreen,
+        enabled: !readOnly,
+        onTap: toggleFullscreen,
+      ),
+      _ToolItem(
+        tooltip: t.editor.toolbar.export,
+        icon: Icons.share,
+        selected: showExportOptions.value,
+        enabled: !readOnly,
+        onTap: toggleExportBar,
+      ),
+    ];
+  }
+
+  _MenuEntry _menuEntryOf(_ToolItem item) => _MenuEntry(
+    icon: item.icon,
+    label: item.tooltip,
+    selected: item.selected,
+    enabled: item.enabled,
+    onTap: item.onTap,
+    tint: item.tint,
+  );
+
+  Widget _itemButton(_ToolItem item, EdgeInsets padding) {
+    final tint = item.tint;
+    return ToolbarIconButton(
+      tooltip: item.tooltip,
+      selected: item.selected,
+      enabled: item.enabled,
+      onPressed: item.onTap,
+      padding: padding,
+      compact: true,
+      tinted: tint != null,
+      child: Icon(
+        item.icon,
+        color: tint == null
+            ? null
+            : (item.enabled ? tint : tint.withValues(alpha: 0.4)),
+        shadows: tint == null
+            ? null
+            : [
+                Shadow(
+                  color: tint.computeLuminance() > 0.5
+                      ? Colors.black54
+                      : Colors.white70,
+                  blurRadius: 2,
+                ),
+              ],
+      ),
+    );
+  }
+
+  /// Eine Reihe mit den wichtigsten Werkzeugen; der Rest steckt hinter ⋮.
+  Widget _toolRow(BuildContext context, bool vertical, bool invert) {
+    final items = _toolItems(context, invert);
+    final extras = _extraItems();
+    final padding = vertical
+        ? const EdgeInsets.symmetric(vertical: 1)
+        : const EdgeInsets.symmetric(horizontal: 1);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final extent = vertical ? constraints.maxHeight : constraints.maxWidth;
+        final capacity = extent.isFinite ? ((extent - 16) / _slot).floor() : 99;
+        final visibleCount = math.max(0, math.min(items.length, capacity - 1));
+        final overflow = [...items.skip(visibleCount), ...extras];
+        return Center(
+          child: Padding(
+            padding: const .all(8),
+            child: Flex(
+              direction: vertical ? .vertical : .horizontal,
+              mainAxisSize: .min,
+              children: [
+                for (final item in items.take(visibleCount))
+                  _itemButton(item, padding),
+                _menuButton(
+                  context,
+                  padding,
+                  tooltip: 'Mehr',
+                  icon: const Icon(Icons.more_vert),
+                  selected:
+                      overflow.any((e) => e.selected) &&
+                      overflow.length > extras.length,
+                  entries: [for (final e in overflow) _menuEntryOf(e)],
+                  compact: true,
+                ),
+              ],
+            ),
           ),
-        _MenuEntry(
-          icon: DynamicMaterialApp.isFullscreen
-              ? Icons.fullscreen_exit
-              : Icons.fullscreen,
-          label: t.editor.toolbar.fullscreen,
-          selected: DynamicMaterialApp.isFullscreen,
-          enabled: !readOnly,
-          onTap: toggleFullscreen,
-        ),
-        _MenuEntry(
-          icon: Icons.share,
-          label: t.editor.toolbar.export,
-          selected: showExportOptions.value,
-          enabled: !readOnly,
-          onTap: toggleExportBar,
-        ),
-      ],
+        );
+      },
     );
   }
 
@@ -384,10 +596,6 @@ class _ToolbarState extends State<Toolbar> {
     final isToolbarVertical =
         stows.editorToolbarAlignment.value == .left ||
         stows.editorToolbarAlignment.value == .right;
-
-    final buttonPadding = isToolbarVertical
-        ? Toolbar._buttonPaddingVertical
-        : Toolbar._buttonPaddingHorizontal;
 
     final currentColor = switch (widget.currentTool) {
       final Pen pen => pen.color,
@@ -521,190 +729,7 @@ class _ToolbarState extends State<Toolbar> {
           );
         },
       ),
-      Center(
-        child: Padding(
-          padding: const .all(8),
-          child: Wrap(
-            direction: isToolbarVertical ? .vertical : .horizontal,
-            alignment: WrapAlignment.center,
-            runSpacing: 8,
-            children: [
-              ToolbarIconButton(
-                tooltip: widget.currentTool is Pencil
-                    ? t.editor.pens.pencil
-                    : _regularPen.name,
-                selected:
-                    widget.currentTool is Pencil ||
-                    (widget.currentTool == Pen.currentPen &&
-                        Pen.currentPen is! ShapePen),
-                enabled: !widget.readOnly,
-                onPressed: () {
-                  if (widget.currentTool is Pencil ||
-                      (widget.currentTool == Pen.currentPen &&
-                          Pen.currentPen is! ShapePen)) {
-                    if (toolOptionsType.value == .pen) {
-                      toolOptionsType.value = .hide;
-                    } else {
-                      toolOptionsType.value = .pen;
-                    }
-                  } else {
-                    toolOptionsType.value = .pen;
-                    widget.setTool(_regularPen);
-                  }
-                },
-                padding: buttonPadding,
-                child: widget.currentTool is Pencil
-                    ? const FaIcon(Pencil.pencilIcon, size: 16)
-                    : UniIcon(_regularPen.icon, size: 16),
-              ),
-              ToolbarIconButton(
-                tooltip: t.editor.pens.highlighter,
-                selected: widget.currentTool == Highlighter.currentHighlighter,
-                enabled: !widget.readOnly,
-                onPressed: () {
-                  if (widget.currentTool == Highlighter.currentHighlighter) {
-                    if (toolOptionsType.value == .highlighter) {
-                      toolOptionsType.value = .hide;
-                    } else {
-                      toolOptionsType.value = .highlighter;
-                    }
-                  } else {
-                    toolOptionsType.value = .highlighter;
-                    widget.setTool(Highlighter.currentHighlighter);
-                  }
-                },
-                padding: buttonPadding,
-                child: const FaIcon(Highlighter.highlighterIcon, size: 16),
-              ),
-              ToolbarIconButton(
-                tooltip: TapePen.currentTape.name,
-                selected: widget.currentTool is TapePen,
-                enabled: !widget.readOnly,
-                onPressed: () {
-                  if (widget.currentTool is TapePen) {
-                    toolOptionsType.value = toolOptionsType.value == .tape
-                        ? .hide
-                        : .tape;
-                  } else {
-                    toolOptionsType.value = .tape;
-                    widget.setTool(TapePen.currentTape);
-                  }
-                },
-                padding: buttonPadding,
-                child: const FaIcon(TapePen.tapeIcon, size: 16),
-              ),
-              ValueListenableBuilder(
-                valueListenable: showColorOptions,
-                builder: (context, showColorOptions, child) {
-                  return ToolbarIconButton(
-                    tooltip: t.editor.toolbar.toggleColors,
-                    selected: showColorOptions,
-                    enabled: !widget.readOnly,
-                    onPressed: toggleColorOptions,
-                    padding: buttonPadding,
-                    child: child!,
-                  );
-                },
-                child: currentColor == null
-                    ? const Icon(Icons.palette)
-                    : Container(
-                        width: 18,
-                        height: 18,
-                        decoration: BoxDecoration(
-                          color: currentColor
-                              .withInversion(invert)
-                              .withValues(alpha: 1),
-                          shape: .circle,
-                          border: Border.all(
-                            color: colorScheme.primary,
-                            width: 2,
-                          ),
-                        ),
-                      ),
-              ),
-              ToolbarIconButton(
-                tooltip: t.editor.toolbar.select,
-                selected: widget.currentTool is Select,
-                enabled: !widget.readOnly,
-                onPressed: () {
-                  toolOptionsType.value = .hide;
-                  widget.setTool(Select.currentSelect);
-                },
-                padding: buttonPadding,
-                child: Icon(
-                  CupertinoIcons.lasso,
-                  shadows: !widget.readOnly
-                      ? [
-                          BoxShadow(
-                            color: colorScheme.primary,
-                            blurRadius: 0.1,
-                            spreadRadius: 10,
-                            blurStyle: BlurStyle.solid,
-                          ),
-                        ]
-                      : null,
-                ),
-              ),
-              ToolbarIconButton(
-                tooltip: t.editor.toolbar.toggleEraser,
-                selected: widget.currentTool is Eraser,
-                enabled: !widget.readOnly,
-                onPressed: toggleEraser,
-                padding: buttonPadding,
-                child: const FaIcon(FontAwesomeIcons.eraser, size: 16),
-              ),
-              ToolbarIconButton(
-                tooltip: t.editor.toolbar.photo,
-                enabled: !widget.readOnly,
-                onPressed: widget.pickPhoto,
-                padding: buttonPadding,
-                child: const AdaptiveIcon(
-                  icon: Icons.photo,
-                  cupertinoIcon: CupertinoIcons.photo,
-                ),
-              ),
-              ToolbarIconButton(
-                tooltip: t.editor.toolbar.text,
-                selected: widget.textEditing,
-                enabled: !widget.readOnly,
-                onPressed: widget.toggleTextEditing,
-                padding: buttonPadding,
-                child: const AdaptiveIcon(
-                  icon: Icons.text_fields,
-                  cupertinoIcon: CupertinoIcons.text_cursor,
-                ),
-              ),
-              _helpersMenu(context, buttonPadding),
-              Wrap(
-                direction: isToolbarVertical ? .vertical : .horizontal,
-                children: [
-                  ToolbarIconButton(
-                    tooltip: t.editor.toolbar.undo,
-                    enabled: !widget.readOnly && widget.isUndoPossible,
-                    onPressed: widget.undo,
-                    padding: buttonPadding,
-                    child: const AdaptiveIcon(
-                      icon: Icons.undo,
-                      cupertinoIcon: CupertinoIcons.arrow_uturn_left,
-                    ),
-                  ),
-                  ToolbarIconButton(
-                    tooltip: t.editor.toolbar.redo,
-                    enabled: !widget.readOnly && widget.isRedoPossible,
-                    onPressed: widget.redo,
-                    padding: buttonPadding,
-                    child: const AdaptiveIcon(
-                      icon: Icons.redo,
-                      cupertinoIcon: CupertinoIcons.arrow_uturn_right,
-                    ),
-                  ),
-                ],
-              ),
-              _moreMenu(context, buttonPadding),
-            ],
-          ),
-        ),
-      ),
+      _toolRow(context, isToolbarVertical, invert),
     ];
 
     return Flex(
@@ -740,6 +765,7 @@ class _MenuEntry {
     required this.selected,
     required this.enabled,
     required this.onTap,
+    this.tint,
   });
 
   final IconData icon;
@@ -747,6 +773,26 @@ class _MenuEntry {
   final bool selected;
   final bool enabled;
   final VoidCallback onTap;
+  final Color? tint;
+}
+
+/// Ein Werkzeug der Leiste (Knopf in der Reihe oder Eintrag im Menü).
+class _ToolItem {
+  const _ToolItem({
+    required this.tooltip,
+    required this.icon,
+    required this.onTap,
+    this.tint,
+    this.selected = false,
+    this.enabled = true,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onTap;
+  final Color? tint;
+  final bool selected;
+  final bool enabled;
 }
 
 enum ToolOptions { hide, pen, highlighter, tape, pencil, eraser, select }
