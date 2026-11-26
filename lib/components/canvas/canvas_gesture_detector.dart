@@ -235,6 +235,7 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
     });
   double _snapFrom = 0;
   double _snapTo = 0;
+  double _snapScaleFrom = 1;
 
   /// Blättern: Seite, auf der die aktuelle Geste begonnen hat. Pro Geste
   /// kann nur eine Seite vor oder zurück geblättert werden.
@@ -311,6 +312,7 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
       // Ersatz: einfaches seitliches Umschalten.
       _snapFrom = controller.value.getTranslation().x;
       _snapTo = targetX;
+      _snapScaleFrom = 1;
       _snapAnim
         ..reset()
         ..forward();
@@ -382,8 +384,16 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
     }
     if (_pointersDown > 0) return;
     final controller = widget._transformationController;
-    if ((controller.value.approxScale - 1).abs() > 0.06) {
+    final scaleNow = controller.value.approxScale;
+    // Bewusst hineingezoomt: Zoom bleibt, bis der Nutzer auf "1.0x" tippt.
+    if (scaleNow > 1.06) {
       _endGesture();
+      return;
+    }
+    // Nach einem Zoom (auch leicht darunter/darüber) wieder auf Seitengröße
+    // und genau mittig zurückholen.
+    if ((scaleNow - 1).abs() > 0.002) {
+      _fitCurrentPage(animated: true);
       return;
     }
     final width = containerBounds.maxWidth;
@@ -407,6 +417,7 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
       containerHeight: containerBounds.maxHeight,
     );
     _snapFrom = controller.value.getTranslation().x;
+    _snapScaleFrom = 1;
     _snapTo = target
         .clamp(min(0.0, containerBounds.maxWidth - _contentWidth), 0.0)
         .toDouble();
@@ -425,11 +436,43 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
 
   double get _contentWidth => containerBounds.maxWidth * widget.pages.length;
 
+  /// Setzt Zoom auf 1.0x und zentriert die Seite in der Bildmitte
+  /// (nur horizontales Blättern).
+  void _fitCurrentPage({required bool animated}) {
+    final controller = widget._transformationController;
+    final page = horizontalPageIndex;
+    final target = CanvasGestureDetector.getTranslationXOfPage(
+      pageIndex: page,
+      pages: widget.pages,
+      containerWidth: containerBounds.maxWidth,
+      containerHeight: containerBounds.maxHeight,
+    ).clamp(min(0.0, containerBounds.maxWidth - _contentWidth), 0.0).toDouble();
+    _snapFrom = controller.value.getTranslation().x;
+    _snapTo = target;
+    _snapScaleFrom = controller.value.approxScale;
+    if (!animated) {
+      controller.value = Matrix4.identity()
+        ..setTranslationRaw(target, 0, 0);
+      _endGesture();
+      return;
+    }
+    _snapAnim
+      ..reset()
+      ..forward();
+  }
+
   void _onSnapTick() {
     final controller = widget._transformationController;
-    final x =
-        _snapFrom +
-        (_snapTo - _snapFrom) * Curves.easeOutCubic.transform(_snapAnim.value);
+    final t = Curves.easeOutCubic.transform(_snapAnim.value);
+    final x = _snapFrom + (_snapTo - _snapFrom) * t;
+    final scale = _snapScaleFrom + (1 - _snapScaleFrom) * t;
+    if ((_snapScaleFrom - 1).abs() > 0.002) {
+      // Zoom und Position gemeinsam zurückführen, y immer auf 0.
+      controller.value = Matrix4.identity()
+        ..setTranslationRaw(x, 0, 0)
+        ..scaleByDouble(scale, scale, scale, 1);
+      return;
+    }
     final matrix = controller.value.clone();
     matrix.setTranslationRaw(x, matrix.getTranslation().y, 0);
     controller.value = matrix;
@@ -654,7 +697,9 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
     double adjustmentY = 0;
 
     if (widget.horizontal) {
-      if (!_snapAnim.isAnimating && _flipImage == null) _scheduleSnap();
+      // Während der Rückführ-Animation nicht eingreifen.
+      if (_snapAnim.isAnimating) return;
+      if (_flipImage == null) _scheduleSnap();
       final contentWidth = _contentWidth * scale;
       final minX = min(0.0, containerBounds.maxWidth - contentWidth);
       if (translation.x > 0) {
@@ -744,6 +789,11 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
   void resetZoom() {
     final transformation = widget._transformationController.value;
     final scale = transformation.approxScale;
+    if (widget.horizontal && widget.pages.isNotEmpty) {
+      _stopSnap();
+      _fitCurrentPage(animated: true);
+      return;
+    }
     if (scale == 1) return;
 
     widget._transformationController.value =
