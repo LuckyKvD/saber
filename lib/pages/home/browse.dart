@@ -1,3 +1,4 @@
+import 'dart:io' show Directory;
 import 'dart:async';
 
 import 'package:collapsible/collapsible.dart';
@@ -20,6 +21,7 @@ import 'package:saber/components/home/sort_button.dart';
 import 'package:saber/components/home/syncing_button.dart';
 import 'package:saber/components/shelf/cover_dialogs.dart';
 import 'package:saber/components/shelf/shelf_files.dart';
+import 'package:saber/components/import/saber_import_tile.dart';
 import 'package:saber/components/shelf/shelf_tabs.dart';
 import 'package:saber/components/theming/saber_theme.dart';
 import 'package:saber/data/file_manager/file_manager.dart';
@@ -155,6 +157,28 @@ class _BrowsePageState extends State<BrowsePage> {
     }
   }
 
+  Future<void> moveShelf(String name, String targetParent) async {
+    final base = targetParent == '/' ? '' : targetParent;
+    var newPath = '$base/$name';
+    var n = 2;
+    while (Directory(FileManager.documentsDirectory + newPath).existsSync()) {
+      newPath = '$base/$name $n';
+      n++;
+    }
+    final ok = await FileManager.moveDirectory('/$name', newPath);
+    if (!mounted) return;
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Verschieben nicht möglich.')),
+      );
+      findChildrenOfPath();
+      return;
+    }
+    // Zum Ziel wechseln (oberste Ebene des neuen Pfads).
+    final top = newPath.split('/').where((s) => s.isNotEmpty).first;
+    selectShelf(top);
+  }
+
   Future<void> deleteShelf(String name) async {
     await FileManager.deleteDirectory('/$name');
     if (selectedShelf == name) {
@@ -203,6 +227,7 @@ class _BrowsePageState extends State<BrowsePage> {
               ),
             ),
             actions: const [
+              SaberImportButton(),
               BrowseSortButton(),
               HomeLayoutButton(),
               SyncingButton(),
@@ -217,6 +242,7 @@ class _BrowsePageState extends State<BrowsePage> {
               renameFolder: renameShelf,
               deleteFolder: deleteShelf,
               isFolderEmpty: isShelfEmpty,
+              moveFolder: moveShelf,
             ),
           ),
           // Nur für ältere, tiefer verschachtelte Ordner

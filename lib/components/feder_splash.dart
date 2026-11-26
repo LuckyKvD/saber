@@ -100,7 +100,9 @@ class _SplashContent extends StatelessWidget {
       color: const Color(0xFF0B1A33),
       child: Directionality(
         textDirection: TextDirection.ltr,
-        child: Center(
+        // Weiter oben, damit der Fingerabdruck-Dialog nichts verdeckt.
+        child: Align(
+          alignment: const Alignment(0, -0.62),
           child: Padding(
             padding: const EdgeInsets.all(32),
             child: Column(
@@ -138,6 +140,20 @@ class _SplashContent extends StatelessWidget {
                     height: 1.5,
                     decoration: TextDecoration.none,
                     fontWeight: FontWeight.w600,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 14),
+                const Text(
+                  String.fromEnvironment(
+                    'FEDER_BUILD',
+                    defaultValue: 'lokaler Build',
+                  ),
+                  style: TextStyle(
+                    color: Color(0xFF8E9BB5),
+                    fontSize: 14,
+                    decoration: TextDecoration.none,
+                    fontWeight: FontWeight.w400,
                   ),
                   textAlign: TextAlign.center,
                 ),

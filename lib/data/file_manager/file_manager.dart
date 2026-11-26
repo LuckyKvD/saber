@@ -520,11 +520,40 @@ class FileManager {
     await Future.wait(futures);
   }
 
+  /// Feder: Verschiebt einen kompletten Ordner (samt Inhalt) nach [newPath]
+  /// (voller neuer Pfad inkl. Ordnername). Gibt `false` zurück, wenn der
+  /// Zielordner schon existiert oder in sich selbst verschoben würde.
+  static Future<bool> moveDirectory(String directoryPath, String newPath) async {
+    directoryPath = _sanitisePath(directoryPath);
+    newPath = _sanitisePath(newPath);
+    if (directoryPath == newPath || newPath.startsWith('$directoryPath/')) {
+      return false;
+    }
+    final directory = Directory(documentsDirectory + directoryPath);
+    if (!directory.existsSync()) return false;
+    if (Directory(documentsDirectory + newPath).existsSync()) return false;
+    await Directory(documentsDirectory + newPath).parent.create(recursive: true);
+    await _renameDirectoryTo(directory, directoryPath, newPath);
+    return true;
+  }
+
   static Future renameDirectory(String directoryPath, String newName) async {
     directoryPath = _sanitisePath(directoryPath);
 
     final directory = Directory(documentsDirectory + directoryPath);
     if (!directory.existsSync()) return;
+
+    final String newPath =
+        directoryPath.substring(0, directoryPath.lastIndexOf('/') + 1) +
+        newName;
+    await _renameDirectoryTo(directory, directoryPath, newPath);
+  }
+
+  static Future<void> _renameDirectoryTo(
+    Directory directory,
+    String directoryPath,
+    String newPath,
+  ) async {
 
     /// recursively find children of [directory] for [_renameReferences]
     final List<String> children = [];
@@ -534,9 +563,6 @@ class FileManager {
       }
     }
 
-    final String newPath =
-        directoryPath.substring(0, directoryPath.lastIndexOf('/') + 1) +
-        newName;
     await directory.rename(documentsDirectory + newPath);
 
     for (final child in children) {

@@ -89,7 +89,7 @@ class DoneLoginStep extends HookWidget {
           const SizedBox(height: 16),
           if (screenHeight > 500) ...[
             SvgPicture.asset(
-              'assets/images/undraw_my_files_swob.svg',
+              'assets/images/feder_dateien.svg',
               width: width,
               height: min(width * 576 / 844.6693, screenHeight * 0.25),
               excludeFromSemantics: true,

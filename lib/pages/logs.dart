@@ -128,7 +128,7 @@ class const LogsPage({super.key}) extends StatelessWidget {
                       mainAxisAlignment: .center,
                       children: [
                         SvgPicture.asset(
-                          'assets/images/undraw_detailed_analysis_re_tk6j.svg',
+                          'assets/images/feder_protokoll.svg',
                           width: 300,
                           height: 300 * 570 / 925.49161,
                           excludeFromSemantics: true,

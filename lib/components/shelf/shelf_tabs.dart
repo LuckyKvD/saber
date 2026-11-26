@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:saber/components/home/delete_folder_button.dart';
 import 'package:saber/components/home/new_folder_dialog.dart';
 import 'package:saber/components/home/rename_folder_button.dart';
+import 'package:saber/components/shelf/pick_folder_dialog.dart';
 
 /// Leiste mit Regal-Schildern: Hauptregal, je ein Schild pro Ordner
 /// und "+ Neues Regal".
@@ -15,6 +16,7 @@ class ShelfTabs extends StatelessWidget {
     required this.renameFolder,
     required this.deleteFolder,
     required this.isFolderEmpty,
+    required this.moveFolder,
   });
 
   final List<String> folders;
@@ -26,6 +28,10 @@ class ShelfTabs extends StatelessWidget {
   final Future<void> Function(String oldName, String newName) renameFolder;
   final Future<void> Function(String name) deleteFolder;
   final Future<bool> Function(String name) isFolderEmpty;
+
+  /// Verschiebt das Regal [name] samt Inhalt in den Ordner [targetParent]
+  /// (`'/'` = oberste Ebene).
+  final Future<void> Function(String name, String targetParent) moveFolder;
 
   bool _exists(String name) => folders.contains(name);
 
@@ -48,6 +54,11 @@ class ShelfTabs extends StatelessWidget {
               onTap: () => Navigator.of(context).pop('rename'),
             ),
             ListTile(
+              leading: const Icon(Icons.drive_file_move),
+              title: const Text('Regal verschieben …'),
+              onTap: () => Navigator.of(context).pop('move'),
+            ),
+            ListTile(
               leading: const Icon(Icons.delete_forever),
               title: const Text('Regal löschen'),
               onTap: () => Navigator.of(context).pop('delete'),
@@ -66,6 +77,13 @@ class ShelfTabs extends StatelessWidget {
           renameFolder: (newName) => renameFolder(folder, newName),
         ),
       );
+    } else if (choice == 'move') {
+      final target = await pickFolder(
+        context,
+        title: '„$folder“ verschieben nach',
+        excludePath: '/$folder',
+      );
+      if (target != null) await moveFolder(folder, target);
     } else if (choice == 'delete') {
       await showDialog(
         context: context,

@@ -4,22 +4,19 @@ import 'package:saber/data/import/saber_importer.dart';
 import 'package:saber/data/import/saber_legacy_crypto.dart';
 import 'package:saber/data/prefs.dart';
 
-/// Einstellungs-Eintrag „Notizen aus Saber importieren“ (nur wenn angemeldet).
-class SaberImportTile extends HookWidget {
+/// Knopf auf dem Hauptbildschirm: „Notizen aus Saber importieren“
+/// (nur wenn die Verschlüsselung eingerichtet ist).
+class SaberImportButton extends HookWidget {
   const new({super.key});
 
   @override
   Widget build(BuildContext context) {
     final key = useValueListenable(stows.key);
     if (key.isEmpty) return const SizedBox.shrink();
-    return ListTile(
-      leading: const Icon(Icons.move_to_inbox),
-      title: const Text('Notizen aus Saber importieren'),
-      subtitle: const Text(
-        'Kopiert deine Notizen aus dem Saber-Ordner auf deiner Nextcloud '
-        'nach Feder. Saber und seine Daten bleiben unverändert.',
-      ),
-      onTap: () => showDialog<void>(
+    return IconButton(
+      tooltip: 'Notizen aus Saber importieren',
+      icon: const Icon(Icons.move_to_inbox),
+      onPressed: () => showDialog<void>(
         context: context,
         barrierDismissible: false,
         builder: (_) => const _ImportDialog(),

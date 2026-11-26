@@ -190,7 +190,7 @@ class const _HeaderImage({required final bool shouldUseTwoColumns})
     return Padding(
       padding: .only(bottom: min(64, screenSize.height * 0.05)),
       child: SvgPicture.asset(
-        'assets/images/undraw_cloud_sync_re_02p1.svg',
+        'assets/images/feder_sync.svg',
         width: _width,
         height: min(_width * 576 / 844.6693, maxHeight),
         excludeFromSemantics: true,

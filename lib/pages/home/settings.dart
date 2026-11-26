@@ -11,7 +11,6 @@ import 'package:saber/components/settings/about_feder.dart';
 import 'package:saber/components/settings/local_encryption_tile.dart';
 import 'package:saber/components/navbar/responsive_navbar.dart';
 import 'package:saber/components/security/app_lock.dart';
-import 'package:saber/components/import/saber_import_tile.dart';
 import 'package:saber/components/settings/nextcloud_profile.dart';
 import 'package:saber/components/settings/settings_button.dart';
 import 'package:saber/components/settings/settings_color.dart';
@@ -214,7 +213,6 @@ class _SettingsPageState extends State<SettingsPage> {
               children: [
                 const NextcloudProfile(),
                 const AboutFeder(),
-                const SaberImportTile(),
                 const LocalEncryptionTile(),
                 SettingsSubtitle(subtitle: t.settings.prefCategories.general),
                 SettingsSwitch(
