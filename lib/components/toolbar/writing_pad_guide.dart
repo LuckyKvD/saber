@@ -65,6 +65,9 @@ class WritingPadController extends ChangeNotifier {
 
   bool _sized = false;
 
+  /// Der Rahmen wird gerade mit dem Finger gezogen.
+  bool _moving = false;
+
   /// Verbindet den Controller mit der aktuellen Notiz.
   void attach({
     required List<EditorPage> pages,
@@ -113,6 +116,11 @@ class WritingPadController extends ChangeNotifier {
         .clamp(math.min(120.0, size.width), size.width * 0.95)
         .toDouble();
     left = left.clamp(0, math.max(0, size.width - width)).toDouble();
+    if (_moving) {
+      // Beim Ziehen darf der Rahmen über den Seitenrand hinaus; er wechselt
+      // dann auf die Nachbarseite (siehe moveBy).
+      return;
+    }
     top = top.clamp(0, math.max(0, size.height - height)).toDouble();
   }
 
@@ -171,6 +179,7 @@ class WritingPadController extends ChangeNotifier {
 
   /// Verschiebt den Rahmen (Ziehen mit dem Finger), waagerecht und senkrecht.
   void moveBy(Offset delta) {
+    _moving = true;
     left += delta.dx;
     top += delta.dy;
     // Über den Seitenrand hinaus: auf die Nachbarseite wechseln.
@@ -189,6 +198,7 @@ class WritingPadController extends ChangeNotifier {
   /// Finger losgelassen: Zeile rastet auf das Kästchenraster ein
   /// und merkt sich den neuen Zeilenanfang.
   void endMove() {
+    _moving = false;
     top = _snapY(top);
     lineStartX = left;
     _changed();

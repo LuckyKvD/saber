@@ -265,6 +265,16 @@ class Stows {
     volatile: !_isOnMainIsolate,
   );
 
+  /// Glitzerstift in Regenbogenfarben (statt einer gewählten Farbe).
+  final glitterRainbow = PlainStow(
+    'glitterRainbow',
+    true,
+    volatile: !_isOnMainIsolate,
+  );
+
+  /// Zuletzt benutzte Farbe je Stift (JSON: Stiftname -> ARGB).
+  final penColors = PlainStow('penColors', '{}', volatile: !_isOnMainIsolate);
+
   /// Muster-Stift: 0 = gestrichelt, sonst Zeichen-Nummer.
   final patternSymbol = PlainStow(
     'patternSymbol',

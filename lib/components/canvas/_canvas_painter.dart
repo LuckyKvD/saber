@@ -178,13 +178,16 @@ class CanvasPainter extends CustomPainter {
             paint.color,
             stroke.penStyle! - Stroke.styleSymbolBase,
           );
+        } else if (stroke.penStyle == Stroke.styleRainbow) {
+          drawRainbow(canvas, stroke.points, stroke.options.size);
         } else if (stroke.penStyle == Stroke.styleLiner &&
             stroke.points.length >= 2) {
           drawLiner(canvas, stroke.points, stroke.options.size, paint.color);
         } else {
           canvas.drawPath(_selectPath(stroke), paint);
         }
-        if (stroke.penStyle == Stroke.styleGlitter) {
+        if (stroke.penStyle == Stroke.styleGlitter ||
+            stroke.penStyle == Stroke.styleRainbow) {
           drawGlitter(canvas, stroke.points, stroke.options.size, color);
         }
       }
@@ -235,6 +238,8 @@ class CanvasPainter extends CustomPainter {
         color,
         currentStroke!.penStyle! - Stroke.styleSymbolBase,
       );
+    } else if (currentStroke!.penStyle == Stroke.styleRainbow) {
+      drawRainbow(canvas, currentStroke!.points, currentStroke!.options.size);
     } else if (currentStroke!.penStyle == Stroke.styleLiner &&
         currentStroke!.points.length >= 2) {
       drawLiner(
@@ -246,7 +251,8 @@ class CanvasPainter extends CustomPainter {
     } else {
       canvas.drawPath(currentStroke!.highQualityPath, paint);
     }
-    if (currentStroke!.penStyle == Stroke.styleGlitter) {
+    if (currentStroke!.penStyle == Stroke.styleGlitter ||
+        currentStroke!.penStyle == Stroke.styleRainbow) {
       drawGlitter(
         canvas,
         currentStroke!.points,

@@ -129,6 +129,26 @@ class Guides {
       index == pageIndex &&
       (ruler != null || protractor != null);
 
+  /// Wo steht das Hilfsmittel auf Seite [index]? `null` = dort nicht zeichnen.
+  /// Auf der Besitzerseite 0, auf der Nachbarseite der Versatz, damit das
+  /// Hilfsmittel beim Ziehen über den Seitenrand auf beiden Seiten sichtbar ist.
+  static double? offsetFor(Object coreInfo, int index) {
+    if (owner == null || !identical(owner, coreInfo) || !anyVisible) {
+      return null;
+    }
+    if (index == pageIndex) return 0;
+    if (!verticalPages) return null;
+    if (index == pageIndex - 1 && index >= 0 && index < pageSizes.length) {
+      return pageSizes[index].height;
+    }
+    if (index == pageIndex + 1 &&
+        pageIndex < pageSizes.length &&
+        index < pageSizes.length) {
+      return -pageSizes[pageIndex].height;
+    }
+    return null;
+  }
+
   static bool get anyVisible => ruler != null || protractor != null;
 
   static void _claim(Object coreInfo, int index) {

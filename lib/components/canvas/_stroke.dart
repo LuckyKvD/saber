@@ -52,6 +52,7 @@ class Stroke {
   static const styleDashed = 1;
   static const styleGlitter = 2;
   static const styleLiner = 3;
+  static const styleRainbow = 4;
 
   /// 10 + n: Muster-Stift mit Zeichen Nummer n (siehe symbol_geometry.dart).
   static const styleSymbolBase = 10;

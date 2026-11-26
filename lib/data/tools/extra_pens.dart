@@ -166,6 +166,19 @@ class GlitterPen extends FederPen {
   static var current = GlitterPen();
 
   @override
+  void onDragStart(
+    Offset position,
+    EditorPage page,
+    int pageIndex,
+    double? pressure,
+  ) {
+    penStyle = stows.glitterRainbow.value
+        ? Stroke.styleRainbow
+        : Stroke.styleGlitter;
+    super.onDragStart(position, page, pageIndex, pressure);
+  }
+
+  @override
   bool get holdToShape => false;
 }
 

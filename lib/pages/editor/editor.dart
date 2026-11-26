@@ -1595,6 +1595,26 @@ class EditorState extends State<Editor> {
     }
   }
 
+  /// Feder: Jeder Stift merkt sich seine zuletzt benutzte Farbe.
+  void _savePenColor(Pen pen) {
+    try {
+      final map = Map<String, dynamic>.from(
+        jsonDecode(stows.penColors.value) as Map,
+      );
+      map[pen.name] = pen.color.toARGB32();
+      stows.penColors.value = jsonEncode(map);
+    } catch (_) {}
+  }
+
+  void _restorePenColor(Tool tool) {
+    if (tool is! Pen || tool is Highlighter || tool is TapePen) return;
+    try {
+      final map = jsonDecode(stows.penColors.value) as Map;
+      final saved = map[tool.name];
+      if (saved is int) tool.color = Color(saved);
+    } catch (_) {}
+  }
+
   /// Feder: Text-Stempel als Bild in die Bildmitte legen.
   Future<void> _placeTextStamp(String text, Color color) async {
     final bytes = await renderTextStamp(text, color);
@@ -2277,6 +2297,7 @@ class EditorState extends State<Editor> {
               tool = _lastNonEraserTool;
             }
 
+            _restorePenColor(tool);
             currentTool = tool;
 
             if (tool is Highlighter) {
@@ -2372,6 +2393,7 @@ class EditorState extends State<Editor> {
                 stows.lastTapePattern.value = -1; // Farbe gewählt = einfarbig
               } else if (currentTool is Pen) {
                 (currentTool as Pen).color = color;
+                _savePenColor(currentTool as Pen);
               } else if (currentTool is Select) {
                 // Changes color of selected strokes
                 final select = currentTool as Select;

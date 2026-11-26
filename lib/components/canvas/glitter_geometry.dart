@@ -98,3 +98,34 @@ void drawGlitter(
     carry = len - (d - spacing);
   }
 }
+
+/// Regenbogen-Glitzer: Die Farbe wandert entlang des Strichs durch den
+/// Farbkreis. Funkeln kommt anschließend über [drawGlitter].
+void drawRainbow(Canvas canvas, List<PointVector> points, double size) {
+  if (points.isEmpty) return;
+  final period = max(size * 16, 60.0);
+  if (points.length == 1) {
+    canvas.drawCircle(
+      points.first,
+      size / 2,
+      Paint()
+        ..isAntiAlias = true
+        ..color = HSVColor.fromAHSV(1, 300, 0.8, 1).toColor(),
+    );
+    return;
+  }
+  final paint = Paint()
+    ..isAntiAlias = true
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round
+    ..strokeWidth = size;
+  var travelled = 0.0;
+  for (var i = 1; i < points.length; i++) {
+    final a = points[i - 1];
+    final b = points[i];
+    travelled += (b - a).distance;
+    final hue = (travelled / period * 360) % 360;
+    paint.color = HSVColor.fromAHSV(1, hue, 0.8, 1).toColor();
+    canvas.drawLine(a, b, paint);
+  }
+}

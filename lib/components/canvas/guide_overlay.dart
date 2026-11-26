@@ -155,7 +155,9 @@ class _GuidePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (!_active) return;
+    final offsetY = Guides.offsetFor(coreInfo, pageIndex);
+    if (offsetY == null) return;
+    if (offsetY != 0) canvas.translate(0, offsetY);
     final ppc = Guides.pxPerCm(pageSize);
     final ruler = Guides.ruler;
     if (ruler != null) _paintRuler(canvas, ruler, ppc);
