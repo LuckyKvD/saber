@@ -167,3 +167,15 @@ Ohne diese Schritte baut der Workflow bewusst nicht (kein Fallback-Key).
 - **Anzeige:** Einstellungen → „Lokale Verschlüsselung" zählt verschlüsselte/unverschlüsselte Dateien; Antippen verschlüsselt Rest.
 - **Tests (Praxis):** Altdaten wurden automatisch verschlüsselt (Geschwindigkeit ok), Anzeige und Import ok, Foto-/PDF-/SVG-Anzeige ok.
 - **Offen/Grenzen (Vermutung/Unsicher):** Geht der Hauptschlüssel verloren (Gerät zurückgesetzt) und fehlen Passwort und Wiederherstellungsschlüssel, sind lokale Daten und die Nextcloud-Kopie nicht lesbar – so gewollt. Reines Dart-XChaCha20 im Hintergrund-Isolate; sehr große Dateien (> 50 MB) ungetestet. Dateinamen sind lokal und in Statusmeldungen lesbar.
+
+## 17. Stand 26.11.2026 (in `feder` übernommen: Regale, Blättern, Stifte, Widget)
+
+Zusammengeführte Zweige: `feature/regal`, `feature/blaettern`, `feature/widget`.
+
+- **Regale und Sync:** Regal verschieben/umbenennen meldet dem Sync die alten Pfade; vorgemerkte Löschungen (`fileSyncPendingDeletes`) verhindern das Zurückladen. Löschungen auf dem Server sind 0-Byte-Dateien („Löschmarken“). Einstellungen → „Server aufräumen“ löscht sie nach Rückfrage (nur sicher, wenn alle Geräte synchron sind; `feder-vault.json` bleibt unangetastet).
+- **Blättern:** horizontales Blättern mit Umblätter-Effekt, Quermodus (Seite füllt die Breite, senkrecht scrollbar), Werkzeugleiste ausblendbar. Schnelleres Laden durch eigenen BSON-Leser (`fast_bson.dart`).
+- **Stifte:** Bleistift im Stiftmenü; Pinsel, Fineliner (harte, eckige Linie), Muster-Stift (gestrichelt, Punkte, Sterne, Herzen, Kreuze, Ausrufezeichen, Doppelstriche, Pfeile), Glitzer (Regenbogen oder einfarbig), gerader Textmarker, Text-Stempel (als Bild, frei skalierbar). Jeder Stift merkt sich seine letzte Farbe. Neue Strichstile werden als Zusatzschlüssel `ps` gespeichert; ältere Versionen zeigen eine normale Linie.
+- **Hilfsmittel:** Lineal und Winkelmesser wechseln beim Loslassen auf die Nachbarseite; das Schreibfeld darf über den Seitenrand gezogen werden.
+- **Werkzeugleiste:** gestrafft; „Hilfsmittel“ und „Mehr“ sind Aufklappmenüs.
+- **Widget „Schnellnotiz“:** gelber Zettel mit roter Nadel (Farbe wählbar). Ein Tipp öffnet die feste Notiz `/Schnellnotiz`. Die Vorschau (erste Seite) liegt unverschlüsselt im privaten App-Speicher und ist auf dem Startbildschirm sichtbar; abschaltbar in den Einstellungen (löscht sie sofort).
+- **Offen:** SVG-Export der Muster-Zeichen (nur normale Linie), Doppelseite im Quermodus, dauerhafte Stempel-Bilder, mehrere Seiten im Widget, Saber-Upstream-Update prüfen.
