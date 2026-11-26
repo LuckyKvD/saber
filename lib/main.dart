@@ -52,9 +52,8 @@ Future<void> appRunner(List<String> args) async {
   final parser = ArgParser()..addFlag('verbose', abbr: 'v', negatable: false);
   final parsedArgs = parser.parse(args);
 
-  Logger.root.level = (kDebugMode || parsedArgs.flag('verbose'))
-      ? Level.INFO
-      : Level.WARNING;
+  // Feder: auch im Release INFO, damit Ladezeiten im Protokoll stehen.
+  Logger.root.level = Level.INFO;
   Logger.root.onRecord.listen((record) {
     logsHistory.add(record);
 
