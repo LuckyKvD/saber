@@ -129,46 +129,18 @@ class _PenModalState<T extends Pen> extends State<PenModal<T>> {
             tooltip: 'Glitzer',
             icon: const FaIcon(GlitterPen.glitterIcon),
           ),
+          // Text-Stempel: kein Stift, sondern legt ein Bild aufs Blatt.
           _PenSelector(
-            isSelected: !isPencil && Pen.currentPen.icon == StampPen.stampIcon,
-            onPressed: () => setState(() => widget.setTool(StampPen.current)),
-            tooltip: 'Stempel',
+            isSelected: false,
+            onPressed: () async {
+              final result = await showTextStampDialog(context);
+              if (result != null) {
+                StampPen.onPlaceText?.call(result.$1, result.$2);
+              }
+            },
+            tooltip: 'Text-Stempel (VERTRAULICH, ERLEDIGT …)',
             icon: const FaIcon(StampPen.stampIcon),
           ),
-          if (!isPencil && Pen.currentPen.icon == DashedPen.dashedIcon)
-            ToolSettingChips<int>(
-              label: 'Muster',
-              pref: stows.patternSymbol,
-              options: [
-                for (var i = 0; i < symbolBrushNames.length; i++)
-                  (i, symbolBrushNames[i]),
-              ],
-            ),
-          if (!isPencil && Pen.currentPen.icon == StampPen.stampIcon) ...[
-            TextButton.icon(
-              icon: const Icon(Icons.text_fields),
-              label: const Text('Text-Stempel …'),
-              onPressed: () async {
-                final result = await showTextStampDialog(context);
-                if (result != null) {
-                  StampPen.onPlaceText?.call(result.$1, result.$2);
-                }
-              },
-            ),
-            ToolSettingChips<int>(
-              label: 'Symbol',
-              pref: stows.stampSymbol,
-              options: [
-                for (var i = 0; i < StampPen.symbolNames.length; i++)
-                  (i, StampPen.symbolNames[i]),
-              ],
-            ),
-            ToolSettingChips<int>(
-              label: 'Größe',
-              pref: stows.stampScale,
-              options: [(28, 'Klein'), (48, 'Mittel'), (80, 'Groß')],
-            ),
-          ],
           if (!isPencil && Pen.currentPen.icon == CalligraphyPen.calligraphyIcon)
             ToolSettingChips<int>(
               label: 'Winkel',

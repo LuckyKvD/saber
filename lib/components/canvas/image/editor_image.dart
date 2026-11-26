@@ -124,6 +124,9 @@ sealed class EditorImage extends ChangeNotifier {
   /// If the image is new, it will be [active] (draggable) when loaded
   var newImage = false;
 
+  /// Feder: Bild nochmals aktivieren (z. B. Text-Stempel nach dem Dialog).
+  bool reactivate = false;
+
   /// Whether this image is inverted if Prefs.editorAutoInvert.value
   bool invertible;
 

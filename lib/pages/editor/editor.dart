@@ -254,21 +254,32 @@ class EditorState extends State<Editor> {
 
   GuideEdge? _guideEdge;
 
-  /// Hilfsmittel folgen der Seite, die gerade im Bild ist.
+  int? _guideSyncPage;
+
+  /// Hilfsmittel folgen der Seite, zu der man scrollt (nur beim Seitenwechsel
+  /// durch Scrollen, nicht nach einem Ziehen des Hilfsmittels selbst).
   void _syncGuidesToPage() {
     if (!mounted || !Guides.anyVisible || !identical(Guides.owner, coreInfo)) {
       return;
     }
-    Guides.pageSizes = [for (final p in coreInfo.pages) p.size];
+    _prepareGuides();
     final index = currentPageIndex;
-    if (index == Guides.pageIndex) return;
+    if (index == _guideSyncPage) return;
+    _guideSyncPage = index;
+    if (index == Guides.pageIndex || Guides.grabbing) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && !Guides.grabbing) Guides.moveToPage(index);
     });
   }
 
-  void _toggleRuler() {
+  void _prepareGuides() {
     Guides.pageSizes = [for (final p in coreInfo.pages) p.size];
+    Guides.verticalPages = !horizontalPaging;
+  }
+
+  void _toggleRuler() {
+    _prepareGuides();
+    _guideSyncPage = currentPageIndex;
     final index = currentPageIndex.clamp(0, coreInfo.pages.length - 1);
     setState(() {
       Guides.toggleRuler(coreInfo, index, coreInfo.pages[index].size);
@@ -276,7 +287,8 @@ class EditorState extends State<Editor> {
   }
 
   void _toggleProtractor() {
-    Guides.pageSizes = [for (final p in coreInfo.pages) p.size];
+    _prepareGuides();
+    _guideSyncPage = currentPageIndex;
     final index = currentPageIndex.clamp(0, coreInfo.pages.length - 1);
     setState(() {
       Guides.cycleProtractor(coreInfo, index, coreInfo.pages[index].size);
@@ -1580,9 +1592,21 @@ class EditorState extends State<Editor> {
   /// Feder: Text-Stempel als Bild in die Bildmitte legen.
   Future<void> _placeTextStamp(String text, Color color) async {
     final bytes = await renderTextStamp(text, color);
+    // Dialog erst ganz schließen lassen, sonst deaktiviert dessen
+    // Abschlussgeste den neuen Rahmen sofort wieder.
+    await Future<void>.delayed(const Duration(milliseconds: 450));
     if (!mounted) return;
+    _lastPickedImages = const [];
     await _pickPhotos([_PhotoInfo(bytes, '.png')]);
+    await Future<void>.delayed(const Duration(milliseconds: 350));
+    if (!mounted) return;
+    for (final image in _lastPickedImages) {
+      image.reactivate = true;
+      image.notifyListenersPlease();
+    }
   }
+
+  List<EditorImage> _lastPickedImages = const [];
 
   /// Prompts the user to pick photos from their device.
   /// Returns the number of photos picked.
@@ -1640,6 +1664,7 @@ class EditorState extends State<Editor> {
       }
     }
 
+    _lastPickedImages = images;
     if (images.isNotEmpty) {
       // use the Select tool so that the user can move the new image
       currentTool = Select.currentSelect;
