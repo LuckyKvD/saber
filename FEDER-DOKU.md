@@ -182,9 +182,9 @@ Zusammengeführte Zweige: `feature/regal`, `feature/blaettern`, `feature/widget`
 
 ## 18. Aufgaben aus Handschrift (Branch `feature/aufgaben`, Stand 26.11.2026)
 
-- **Ablauf:** Lasso um die handgeschriebene Aufgabe → „Als Aufgabe“ in der Auswahlleiste → Bestätigungsfenster (Text korrigieren, Liste wählen, Fälligkeit, Bild-Haken) → Aufgabe landet per CalDAV (VTODO) direkt auf dem eigenen Nextcloud-Server. Es läuft nichts über Fremddienste.
+- **Ablauf:** Lasso um die handgeschriebene Aufgabe → „Als Aufgabe“ in der Auswahlleiste → Bestätigungsfenster (Text korrigieren, Liste wählen, Fälligkeit) → Aufgabe landet per CalDAV (VTODO) direkt auf dem eigenen Nextcloud-Server. Es läuft nichts über Fremddienste.
 - **Erkennung:** Googles ML Kit „Digital Ink Recognition“ (Android, nativ in `InkRecognizer.kt`, Kanal `de.luckykvd.feder/ink`). Die Erkennung läuft auf dem Gerät; nur das deutsche Sprachmodell (ca. 20 MB) wird einmalig geladen (Internet nötig). Gelesen werden die Strichdaten, nicht ein Bild. Textmarker und Klebeband zählen nicht mit.
 - **Fälligkeit:** Pflichtfeld. Aus dem Text abgeleitet (`due_date_parser.dart`: heute, morgen, übermorgen, Wochentage, „in 2 Wochen“, Monatsende, 15.12., 15. Dezember, Uhrzeiten), immer zur Kontrolle sichtbar. Tests: `test/due_date_parser_test.dart`.
 - **Liste:** wird jedes Mal gewählt (letzte Wahl nur als Vorauswahl). Gefunden werden alle Kalender, die Aufgaben erlauben.
-- **Bild:** Optional als PNG im Ordner `Feder-Aufgaben` der Nextcloud (bewusst außerhalb von `Feder/`, damit der Notiz-Sync ihn nicht anfasst) und an der Aufgabe verlinkt. **Das Bild ist unverschlüsselt** (anders als die Notizen); Haken im Fenster abschaltbar.
-- **Grenzen (Vermutung/Unsicher):** Erkennungsqualität bei Schreibschrift ist erst im Praxistest bekannt; mehrzeilige Auswahl wird schlechter gelesen als eine Zeile. Wie die Nextcloud-Tasks-App den Bildlink zeigt, ist ungeprüft. Die Google-Bibliothek ist proprietär (für Privatgebrauch unkritisch; bei einer Weitergabe von Feder lizenzrechtlich zu klären).
+- **Kein Bildanhang:** Ein Anhang mit dem Handschrift-Bild wurde probiert und wieder entfernt (funktionierte nicht, wird nicht gebraucht). Es geht nur der Text an Nextcloud.
+- **Grenzen (Vermutung/Unsicher):** Erkennungsqualität bei Schreibschrift ist erst im Praxistest bekannt; mehrzeilige Auswahl wird schlechter gelesen als eine Zeile. Die Google-Bibliothek ist proprietär (für Privatgebrauch unkritisch; bei einer Weitergabe von Feder lizenzrechtlich zu klären).

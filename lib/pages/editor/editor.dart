@@ -24,7 +24,6 @@ import 'package:saber/components/toolbar/text_stamp.dart';
 import 'package:saber/components/tasks/create_task_dialog.dart';
 import 'package:saber/data/tasks/ink_recognition.dart';
 import 'package:saber/data/tasks/nextcloud_tasks.dart';
-import 'package:saber/data/tasks/stroke_snapshot.dart';
 import 'package:saber/data/quick_note.dart';
 import 'package:saber/data/tools/extra_pens.dart';
 import 'package:saber/components/canvas/image/image_clip.dart';
@@ -1654,14 +1653,12 @@ class EditorState extends State<Editor> {
     } catch (e) {
       problem = 'Erkennung nicht möglich: $e';
     }
-    final image = await renderStrokesPng(strokes);
     messenger.hideCurrentSnackBar();
     if (!mounted) return;
 
     final created = await showCreateTaskDialog(
       context,
       candidates: candidates,
-      image: image,
       problem: problem,
     );
     if (created == true) {

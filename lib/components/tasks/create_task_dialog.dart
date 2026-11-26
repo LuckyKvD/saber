@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:material_ui/material_ui.dart';
 import 'package:saber/data/prefs.dart';
 import 'package:saber/data/tasks/due_date_parser.dart';
@@ -11,26 +9,23 @@ import 'package:saber/data/tasks/nextcloud_tasks.dart';
 Future<bool?> showCreateTaskDialog(
   BuildContext context, {
   required List<String> candidates,
-  required Uint8List? image,
   String? problem,
 }) {
   return showDialog<bool>(
     context: context,
     barrierDismissible: false,
     builder: (context) =>
-        _CreateTaskDialog(candidates: candidates, image: image, problem: problem),
+        _CreateTaskDialog(candidates: candidates, problem: problem),
   );
 }
 
 class _CreateTaskDialog extends StatefulWidget {
   const _CreateTaskDialog({
     required this.candidates,
-    required this.image,
     required this.problem,
   });
 
   final List<String> candidates;
-  final Uint8List? image;
   final String? problem;
 
   @override
@@ -46,7 +41,6 @@ class _CreateTaskDialogState extends State<_CreateTaskDialog> {
   DateTime? _due;
   bool _hasTime = false;
   bool _dueFromText = false;
-  bool _attachImage = true;
 
   bool _sending = false;
   String? _error;
@@ -159,7 +153,6 @@ class _CreateTaskDialogState extends State<_CreateTaskDialog> {
         summary: _text.text.trim(),
         due: _due!,
         dueHasTime: _hasTime,
-        image: _attachImage ? widget.image : null,
       );
       stows.taskLastList.value = _list!.url.toString();
       if (mounted) Navigator.of(context).pop(true);
@@ -306,18 +299,6 @@ class _CreateTaskDialogState extends State<_CreateTaskDialog> {
                     ),
                   ),
               ],
-              if (widget.image != null)
-                CheckboxListTile(
-                  contentPadding: EdgeInsets.zero,
-                  value: _attachImage,
-                  onChanged: (v) => setState(() => _attachImage = v ?? true),
-                  title: const Text('Handschrift als Bild anhängen'),
-                  subtitle: const Text(
-                    'Das Bild liegt unverschlüsselt in deiner Nextcloud '
-                    '(Ordner „Feder-Aufgaben“).',
-                  ),
-                  controlAffinity: ListTileControlAffinity.leading,
-                ),
               if (_error != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),

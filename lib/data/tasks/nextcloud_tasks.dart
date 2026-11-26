@@ -1,10 +1,8 @@
 import 'dart:convert';
 import 'dart:math';
-import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
-import 'package:nextcloud/webdav.dart';
 import 'package:saber/data/nextcloud/nextcloud_client_extension.dart';
 import 'package:saber/data/prefs.dart';
 
@@ -21,10 +19,6 @@ class TaskList {
 /// an. Nichts läuft über Fremddienste.
 abstract class NextcloudTasks {
   static final _log = Logger('NextcloudTasks');
-
-  /// Eigener Ordner für Handschrift-Bilder der Aufgaben (liegt bewusst
-  /// außerhalb von `Feder/`, damit die Notiz-Synchronisation ihn nie anfasst).
-  static const imageFolder = 'Feder-Aufgaben';
 
   static String? notReadyReason() =>
       stows.loggedIn ? null : 'Du bist nicht bei Nextcloud angemeldet.';
@@ -140,34 +134,14 @@ abstract class NextcloudTasks {
     ).join();
   }
 
-  /// Legt die Aufgabe an. [image] wird (wenn gesetzt) in den Ordner
-  /// [imageFolder] hochgeladen und an der Aufgabe verlinkt.
+  /// Legt die Aufgabe an.
   static Future<void> createTask({
     required TaskList list,
     required String summary,
     required DateTime due,
     required bool dueHasTime,
-    Uint8List? image,
   }) async {
     final uid = _newUid();
-    final userId = await _userId();
-    String? imageUrl;
-    String? imageName;
-
-    if (image != null) {
-      final nc = NextcloudClientExtension.withSavedDetails();
-      if (nc == null) throw StateError('Nicht angemeldet.');
-      imageName = '$uid.png';
-      try {
-        await nc.webdav.mkcol(PathUri.parse(imageFolder));
-      } catch (_) {
-        // Ordner existiert schon.
-      }
-      await nc.webdav.put(image, PathUri.parse('$imageFolder/$imageName'));
-      imageUrl = _davUri(
-        '/remote.php/dav/files/$userId/$imageFolder/$imageName',
-      ).toString();
-    }
 
     String two(int n) => n.toString().padLeft(2, '0');
     final dateStr = '${due.year.toString().padLeft(4, '0')}${two(due.month)}${two(due.day)}';
@@ -188,10 +162,6 @@ abstract class NextcloudTasks {
       'SUMMARY:${_icsText(summary)}',
       dueLine,
       'STATUS:NEEDS-ACTION',
-      if (imageUrl != null) ...[
-        'DESCRIPTION:${_icsText('Handschrift als Bild: Dateien > $imageFolder > $imageName')}',
-        'ATTACH;FMTTYPE=image/png:$imageUrl',
-      ],
       'END:VTODO',
       'END:VCALENDAR',
     ];
