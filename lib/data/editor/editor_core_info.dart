@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:logging/logging.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:path/path.dart' as p;
+import 'package:saber/data/editor/fast_bson.dart';
 import 'package:saber/components/canvas/_asset_cache.dart';
 import 'package:saber/components/canvas/_stroke.dart';
 import 'package:saber/components/canvas/image/editor_image.dart';
@@ -461,8 +462,16 @@ class EditorCoreInfo {
     try {
       if (bsonBytes != null) {
         final decodeTimer = Stopwatch()..start();
-        final bsonBinary = BsonBinary.from(bsonBytes);
-        json = BsonCodec.deserialize(bsonBinary);
+        dynamic decoded;
+        try {
+          // Feder: schneller eigener Leser (siehe fast_bson.dart).
+          decoded = FastBson.decode(bsonBytes);
+        } catch (e) {
+          log.warning('Schneller BSON-Leser fehlgeschlagen, nutze Paket: $e');
+          final bsonBinary = BsonBinary.from(bsonBytes);
+          decoded = BsonCodec.deserialize(bsonBinary);
+        }
+        json = decoded;
         _lastDecodeMs = decodeTimer.elapsedMilliseconds;
       } else if (jsonString != null) {
         json = jsonDecode(jsonString);

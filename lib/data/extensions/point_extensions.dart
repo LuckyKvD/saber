@@ -13,15 +13,21 @@ extension PointExtensions on PointVector {
     Offset offset = .zero,
   }) => Point(json['x'] + offset.dx, json['y'] + offset.dy, json['p']);
 
+  /// [json] ist ein [BsonBinary] (Paket `bson`) oder ein [Uint8List]
+  /// (schneller Feder-Leser `FastBson`).
   static PointVector fromBsonBinary({
-    required BsonBinary json,
+    required Object json,
     Offset offset = .zero,
   }) {
-    final point = json.byteList.buffer.asFloat32List();
+    final Uint8List bytes = json is BsonBinary
+        ? json.byteList
+        : json as Uint8List;
+    final data = ByteData.sublistView(bytes);
+    final count = bytes.length ~/ 4;
     return PointVector(
-      point[0] + offset.dx,
-      point[1] + offset.dy,
-      point.length == 2 ? null : point[2],
+      data.getFloat32(0, Endian.little) + offset.dx,
+      data.getFloat32(4, Endian.little) + offset.dy,
+      count == 2 ? null : data.getFloat32(8, Endian.little),
     );
   }
 

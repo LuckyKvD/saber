@@ -69,6 +69,14 @@ class const LogsPage({super.key}) extends StatelessWidget {
                   ),
                 ),
                 actions: [
+                  // Feder: Protokoll leeren, damit man neue Meldungen sofort sieht.
+                  IconButton(
+                    tooltip: 'Protokoll leeren',
+                    icon: const Icon(Icons.delete_outline),
+                    onPressed: logsHistory.history.isEmpty
+                        ? null
+                        : logsHistory.clear,
+                  ),
                   if (logsHistory.isFrozen)
                     IconButton(
                       icon: const AdaptiveIcon(
