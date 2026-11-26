@@ -1,49 +1,69 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:saber/data/prefs.dart';
+import 'package:saber/data/tasks/contact_parser.dart';
 import 'package:saber/data/tasks/due_date_parser.dart';
-import 'package:saber/data/tasks/nextcloud_tasks.dart';
+import 'package:saber/data/tasks/nextcloud_dav.dart';
 
-/// Feder: Bestätigungsfenster "Als Aufgabe": erkannten Text korrigieren,
-/// Liste wählen, Fälligkeit festlegen, Bild anhängen, an Nextcloud senden.
-/// Gibt `true` zurück, wenn die Aufgabe angelegt wurde.
-Future<bool?> showCreateTaskDialog(
+/// Feder: Bestätigungsfenster für "An Nextcloud senden" (Aufgabe, Termin
+/// oder Kontakt): erkannten Text korrigieren, Ziel wählen, Datum/Uhrzeit
+/// festlegen. Gibt `true` zurück, wenn der Eintrag angelegt wurde.
+Future<bool?> showSendToNextcloudDialog(
   BuildContext context, {
+  required NcKind kind,
   required List<String> candidates,
   String? problem,
 }) {
   return showDialog<bool>(
     context: context,
     barrierDismissible: false,
-    builder: (context) =>
-        _CreateTaskDialog(candidates: candidates, problem: problem),
+    builder: (context) => _SendDialog(
+      kind: kind,
+      candidates: candidates,
+      problem: problem,
+    ),
   );
 }
 
-class _CreateTaskDialog extends StatefulWidget {
-  const _CreateTaskDialog({
+class _SendDialog extends StatefulWidget {
+  const _SendDialog({
+    required this.kind,
     required this.candidates,
     required this.problem,
   });
 
+  final NcKind kind;
   final List<String> candidates;
   final String? problem;
 
   @override
-  State<_CreateTaskDialog> createState() => _CreateTaskDialogState();
+  State<_SendDialog> createState() => _SendDialogState();
 }
 
-class _CreateTaskDialogState extends State<_CreateTaskDialog> {
+class _SendDialogState extends State<_SendDialog> {
   late final TextEditingController _text;
-  List<TaskList>? _lists;
-  String? _listError;
-  TaskList? _list;
+  final _first = TextEditingController();
+  final _last = TextEditingController();
+  final _phone = TextEditingController();
+  final _mail = TextEditingController();
+  final _org = TextEditingController();
 
-  DateTime? _due;
+  List<DavCollection>? _collections;
+  String? _collectionError;
+  DavCollection? _target;
+
+  /// Aufgabe: Fälligkeit; Termin: Beginn.
+  DateTime? _when;
   bool _hasTime = false;
-  bool _dueFromText = false;
+  bool _fromText = false;
+
+  /// Nur Termin.
+  bool _allDay = false;
+  DateTime? _end;
 
   bool _sending = false;
   String? _error;
+
+  NcKind get _kind => widget.kind;
 
   @override
   void initState() {
@@ -52,22 +72,35 @@ class _CreateTaskDialogState extends State<_CreateTaskDialog> {
       text: widget.candidates.isEmpty ? '' : widget.candidates.first,
     );
     _text.addListener(_onTextChanged);
-    _guessDue();
-    _loadLists();
+    _guess();
+    _load();
   }
 
   @override
   void dispose() {
-    _text.dispose();
+    for (final c in [_text, _first, _last, _phone, _mail, _org]) {
+      c.dispose();
+    }
     super.dispose();
   }
 
-  /// Fälligkeit aus dem Text ableiten, solange Kay sie nicht selbst gewählt hat.
-  void _guessDue() {
+  void _onTextChanged() => setState(_guess);
+
+  /// Vorbelegung aus dem Text, solange Kay nichts selbst gewählt hat.
+  void _guess() {
+    if (_kind == NcKind.contact) {
+      if (_contactEdited) return;
+      final g = ContactParser.parse(_text.text);
+      _first.text = g.firstName;
+      _last.text = g.lastName;
+      _phone.text = g.phone;
+      _mail.text = g.email;
+      return;
+    }
     final guess = DueDateParser.parse(_text.text, DateTime.now());
     if (guess == null) return;
-    if (_due != null && !_dueFromText) return;
-    _due = DateTime(
+    if (_when != null && !_fromText) return;
+    _when = DateTime(
       guess.date.year,
       guess.date.month,
       guess.date.day,
@@ -75,40 +108,68 @@ class _CreateTaskDialogState extends State<_CreateTaskDialog> {
       guess.minute ?? 0,
     );
     _hasTime = guess.hasTime;
-    _dueFromText = true;
+    _fromText = true;
+    if (_kind == NcKind.event) _end = null;
   }
 
-  void _onTextChanged() {
-    setState(_guessDue);
+  bool _contactEdited = false;
+
+  String get _lastKey {
+    switch (_kind) {
+      case NcKind.task:
+        return stows.taskLastList.value;
+      case NcKind.event:
+        return stows.eventLastCalendar.value;
+      case NcKind.contact:
+        return stows.contactLastBook.value;
+    }
   }
 
-  Future<void> _loadLists() async {
+  void _rememberTarget(String url) {
+    switch (_kind) {
+      case NcKind.task:
+        stows.taskLastList.value = url;
+      case NcKind.event:
+        stows.eventLastCalendar.value = url;
+      case NcKind.contact:
+        stows.contactLastBook.value = url;
+    }
+  }
+
+  Future<void> _load() async {
     try {
-      final lists = await NextcloudTasks.fetchLists();
+      final all = await NextcloudDav.fetchCollections(_kind);
       if (!mounted) return;
       setState(() {
-        _lists = lists;
-        final last = stows.taskLastList.value;
-        _list = lists.cast<TaskList?>().firstWhere(
-          (l) => l!.url.toString() == last,
-          orElse: () => lists.length == 1 ? lists.first : null,
+        _collections = all;
+        final last = _lastKey;
+        _target = all.cast<DavCollection?>().firstWhere(
+          (c) => c!.url.toString() == last,
+          orElse: () => all.length == 1 ? all.first : null,
         );
-        if (lists.isEmpty) {
-          _listError = 'Keine Aufgabenliste gefunden. Lege in Nextcloud Tasks '
-              'zuerst eine Liste an.';
+        if (all.isEmpty) {
+          _collectionError =
+              'Kein(e) ${_kind.collectionLabel} gefunden. Lege in Nextcloud '
+              'zuerst eines an.';
         }
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => _listError = 'Listen nicht ladbar: $e');
+      setState(() => _collectionError = '${_kind.collectionLabel} nicht ladbar: $e');
     }
   }
 
-  void _setDue(DateTime day) {
+  void _setDay(DateTime day) {
     setState(() {
-      _due = DateTime(day.year, day.month, day.day, _due?.hour ?? 0,
-          _due?.minute ?? 0);
-      _dueFromText = false;
+      _when = DateTime(
+        day.year,
+        day.month,
+        day.day,
+        _when?.hour ?? 0,
+        _when?.minute ?? 0,
+      );
+      _fromText = false;
+      _end = null;
     });
   }
 
@@ -116,31 +177,70 @@ class _CreateTaskDialogState extends State<_CreateTaskDialog> {
     final now = DateTime.now();
     final picked = await showDatePicker(
       context: context,
-      initialDate: _due ?? now.add(const Duration(days: 1)),
+      initialDate: _when ?? now.add(const Duration(days: 1)),
       firstDate: DateTime(now.year - 1),
       lastDate: DateTime(now.year + 5),
     );
-    if (picked != null) _setDue(picked);
+    if (picked != null) _setDay(picked);
   }
 
   Future<void> _pickTime() async {
     final picked = await showTimePicker(
       context: context,
-      initialTime: TimeOfDay(hour: _due?.hour ?? 9, minute: _due?.minute ?? 0),
+      initialTime: TimeOfDay(hour: _when?.hour ?? 9, minute: _when?.minute ?? 0),
     );
-    if (picked == null || _due == null) return;
+    if (picked == null || _when == null) return;
     setState(() {
-      _due = DateTime(_due!.year, _due!.month, _due!.day, picked.hour, picked.minute);
+      _when = DateTime(
+        _when!.year,
+        _when!.month,
+        _when!.day,
+        picked.hour,
+        picked.minute,
+      );
       _hasTime = true;
-      _dueFromText = false;
+      _fromText = false;
+      _end = null;
     });
   }
 
-  bool get _canSend =>
-      !_sending &&
-      _list != null &&
-      _due != null &&
-      _text.text.trim().isNotEmpty;
+  DateTime get _effectiveEnd =>
+      _end ?? _when!.add(const Duration(hours: 1));
+
+  Future<void> _pickEnd() async {
+    final e = _effectiveEnd;
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(hour: e.hour, minute: e.minute),
+    );
+    if (picked == null || _when == null) return;
+    var end = DateTime(
+      _when!.year,
+      _when!.month,
+      _when!.day,
+      picked.hour,
+      picked.minute,
+    );
+    if (!end.isAfter(_when!)) end = end.add(const Duration(days: 1));
+    setState(() => _end = end);
+  }
+
+  bool get _canSend {
+    if (_sending || _target == null) return false;
+    switch (_kind) {
+      case NcKind.task:
+        return _when != null && _text.text.trim().isNotEmpty;
+      case NcKind.event:
+        return _when != null &&
+            (_allDay || _hasTime) &&
+            _text.text.trim().isNotEmpty;
+      case NcKind.contact:
+        return _first.text.trim().isNotEmpty ||
+            _last.text.trim().isNotEmpty ||
+            _org.text.trim().isNotEmpty ||
+            _phone.text.trim().isNotEmpty;
+    }
+  }
 
   Future<void> _send() async {
     setState(() {
@@ -148,13 +248,33 @@ class _CreateTaskDialogState extends State<_CreateTaskDialog> {
       _error = null;
     });
     try {
-      await NextcloudTasks.createTask(
-        list: _list!,
-        summary: _text.text.trim(),
-        due: _due!,
-        dueHasTime: _hasTime,
-      );
-      stows.taskLastList.value = _list!.url.toString();
+      switch (_kind) {
+        case NcKind.task:
+          await NextcloudDav.createTask(
+            list: _target!,
+            summary: _text.text.trim(),
+            due: _when!,
+            dueHasTime: _hasTime,
+          );
+        case NcKind.event:
+          await NextcloudDav.createEvent(
+            calendar: _target!,
+            summary: _text.text.trim(),
+            start: _when!,
+            end: _allDay ? _when! : _effectiveEnd,
+            allDay: _allDay,
+          );
+        case NcKind.contact:
+          await NextcloudDav.createContact(
+            book: _target!,
+            firstName: _first.text,
+            lastName: _last.text,
+            phone: _phone.text,
+            email: _mail.text,
+            organization: _org.text,
+          );
+      }
+      _rememberTarget(_target!.url.toString());
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;
@@ -165,22 +285,129 @@ class _CreateTaskDialogState extends State<_CreateTaskDialog> {
     }
   }
 
-  String _dueLabel() {
-    final d = _due;
-    if (d == null) return 'Fälligkeit wählen';
-    String two(int n) => n.toString().padLeft(2, '0');
-    final date = '${two(d.day)}.${two(d.month)}.${d.year}';
-    return _hasTime ? '$date, ${two(d.hour)}:${two(d.minute)} Uhr' : date;
+  static String _two(int n) => n.toString().padLeft(2, '0');
+
+  String _dateLabel() {
+    final d = _when;
+    if (d == null) return 'Datum wählen';
+    return '${_two(d.day)}.${_two(d.month)}.${d.year}';
+  }
+
+  String _timeLabel(DateTime d) => '${_two(d.hour)}:${_two(d.minute)} Uhr';
+
+  Widget _field(TextEditingController c, String label, {TextInputType? type}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: TextField(
+        controller: c,
+        keyboardType: type,
+        onChanged: (_) => setState(() => _contactEdited = true),
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _contactFields() => [
+    _field(_first, 'Vorname'),
+    _field(_last, 'Nachname'),
+    _field(_phone, 'Telefon', type: TextInputType.phone),
+    _field(_mail, 'E-Mail', type: TextInputType.emailAddress),
+    _field(_org, 'Firma (optional)'),
+  ];
+
+  List<Widget> _whenFields(BuildContext context) {
+    final today = DateTime.now();
+    final isEvent = _kind == NcKind.event;
+    return [
+      const SizedBox(height: 16),
+      Text(
+        isEvent ? 'Wann' : 'Fällig',
+        style: Theme.of(context).textTheme.labelLarge,
+      ),
+      const SizedBox(height: 4),
+      Wrap(
+        spacing: 6,
+        runSpacing: 4,
+        children: [
+          ActionChip(label: const Text('Heute'), onPressed: () => _setDay(today)),
+          ActionChip(
+            label: const Text('Morgen'),
+            onPressed: () => _setDay(today.add(const Duration(days: 1))),
+          ),
+          ActionChip(
+            label: const Text('In einer Woche'),
+            onPressed: () => _setDay(today.add(const Duration(days: 7))),
+          ),
+        ],
+      ),
+      const SizedBox(height: 6),
+      OutlinedButton.icon(
+        onPressed: _pickDate,
+        icon: const Icon(Icons.event),
+        label: Text(_dateLabel()),
+      ),
+      if (isEvent)
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Ganztägig'),
+          value: _allDay,
+          onChanged: (v) => setState(() => _allDay = v),
+        ),
+      if (_when != null && !(isEvent && _allDay)) ...[
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            OutlinedButton.icon(
+              onPressed: _pickTime,
+              icon: const Icon(Icons.schedule),
+              label: Text(
+                _hasTime
+                    ? (isEvent ? 'Beginn ${_timeLabel(_when!)}' : _timeLabel(_when!))
+                    : (isEvent ? 'Beginn wählen' : 'Uhrzeit hinzufügen'),
+              ),
+            ),
+            if (_hasTime && !isEvent)
+              IconButton(
+                tooltip: 'Uhrzeit entfernen',
+                onPressed: () => setState(() {
+                  _hasTime = false;
+                  _fromText = false;
+                }),
+                icon: const Icon(Icons.close),
+              ),
+          ],
+        ),
+        if (isEvent && _hasTime) ...[
+          const SizedBox(height: 6),
+          OutlinedButton.icon(
+            onPressed: _pickEnd,
+            icon: const Icon(Icons.schedule_send),
+            label: Text('Ende ${_timeLabel(_effectiveEnd)}'),
+          ),
+        ],
+      ],
+      if (_when != null && _fromText)
+        Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Text(
+            'Aus dem Text erkannt – bitte prüfen.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ),
+    ];
   }
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = ColorScheme.of(context);
     final alternatives = widget.candidates.skip(1).take(4).toList();
-    final today = DateTime.now();
+    final isContact = _kind == NcKind.contact;
 
     return AlertDialog(
-      title: const Text('Als Aufgabe an Nextcloud'),
+      title: Text('${_kind.label} an Nextcloud'),
       content: SizedBox(
         width: 420,
         child: SingleChildScrollView(
@@ -201,104 +428,58 @@ class _CreateTaskDialogState extends State<_CreateTaskDialog> {
                 minLines: 1,
                 maxLines: 4,
                 autofocus: widget.candidates.isEmpty,
-                decoration: const InputDecoration(
-                  labelText: 'Aufgabe (bitte prüfen und korrigieren)',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: isContact
+                      ? 'Erkannter Text (bitte prüfen)'
+                      : '${_kind.label} (bitte prüfen und korrigieren)',
+                  border: const OutlineInputBorder(),
                 ),
               ),
               if (alternatives.isNotEmpty) ...[
                 const SizedBox(height: 8),
-                Text('Andere Lesarten:',
-                    style: Theme.of(context).textTheme.labelMedium),
+                Text(
+                  'Andere Lesarten:',
+                  style: Theme.of(context).textTheme.labelMedium,
+                ),
                 Wrap(
                   spacing: 6,
                   children: [
                     for (final alt in alternatives)
                       ActionChip(
                         label: Text(alt),
-                        onPressed: () => _text.text = alt,
+                        onPressed: () {
+                          _contactEdited = false;
+                          _text.text = alt;
+                        },
                       ),
                   ],
                 ),
               ],
-              const SizedBox(height: 16),
-              if (_lists == null && _listError == null)
+              if (isContact) ...[
+                const SizedBox(height: 12),
+                ..._contactFields(),
+              ],
+              const SizedBox(height: 8),
+              if (_collections == null && _collectionError == null)
                 const LinearProgressIndicator()
-              else if (_listError != null)
-                Text(_listError!, style: TextStyle(color: colorScheme.error))
+              else if (_collectionError != null)
+                Text(_collectionError!, style: TextStyle(color: colorScheme.error))
               else
-                DropdownButtonFormField<TaskList>(
-                  initialValue: _list,
+                DropdownButtonFormField<DavCollection>(
+                  initialValue: _target,
                   isExpanded: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Aufgabenliste',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: _kind.collectionLabel,
+                    border: const OutlineInputBorder(),
                   ),
-                  hint: const Text('Liste wählen'),
+                  hint: Text('${_kind.collectionLabel} wählen'),
                   items: [
-                    for (final l in _lists!)
-                      DropdownMenuItem(value: l, child: Text(l.name)),
+                    for (final c in _collections!)
+                      DropdownMenuItem(value: c, child: Text(c.name)),
                   ],
-                  onChanged: (l) => setState(() => _list = l),
+                  onChanged: (c) => setState(() => _target = c),
                 ),
-              const SizedBox(height: 16),
-              Text('Fällig', style: Theme.of(context).textTheme.labelLarge),
-              const SizedBox(height: 4),
-              Wrap(
-                spacing: 6,
-                runSpacing: 4,
-                children: [
-                  ActionChip(
-                    label: const Text('Heute'),
-                    onPressed: () => _setDue(today),
-                  ),
-                  ActionChip(
-                    label: const Text('Morgen'),
-                    onPressed: () =>
-                        _setDue(today.add(const Duration(days: 1))),
-                  ),
-                  ActionChip(
-                    label: const Text('In einer Woche'),
-                    onPressed: () =>
-                        _setDue(today.add(const Duration(days: 7))),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              OutlinedButton.icon(
-                onPressed: _pickDate,
-                icon: const Icon(Icons.event),
-                label: Text(_dueLabel()),
-              ),
-              if (_due != null) ...[
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: _pickTime,
-                      icon: const Icon(Icons.schedule),
-                      label: Text(_hasTime ? 'Uhrzeit ändern' : 'Uhrzeit hinzufügen'),
-                    ),
-                    if (_hasTime)
-                      IconButton(
-                        tooltip: 'Uhrzeit entfernen',
-                        onPressed: () => setState(() {
-                          _hasTime = false;
-                          _dueFromText = false;
-                        }),
-                        icon: const Icon(Icons.close),
-                      ),
-                  ],
-                ),
-                if (_dueFromText)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      'Aus dem Text erkannt – bitte prüfen.',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ),
-              ],
+              if (!isContact) ..._whenFields(context),
               if (_error != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
@@ -321,7 +502,7 @@ class _CreateTaskDialogState extends State<_CreateTaskDialog> {
                   height: 18,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : const Text('Aufgabe anlegen'),
+              : Text('${_kind.label} anlegen'),
         ),
       ],
     );

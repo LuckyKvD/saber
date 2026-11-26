@@ -10,6 +10,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:keybinder/keybinder.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:saber/data/tasks/nextcloud_dav.dart';
 import 'package:saber/components/theming/dynamic_material_app.dart';
 import 'package:saber/components/theming/uni_icon.dart';
 import 'package:saber/components/toolbar/color_bar.dart';
@@ -61,7 +62,7 @@ class Toolbar extends StatefulWidget {
     required this.paste,
     required this.duplicateSelection,
     required this.deleteSelection,
-    required this.createTask,
+    required this.sendToNextcloud,
     required this.exportAsSba,
     required this.exportAsPdf,
     required this.exportAsPng,
@@ -104,7 +105,7 @@ class Toolbar extends StatefulWidget {
   final VoidCallback deleteSelection;
 
   /// Auswahl als Aufgabe an Nextcloud senden.
-  final VoidCallback createTask;
+  final void Function(NcKind kind) sendToNextcloud;
 
   final Future Function(BuildContext)? exportAsSba;
   final Future Function(BuildContext)? exportAsPdf;
@@ -683,7 +684,7 @@ class _ToolbarState extends State<Toolbar> {
               .select => SelectionBar(
                 duplicateSelection: widget.duplicateSelection,
                 deleteSelection: widget.deleteSelection,
-                createTask: widget.createTask,
+                sendToNextcloud: widget.sendToNextcloud,
               ),
             },
           );

@@ -188,3 +188,10 @@ Zusammengeführte Zweige: `feature/regal`, `feature/blaettern`, `feature/widget`
 - **Liste:** wird jedes Mal gewählt (letzte Wahl nur als Vorauswahl). Gefunden werden alle Kalender, die Aufgaben erlauben.
 - **Kein Bildanhang:** Ein Anhang mit dem Handschrift-Bild wurde probiert und wieder entfernt (funktionierte nicht, wird nicht gebraucht). Es geht nur der Text an Nextcloud.
 - **Grenzen (Vermutung/Unsicher):** Erkennungsqualität bei Schreibschrift ist erst im Praxistest bekannt; mehrzeilige Auswahl wird schlechter gelesen als eine Zeile. Die Google-Bibliothek ist proprietär (für Privatgebrauch unkritisch; bei einer Weitergabe von Feder lizenzrechtlich zu klären).
+
+
+### 18a. Termine und Kontakte (Branch `feature/aufgaben`)
+- Lasso-Auswahl → Menü „An Nextcloud" → Aufgabe / Termin / Kontakt. Die Handschrifterkennung läuft wie bei Aufgaben auf dem Gerät.
+- Termin: Kalender wird jedes Mal gewählt (letzte Wahl vorbelegt), Datum und Uhrzeit aus dem Text vorgeschlagen, Ende standardmäßig +1 Stunde, optional ganztägig. Speicherung per CalDAV (VEVENT, Zeiten als UTC).
+- Kontakt: Name, Telefon und E-Mail werden aus dem Text vorbelegt (zum Korrigieren), Adressbuch wird gewählt. Speicherung per CardDAV (vCard 3.0).
+- Automatisch erzeugte Sammlungen (Geburtstage, Papierkorb) werden nicht angeboten.

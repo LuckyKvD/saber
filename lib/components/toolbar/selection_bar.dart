@@ -1,20 +1,22 @@
 import 'package:cupertino_ui/cupertino_ui.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:saber/components/theming/adaptive_icon.dart';
+import 'package:saber/data/tasks/nextcloud_dav.dart';
 import 'package:saber/i18n/strings.g.dart';
 
 class SelectionBar extends StatelessWidget {
   final VoidCallback duplicateSelection;
   final VoidCallback deleteSelection;
 
-  /// Feder: Handschrift der Auswahl als Aufgabe an Nextcloud senden.
-  final VoidCallback createTask;
+  /// Feder: Handschrift der Auswahl als Aufgabe, Termin oder Kontakt an
+  /// Nextcloud senden.
+  final void Function(NcKind kind) sendToNextcloud;
 
   const new({
     super.key,
     required this.duplicateSelection,
     required this.deleteSelection,
-    required this.createTask,
+    required this.sendToNextcloud,
   });
 
   @override
@@ -22,13 +24,49 @@ class SelectionBar extends StatelessWidget {
     return Row(
       mainAxisAlignment: .center,
       children: [
-        TextButton.icon(
-          onPressed: createTask,
-          style: TextButton.styleFrom(
-            foregroundColor: ColorScheme.of(context).secondary,
+        PopupMenuButton<NcKind>(
+          tooltip: 'An Nextcloud senden',
+          onSelected: sendToNextcloud,
+          itemBuilder: (context) => const [
+            PopupMenuItem(
+              value: NcKind.task,
+              child: ListTile(
+                leading: Icon(Icons.task_alt),
+                title: Text('Als Aufgabe'),
+              ),
+            ),
+            PopupMenuItem(
+              value: NcKind.event,
+              child: ListTile(
+                leading: Icon(Icons.event),
+                title: Text('Als Termin'),
+              ),
+            ),
+            PopupMenuItem(
+              value: NcKind.contact,
+              child: ListTile(
+                leading: Icon(Icons.person_add),
+                title: Text('Als Kontakt'),
+              ),
+            ),
+          ],
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.cloud_upload,
+                  color: ColorScheme.of(context).secondary,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'An Nextcloud',
+                  style: TextStyle(color: ColorScheme.of(context).secondary),
+                ),
+              ],
+            ),
           ),
-          icon: const Icon(Icons.task_alt),
-          label: const Text('Als Aufgabe'),
         ),
         IconButton(
           onPressed: duplicateSelection,

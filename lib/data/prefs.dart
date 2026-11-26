@@ -286,6 +286,20 @@ class Stows {
     volatile: !_isOnMainIsolate,
   );
 
+  /// Zuletzt gewählter Nextcloud-Kalender (Adresse), nur als Vorauswahl.
+  final eventLastCalendar = PlainStow(
+    'eventLastCalendar',
+    '',
+    volatile: !_isOnMainIsolate,
+  );
+
+  /// Zuletzt gewähltes Nextcloud-Adressbuch (Adresse), nur als Vorauswahl.
+  final contactLastBook = PlainStow(
+    'contactLastBook',
+    '',
+    volatile: !_isOnMainIsolate,
+  );
+
   /// Zuletzt benutzte Farbe je Stift (JSON: Stiftname -> ARGB).
   final penColors = PlainStow('penColors', '{}', volatile: !_isOnMainIsolate);
 

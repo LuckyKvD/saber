@@ -23,7 +23,7 @@ import 'package:saber/components/canvas/guide_tools.dart';
 import 'package:saber/components/toolbar/text_stamp.dart';
 import 'package:saber/components/tasks/create_task_dialog.dart';
 import 'package:saber/data/tasks/ink_recognition.dart';
-import 'package:saber/data/tasks/nextcloud_tasks.dart';
+import 'package:saber/data/tasks/nextcloud_dav.dart';
 import 'package:saber/data/quick_note.dart';
 import 'package:saber/data/tools/extra_pens.dart';
 import 'package:saber/components/canvas/image/image_clip.dart';
@@ -1618,9 +1618,9 @@ class EditorState extends State<Editor> {
     } catch (_) {}
   }
 
-  /// Feder: Handschrift der Lasso-Auswahl erkennen und als Aufgabe an
-  /// Nextcloud senden (Erkennung auf dem Gerät, Bestätigungsfenster).
-  Future<void> _createTaskFromSelection() async {
+  /// Feder: Handschrift der Lasso-Auswahl erkennen und als Aufgabe, Termin
+  /// oder Kontakt an Nextcloud senden (Erkennung auf dem Gerät, Bestätigungsfenster).
+  Future<void> _sendSelectionToNextcloud(NcKind kind) async {
     final select = currentTool;
     if (select is! Select || !select.doneSelecting) return;
     final messenger = ScaffoldMessenger.of(context);
@@ -1631,7 +1631,7 @@ class EditorState extends State<Editor> {
       );
       return;
     }
-    final notReady = NextcloudTasks.notReadyReason();
+    final notReady = NextcloudDav.notReadyReason();
     if (notReady != null) {
       messenger.showSnackBar(SnackBar(content: Text(notReady)));
       return;
@@ -1656,14 +1656,15 @@ class EditorState extends State<Editor> {
     messenger.hideCurrentSnackBar();
     if (!mounted) return;
 
-    final created = await showCreateTaskDialog(
+    final created = await showSendToNextcloudDialog(
       context,
+      kind: kind,
       candidates: candidates,
       problem: problem,
     );
     if (created == true) {
       messenger.showSnackBar(
-        const SnackBar(content: Text('Aufgabe in Nextcloud angelegt.')),
+        SnackBar(content: Text('${kind.label} in Nextcloud angelegt.')),
       );
     }
   }
@@ -2369,7 +2370,7 @@ class EditorState extends State<Editor> {
             if (mounted) setState(() {});
           },
           currentTool: currentTool,
-          createTask: _createTaskFromSelection,
+          sendToNextcloud: _sendSelectionToNextcloud,
           duplicateSelection: () {
             final select = currentTool as Select;
             if (!select.doneSelecting) return;
