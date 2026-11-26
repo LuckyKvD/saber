@@ -22,6 +22,7 @@ import 'package:saber/data/flavor_config.dart';
 import 'package:saber/data/nextcloud/nc_http_overrides.dart';
 import 'package:saber/data/nextcloud/saber_syncer.dart';
 import 'package:saber/data/prefs.dart';
+import 'package:saber/data/quick_note.dart';
 import 'package:saber/data/routes.dart';
 import 'package:saber/data/sentry/sentry_init.dart';
 import 'package:saber/data/tools/stroke_properties.dart';
@@ -316,6 +317,14 @@ class _AppState extends State<App> {
   @override
   void initState() {
     setupSharingIntent();
+    // Feder: Schnellnotiz-Widget startet die feste Notiz.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future<void>.delayed(const Duration(milliseconds: 400), () {
+        QuickNote.setup(
+          (path) => App._router.push(RoutePaths.editFilePath(path)),
+        );
+      });
+    });
     super.initState();
   }
 

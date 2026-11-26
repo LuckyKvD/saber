@@ -31,6 +31,7 @@ import 'package:saber/data/flavor_config.dart';
 import 'package:saber/data/is_this_a_test.dart';
 import 'package:saber/data/locales.dart';
 import 'package:saber/data/prefs.dart';
+import 'package:saber/data/quick_note.dart';
 import 'package:saber/data/routes.dart';
 import 'package:saber/data/sentry/sentry_init.dart';
 import 'package:saber/data/tools/shape_pen.dart';
@@ -226,6 +227,19 @@ class _SettingsPageState extends State<SettingsPage> {
                   icon: Icons.lock,
                   pref: stows.appLockEnabled,
                   afterChange: (enabled) => unawaited(_verifyAppLock(enabled)),
+                ),
+                SettingsSwitch(
+                  title: 'Widget: Vorschau der Schnellnotiz',
+                  subtitle:
+                      'Zeigt die erste Seite der Notiz „Schnellnotiz“ im '
+                      'Widget auf dem Startbildschirm. Achtung: Die Vorschau '
+                      'liegt unverschlüsselt im privaten App-Speicher und ist '
+                      'auf dem Startbildschirm sichtbar. Ausschalten löscht sie.',
+                  icon: Icons.widgets_outlined,
+                  pref: stows.widgetPreview,
+                  afterChange: (enabled) {
+                    if (!enabled) unawaited(QuickNote.clearPreview());
+                  },
                 ),
                 SettingsDropdown(
                   title: t.settings.prefLabels.locale,

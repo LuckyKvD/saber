@@ -21,6 +21,7 @@ import 'package:saber/components/canvas/_stroke.dart';
 import 'package:saber/components/canvas/canvas.dart';
 import 'package:saber/components/canvas/guide_tools.dart';
 import 'package:saber/components/toolbar/text_stamp.dart';
+import 'package:saber/data/quick_note.dart';
 import 'package:saber/data/tools/extra_pens.dart';
 import 'package:saber/components/canvas/image/image_clip.dart';
 import 'package:saber/data/photo_sources.dart';
@@ -1487,6 +1488,11 @@ class EditorState extends State<Editor> {
     );
     final thumbnailPng = await thumbnail.toByteData(format: .png);
     thumbnail.dispose();
+    if (coreInfo.filePath == QuickNote.path) {
+      unawaited(
+        QuickNote.updatePreview(thumbnailPng!.buffer.asUint8List()),
+      );
+    }
     await FileManager.writeFile(
       // Note that this ends with .sbn2.p
       '$filePath.p',
