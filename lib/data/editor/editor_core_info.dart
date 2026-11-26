@@ -403,11 +403,13 @@ class EditorCoreInfo {
       );
 
       final length = jsonString?.length ?? bsonBytes!.length;
+      final outer = Stopwatch()..start();
       if (alwaysUseIsolate || length > 256 * 1024) {
         // > 256 KB (Feder: frueher als im Original), eigener Isolate
         final documentsDirectory = FileManager.documentsDirectory;
-        coreInfo = await workerManager.execute(
+        final result = await workerManager.execute(
           () async {
+            final inner = Stopwatch()..start();
             // We need to rerun some "init" methods in the isolate,
             // see https://github.com/saber-notes/saber/issues/1031.
             FlavorConfig.setupFromEnvironment();
@@ -416,10 +418,19 @@ class EditorCoreInfo {
               shouldWatchRootDirectory: false,
             );
             StrokeOptionsExtension.setDefaults();
-            return isolate();
+            final initMs = inner.elapsedMilliseconds;
+            final info = isolate();
+            return (info, initMs, _lastDecodeMs, inner.elapsedMilliseconds);
           },
           // less important than [WorkPriority.immediately]
           priority: WorkPriority.veryHigh,
+        );
+        coreInfo = result.$1;
+        // Feder: Aufschluesselung der Ladezeit (Protokoll, ohne Namen).
+        log.info(
+          'Notiz-Isolate: gesamt ${outer.elapsedMilliseconds} ms, '
+          'davon Start im Isolate ${result.$2} ms, '
+          'BSON lesen ${result.$3} ms, im Isolate insgesamt ${result.$4} ms',
         );
       } else {
         // if the file is small, just run it on the main thread
@@ -437,6 +448,9 @@ class EditorCoreInfo {
     return coreInfo;
   }
 
+  /// Feder: Dauer des BSON-Dekodierens im letzten Ladevorgang (pro Isolate).
+  static int _lastDecodeMs = 0;
+
   factory _loadFromFileIsolate(
     String? jsonString,
     Uint8List? bsonBytes,
@@ -446,8 +460,10 @@ class EditorCoreInfo {
     final dynamic json;
     try {
       if (bsonBytes != null) {
+        final decodeTimer = Stopwatch()..start();
         final bsonBinary = BsonBinary.from(bsonBytes);
         json = BsonCodec.deserialize(bsonBinary);
+        _lastDecodeMs = decodeTimer.elapsedMilliseconds;
       } else if (jsonString != null) {
         json = jsonDecode(jsonString);
       } else {

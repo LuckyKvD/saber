@@ -61,8 +61,14 @@ class const SyncingButton({super.key}) extends HookWidget {
     });
 
     final percentage = getPercentage();
+    final pending = syncer.downloader.numPending + syncer.uploader.numPending;
+    final syncing = stows.loggedIn && (percentage == null || percentage < 1);
+    // Feder: Prozentzahl neben dem Sync-Symbol, solange synchronisiert wird.
+    final label = percentage == null
+        ? '…'
+        : '${(percentage * 100).floor()} % · $pending offen';
 
-    return IconButton(
+    final button = IconButton(
       onPressed: stows.loggedIn
           ? onPressed
           : (debugForceButtonActive ? () {} : null),
@@ -96,6 +102,15 @@ class const SyncingButton({super.key}) extends HookWidget {
           ),
         ],
       ),
+    );
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (syncing)
+          Text(label, style: Theme.of(context).textTheme.labelSmall),
+        button,
+      ],
     );
   }
 }
