@@ -41,6 +41,14 @@ class AboutFeder extends StatelessWidget {
                         'Lizenz: GPL-3.0 · Tippen für Details',
                         style: theme.textTheme.bodySmall,
                       ),
+                      const SizedBox(height: 4),
+                      Text(
+                        const String.fromEnvironment(
+                          'FEDER_BUILD',
+                          defaultValue: 'lokaler Build',
+                        ),
+                        style: theme.textTheme.bodySmall,
+                      ),
                     ],
                   ),
                 ),
