@@ -31,7 +31,7 @@ class PageCurlPainter extends CustomPainter {
 
     final iw = image.width.toDouble();
     final ih = image.height.toDouble();
-    final r = w * 0.09;
+    final r = w * 0.15;
     final xc = w * (1 - p);
 
     canvas.save();
@@ -67,9 +67,12 @@ class PageCurlPainter extends CustomPainter {
         final left = min(x0, x1) - 0.6;
         final right = max(x0, x1) + 0.6;
         maxX = max(maxX, right);
-        final dst = Rect.fromLTRB(left, 0, right, h);
         final mid = (s0 + s1) / 2;
         final phi = mid / r;
+        // Leichte Perspektive: aufgerollter Teil liegt „weiter vorne“.
+        final lift = phi >= pi ? 1.0 : (1 - cos(phi)) / 2;
+        final inset = h * 0.045 * lift;
+        final dst = Rect.fromLTRB(left, inset, right, h - inset);
         if (phi < pi) {
           canvas.drawImageRect(
             image,

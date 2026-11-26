@@ -246,7 +246,7 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
       _pageKeys.putIfAbsent(index, () => GlobalKey());
   late final AnimationController _flipAnim = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 520),
+    duration: const Duration(milliseconds: 620),
   );
   ui.Image? _flipImage;
   var _flipForward = true;
