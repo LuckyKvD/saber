@@ -268,7 +268,7 @@ class _ToolbarState extends State<Toolbar> {
   Color _tint(Color color, bool invert) =>
       color.withInversion(invert).withValues(alpha: 1);
 
-  bool _isPen(IconData icon) {
+  bool _isPen(Object icon) {
     final tool = widget.currentTool;
     return tool is Pen &&
         tool is! Highlighter &&
@@ -289,7 +289,7 @@ class _ToolbarState extends State<Toolbar> {
   /// Stift-Knopf mit Symbol in der zuletzt benutzten Farbe dieses Stifts.
   _ToolItem _penItem(Pen Function() make, bool invert) {
     final pen = make();
-    final icon = pen.icon as IconData;
+    final icon = pen.icon;
     final selected = _isPen(icon);
     var color = pen.color;
     if (selected) {
@@ -526,21 +526,40 @@ class _ToolbarState extends State<Toolbar> {
       padding: padding,
       compact: true,
       tinted: tint != null,
-      child: Icon(
-        item.icon,
-        color: tint == null
-            ? null
-            : (item.enabled ? tint : tint.withValues(alpha: 0.4)),
-        shadows: tint == null
-            ? null
-            : [
-                Shadow(
-                  color: tint.computeLuminance() > 0.5
-                      ? Colors.black54
-                      : Colors.white70,
-                  blurRadius: 2,
-                ),
-              ],
+      child: _toolIcon(item, tint),
+    );
+  }
+
+  /// Symbol in Stiftfarbe; sehr helle Farben (Weiß, Gelb …) bekommen einen
+  /// dunklen Kreis dahinter, damit sie auf hellem Grund lesbar bleiben.
+  Widget _toolIcon(_ToolItem item, Color? tint) {
+    if (tint == null) return UniIcon(item.icon);
+    final icon = UniIcon(
+      item.icon,
+      color: item.enabled ? tint : tint.withValues(alpha: 0.4),
+    );
+    if (tint.computeLuminance() <= 0.75) return icon;
+    return SizedBox(
+      width: 18,
+      height: 18,
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.center,
+        children: [
+          Positioned(
+            left: -4,
+            right: -4,
+            top: -4,
+            bottom: -4,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.6),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          icon,
+        ],
       ),
     );
   }
@@ -768,7 +787,7 @@ class _MenuEntry {
     this.tint,
   });
 
-  final IconData icon;
+  final Object icon;
   final String label;
   final bool selected;
   final bool enabled;
@@ -788,7 +807,7 @@ class _ToolItem {
   });
 
   final String tooltip;
-  final IconData icon;
+  final Object icon;
   final VoidCallback onTap;
   final Color? tint;
   final bool selected;
