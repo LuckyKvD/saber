@@ -119,7 +119,7 @@ class ShelfTabs extends StatelessWidget {
             maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.7,
           ),
           child: SingleChildScrollView(
-            padding: const .fromLTRB(16, 8, 16, 16),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
             child: Column(
               crossAxisAlignment: .start,
               children: [
