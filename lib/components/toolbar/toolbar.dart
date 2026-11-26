@@ -61,6 +61,7 @@ class Toolbar extends StatefulWidget {
     required this.paste,
     required this.duplicateSelection,
     required this.deleteSelection,
+    required this.createTask,
     required this.exportAsSba,
     required this.exportAsPdf,
     required this.exportAsPng,
@@ -101,6 +102,9 @@ class Toolbar extends StatefulWidget {
 
   final VoidCallback duplicateSelection;
   final VoidCallback deleteSelection;
+
+  /// Auswahl als Aufgabe an Nextcloud senden.
+  final VoidCallback createTask;
 
   final Future Function(BuildContext)? exportAsSba;
   final Future Function(BuildContext)? exportAsPdf;
@@ -679,6 +683,7 @@ class _ToolbarState extends State<Toolbar> {
               .select => SelectionBar(
                 duplicateSelection: widget.duplicateSelection,
                 deleteSelection: widget.deleteSelection,
+                createTask: widget.createTask,
               ),
             },
           );

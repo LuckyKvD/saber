@@ -47,6 +47,21 @@ class MainActivity: FlutterFragmentActivity() {
         registerCryptoChannel(flutterEngine)
         registerPhotoChannel(flutterEngine)
         registerWidgetChannel(flutterEngine)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "de.luckykvd.feder/ink")
+            .setMethodCallHandler { call, result ->
+                if (call.method == "recognize") {
+                    val lang = call.argument<String>("language") ?: "de"
+                    @Suppress("UNCHECKED_CAST")
+                    val strokes = call.argument<List<List<List<Double>>>>("strokes")
+                    if (strokes == null) {
+                        result.error("bad_args", "Striche fehlen", null)
+                    } else {
+                        InkRecognizer.recognize(lang, strokes, result)
+                    }
+                } else {
+                    result.notImplemented()
+                }
+            }
         // Feder: Blaettergeraeusch (res/raw/page_flip.wav)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "de.luckykvd.feder/sound")
             .setMethodCallHandler { call, result ->

@@ -7,10 +7,14 @@ class SelectionBar extends StatelessWidget {
   final VoidCallback duplicateSelection;
   final VoidCallback deleteSelection;
 
+  /// Feder: Handschrift der Auswahl als Aufgabe an Nextcloud senden.
+  final VoidCallback createTask;
+
   const new({
     super.key,
     required this.duplicateSelection,
     required this.deleteSelection,
+    required this.createTask,
   });
 
   @override
@@ -18,6 +22,14 @@ class SelectionBar extends StatelessWidget {
     return Row(
       mainAxisAlignment: .center,
       children: [
+        TextButton.icon(
+          onPressed: createTask,
+          style: TextButton.styleFrom(
+            foregroundColor: ColorScheme.of(context).secondary,
+          ),
+          icon: const Icon(Icons.task_alt),
+          label: const Text('Als Aufgabe'),
+        ),
         IconButton(
           onPressed: duplicateSelection,
           style: TextButton.styleFrom(

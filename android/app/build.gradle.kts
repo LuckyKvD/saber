@@ -76,6 +76,8 @@ dependencies {
     implementation("com.google.android.material:material:1.14.0")
     // Feder: schnelles, geprüftes Argon2id (Java) für die Passwort-Ableitung
     implementation("org.bouncycastle:bcprov-jdk18on:1.78.1")
+    // Feder: Handschrift-Erkennung auf dem Gerät (Aufgaben aus Notizen)
+    implementation("com.google.mlkit:digital-ink-recognition:19.0.0")
 }
 
 val abiCodes = mapOf("armeabi-v7a" to 1, "arm64-v8a" to 2, "x86_64" to 3)

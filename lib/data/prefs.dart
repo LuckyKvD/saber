@@ -279,6 +279,13 @@ class Stows {
     volatile: !_isOnMainIsolate,
   );
 
+  /// Zuletzt gewählte Nextcloud-Aufgabenliste (Adresse), nur als Vorauswahl.
+  final taskLastList = PlainStow(
+    'taskLastList',
+    '',
+    volatile: !_isOnMainIsolate,
+  );
+
   /// Zuletzt benutzte Farbe je Stift (JSON: Stiftname -> ARGB).
   final penColors = PlainStow('penColors', '{}', volatile: !_isOnMainIsolate);
 
