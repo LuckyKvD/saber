@@ -29,6 +29,7 @@ abstract class QuickNote {
         open(path);
       }
     });
+    unawaited(setColor(stows.widgetColor.value));
     unawaited(_syncPreviewFromFile());
     try {
       if (await _consume()) open(path);
@@ -61,6 +62,16 @@ abstract class QuickNote {
       await _channel.invokeMethod<void>('setPreview', png);
     } catch (e) {
       _log.warning('Widget-Vorschau nicht aktualisiert: $e');
+    }
+  }
+
+  /// Zettelfarbe (ARGB) des Widgets.
+  static Future<void> setColor(int argb) async {
+    if (!_supported) return;
+    try {
+      await _channel.invokeMethod<void>('setColor', argb);
+    } catch (e) {
+      _log.warning('Widget-Farbe nicht gesetzt: $e');
     }
   }
 

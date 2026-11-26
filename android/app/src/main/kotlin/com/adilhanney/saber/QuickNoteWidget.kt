@@ -31,6 +31,7 @@ class QuickNoteWidget : AppWidgetProvider() {
 
         private fun buildViews(context: Context): RemoteViews {
             val views = RemoteViews(context.packageName, R.layout.quick_note_widget)
+            views.setInt(R.id.quick_note_bg, "setColorFilter", noteColor(context))
             val bitmap = loadPreview(context)
             if (bitmap != null) {
                 views.setImageViewBitmap(R.id.quick_note_preview, bitmap)
@@ -50,6 +51,19 @@ class QuickNoteWidget : AppWidgetProvider() {
             )
             views.setOnClickPendingIntent(R.id.quick_note_root, pending)
             return views
+        }
+
+        private const val DEFAULT_COLOR = 0xFFFFF59D.toInt()
+
+        private fun noteColor(context: Context): Int =
+            context.getSharedPreferences("feder_widget", Context.MODE_PRIVATE)
+                .getInt("color", DEFAULT_COLOR)
+
+        /// Zettelfarbe (ARGB) ändern und Widgets neu zeichnen.
+        fun setColor(context: Context, color: Int) {
+            context.getSharedPreferences("feder_widget", Context.MODE_PRIVATE)
+                .edit().putInt("color", color).apply()
+            refresh(context)
         }
 
         private fun loadPreview(context: Context): Bitmap? {

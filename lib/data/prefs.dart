@@ -265,6 +265,13 @@ class Stows {
     volatile: !_isOnMainIsolate,
   );
 
+  /// Zettelfarbe des Schnellnotiz-Widgets (ARGB, Standard: Gelb).
+  final widgetColor = PlainStow(
+    'widgetColor',
+    0xFFFFF59D,
+    volatile: !_isOnMainIsolate,
+  );
+
   /// Glitzerstift in Regenbogenfarben (statt einer gewählten Farbe).
   final glitterRainbow = PlainStow(
     'glitterRainbow',

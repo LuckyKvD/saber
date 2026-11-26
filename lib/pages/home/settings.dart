@@ -241,6 +241,49 @@ class _SettingsPageState extends State<SettingsPage> {
                     if (!enabled) unawaited(QuickNote.clearPreview());
                   },
                 ),
+                ListTile(
+                  leading: const Icon(Icons.sticky_note_2_outlined),
+                  title: const Text('Widget: Zettelfarbe'),
+                  subtitle: ValueListenableBuilder<int>(
+                    valueListenable: stows.widgetColor,
+                    builder: (context, selected, _) => Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Wrap(
+                        spacing: 10,
+                        children: [
+                          for (final c in const [
+                            0xFFFFF59D, // Gelb
+                            0xFFF8BBD0, // Rosa
+                            0xFFBBDEFB, // Blau
+                            0xFFC8E6C9, // Grün
+                            0xFFFFE0B2, // Orange
+                            0xFFFFFFFF, // Weiß
+                          ])
+                            GestureDetector(
+                              onTap: () {
+                                stows.widgetColor.value = c;
+                                unawaited(QuickNote.setColor(c));
+                              },
+                              child: Container(
+                                width: 32,
+                                height: 32,
+                                decoration: BoxDecoration(
+                                  color: Color(c),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    width: selected == c ? 3 : 1,
+                                    color: selected == c
+                                        ? ColorScheme.of(context).primary
+                                        : Colors.black38,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
                 SettingsDropdown(
                   title: t.settings.prefLabels.locale,
                   icon: cupertino ? CupertinoIcons.globe : Icons.language,

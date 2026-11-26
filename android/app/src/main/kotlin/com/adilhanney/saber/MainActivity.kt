@@ -97,6 +97,11 @@ class MainActivity: FlutterFragmentActivity() {
                     QuickNoteWidget.setPreview(applicationContext, call.arguments as? ByteArray)
                     result.success(null)
                 }
+                "setColor" -> {
+                    val color = (call.arguments as? Number)?.toInt()
+                    if (color != null) QuickNoteWidget.setColor(applicationContext, color)
+                    result.success(null)
+                }
                 "clearPreview" -> {
                     QuickNoteWidget.setPreview(applicationContext, null)
                     result.success(null)
