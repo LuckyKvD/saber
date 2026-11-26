@@ -569,6 +569,10 @@ class FileManager {
       _renameReferences(directoryPath + child, newPath + child);
       broadcastFileWrite(FileOperationType.delete, directoryPath + child);
       broadcastFileWrite(FileOperationType.write, newPath + child);
+      // Feder: Sync ueber die Aenderung informieren. Ohne das bleiben die
+      // alten Dateien auf dem Server liegen und werden zurueckgeladen.
+      syncer.uploader.enqueueRel(directoryPath + child);
+      syncer.uploader.enqueueRel(newPath + child);
     }
   }
 
