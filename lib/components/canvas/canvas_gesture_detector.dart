@@ -130,12 +130,19 @@ class CanvasGestureDetector extends StatefulWidget {
     EditorPage page,
     double containerWidth, [
     double containerHeight = double.infinity,
-  ]) => min(
-    min(page.size.width, containerWidth),
-    (containerHeight - Editor.gapBetweenPages * 2) *
-        page.size.width /
-        page.size.height,
-  );
+  ]) {
+    final byWidth = min(page.size.width, containerWidth);
+    // Quermodus: Seite füllt die Bildbreite, senkrecht wird gescrollt.
+    if (containerHeight.isFinite && containerWidth > containerHeight) {
+      return byWidth;
+    }
+    return min(
+      byWidth,
+      (containerHeight - Editor.gapBetweenPages * 2) *
+          page.size.width /
+          page.size.height,
+    );
+  }
 
   /// Horizontal: jede Seite liegt in einem eigenen, bildbreiten Fach.
   /// So ist bei Zoom 1.0 nie mehr als eine Seite zu sehen.
@@ -435,6 +442,25 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
       ..forward();
   }
 
+  /// Quermodus aktiv (Bild breiter als hoch, horizontales Blättern).
+  bool get _landscapeFill =>
+      widget.horizontal &&
+      containerBounds.maxWidth > containerBounds.maxHeight;
+
+  /// Mindest-Verschiebung y, damit das Seitenende erreichbar bleibt.
+  double _minYOfCurrentPage(double scale) {
+    if (widget.pages.isEmpty) return 0;
+    final page = widget.pages[horizontalPageIndex];
+    final w = CanvasGestureDetector._fittedWidth(
+      page,
+      containerBounds.maxWidth,
+      containerBounds.maxHeight,
+    );
+    final h = w / page.size.width * page.size.height;
+    final content = (h + Editor.gapBetweenPages * 2) * scale;
+    return min(0.0, containerBounds.maxHeight - content);
+  }
+
   double get _contentWidth => containerBounds.maxWidth * widget.pages.length;
 
   /// Setzt Zoom auf 1.0x und zentriert die Seite in der Bildmitte
@@ -475,7 +501,11 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
       return;
     }
     final matrix = controller.value.clone();
-    matrix.setTranslationRaw(x, matrix.getTranslation().y, 0);
+    // Quermodus: beim Seitenwechsel sanft nach oben zurück.
+    final y = _landscapeFill && (_snapTo - _snapFrom).abs() > 1
+        ? matrix.getTranslation().y * (1 - t)
+        : matrix.getTranslation().y;
+    matrix.setTranslationRaw(x, y, 0);
     controller.value = matrix;
   }
 
@@ -709,7 +739,14 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
         adjustmentX = minX - translation.x;
       }
       // Eine Seite füllt das Bild: senkrecht festhalten, solange nicht gezoomt.
-      if ((scale - 1).abs() < 0.06) {
+      if (_landscapeFill) {
+        final minY = _minYOfCurrentPage(scale);
+        if (translation.y > 0) {
+          adjustmentY = -translation.y;
+        } else if (translation.y < minY) {
+          adjustmentY = minY - translation.y;
+        }
+      } else if ((scale - 1).abs() < 0.06) {
         adjustmentY = -translation.y;
       } else if (translation.y > 0) {
         adjustmentY = -translation.y;

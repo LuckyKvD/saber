@@ -2206,8 +2206,9 @@ class EditorState extends State<Editor> {
     final Widget toolbar = Collapsible(
       axis: isToolbarVertical ? .horizontal : .vertical,
       collapsed:
-          DynamicMaterialApp.isFullscreen &&
-          !stows.editorToolbarShowInFullscreen.value,
+          _toolbarHidden ||
+          (DynamicMaterialApp.isFullscreen &&
+              !stows.editorToolbarShowInFullscreen.value),
       maintainState: true,
       child: SafeArea(
         bottom: stows.editorToolbarAlignment.value != .up,
@@ -2499,6 +2500,19 @@ class EditorState extends State<Editor> {
                   ),
                   IconButton(
                     icon: Icon(
+                      _toolbarHidden
+                          ? Icons.edit_outlined
+                          : Icons.keyboard_hide_outlined,
+                    ),
+                    tooltip: _toolbarHidden
+                        ? 'Werkzeugleiste einblenden'
+                        : 'Werkzeugleiste ausblenden',
+                    onPressed: () => setState(() {
+                      _toolbarHidden = !_toolbarHidden;
+                    }),
+                  ),
+                  IconButton(
+                    icon: Icon(
                       horizontalPaging ? Icons.swap_vert : Icons.swap_horiz,
                     ),
                     tooltip: horizontalPaging
@@ -2556,6 +2570,9 @@ class EditorState extends State<Editor> {
       ),
     );
   }
+
+  /// Feder: Werkzeugleiste manuell ausblenden (mehr Platz im Quermodus).
+  bool _toolbarHidden = false;
 
   void snackBarNeedsToSaveBeforeExiting() {
     if (!mounted) return;
