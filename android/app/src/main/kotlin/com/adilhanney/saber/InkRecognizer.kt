@@ -22,8 +22,20 @@ object InkRecognizer {
     fun recognize(
         languageTag: String,
         strokes: List<List<List<Double>>>,
-        result: MethodChannel.Result,
+        rawResult: MethodChannel.Result,
     ) {
+        var replied = false
+        val result = object : MethodChannel.Result {
+            override fun success(value: Any?) {
+                if (!replied) { replied = true; rawResult.success(value) }
+            }
+            override fun error(code: String, message: String?, details: Any?) {
+                if (!replied) { replied = true; rawResult.error(code, message, details) }
+            }
+            override fun notImplemented() {
+                if (!replied) { replied = true; rawResult.notImplemented() }
+            }
+        }
         val identifier = try {
             DigitalInkRecognitionModelIdentifier.fromLanguageTag(languageTag)
         } catch (e: Exception) {
@@ -53,7 +65,11 @@ object InkRecognizer {
             )
             recognizer.recognize(ink)
                 .addOnSuccessListener { r ->
-                    result.success(r.candidates.map { it.text })
+                    try {
+                        result.success(r.candidates.map { it.text })
+                    } catch (t: Throwable) {
+                        result.error("recognize_failed", t.toString(), null)
+                    }
                     recognizer.close()
                 }
                 .addOnFailureListener { e ->

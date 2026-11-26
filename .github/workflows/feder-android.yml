@@ -69,6 +69,13 @@ jobs:
           BUILD_NR=$((200000 + GITHUB_RUN_NUMBER))
           flutter build apk --build-number=$BUILD_NR --dart-define=FEDER_BUILD="Build ${GITHUB_RUN_NUMBER} (${GITHUB_SHA::7})"
 
+      - name: Manifest-Prüfung (nur Information)
+        run: |
+          AAPT=$(ls $ANDROID_HOME/build-tools/*/aapt2 | tail -1)
+          $AAPT dump xmltree --file AndroidManifest.xml build/app/outputs/flutter-apk/app-release.apk | grep -iE "mlkit|MlKitInit|provider|minSdk" | head -20 || true
+          unzip -l build/app/outputs/flutter-apk/app-release.apk | grep -iE "mlkit|digitalink" | head -5 || true
+          unzip -p build/app/outputs/flutter-apk/app-release.apk classes*.dex | strings | grep -c "vision/digitalink/recognition" || true
+
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:

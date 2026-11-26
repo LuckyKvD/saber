@@ -56,7 +56,12 @@ class MainActivity: FlutterFragmentActivity() {
                     if (strokes == null) {
                         result.error("bad_args", "Striche fehlen", null)
                     } else {
-                        InkRecognizer.recognize(lang, strokes, result)
+                        try {
+                            InkRecognizer.recognize(lang, strokes, result)
+                        } catch (t: Throwable) {
+                            // Native Fehler (z. B. fehlende Klasse) als Meldung statt Absturz
+                            result.error("ink_crash", t.toString(), null)
+                        }
                     }
                 } else {
                     result.notImplemented()
