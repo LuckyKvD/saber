@@ -88,11 +88,16 @@ void drawTape(
     return;
   }
 
-  final delta = b - a;
+  // Motive (Herzen, Totenkoepfe, Schrift) sollen nie auf dem Kopf stehen:
+  // bei Zug von rechts nach links Start und Ende tauschen.
+  final leftToRight = b.dx >= a.dx - 0.5;
+  final from = leftToRight ? a : b;
+  final to = leftToRight ? b : a;
+  final delta = to - from;
   final length = delta.distance;
   canvas.save();
   canvas.clipPath(path);
-  canvas.translate(a.dx, a.dy);
+  canvas.translate(from.dx, from.dy);
   canvas.rotate(math.atan2(delta.dy, delta.dx));
   // Leicht transparent, damit Schrift darunter noch zu ahnen ist.
   canvas.saveLayer(

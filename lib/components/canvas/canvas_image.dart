@@ -161,6 +161,12 @@ class _CanvasImageState extends State<CanvasImage> {
 
     useListenable(widget.image);
     if (widget.readOnly) active = false;
+    if (widget.image.reactivate) {
+      widget.image.reactivate = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !widget.readOnly) active = true;
+      });
+    }
 
     final currentBrightness = widget.image.invertible
         ? Theme.brightnessOf(context)

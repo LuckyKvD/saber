@@ -5,6 +5,8 @@ import 'package:material_ui/material_ui.dart';
 import 'package:one_dollar_unistroke_recognizer/one_dollar_unistroke_recognizer.dart';
 import 'package:path_drawing/path_drawing.dart';
 import 'package:perfect_freehand/perfect_freehand.dart';
+import 'package:saber/components/canvas/glitter_geometry.dart';
+import 'package:saber/components/canvas/symbol_geometry.dart';
 import 'package:saber/components/canvas/_circle_stroke.dart';
 import 'package:saber/components/canvas/_rectangle_stroke.dart';
 import 'package:saber/components/canvas/_stroke.dart';
@@ -168,7 +170,26 @@ class CanvasPainter extends CustomPainter {
           shapePaint,
         );
       } else {
-        canvas.drawPath(_selectPath(stroke), paint);
+        if (stroke.isSymbolBrush) {
+          drawSymbolBrush(
+            canvas,
+            stroke.points,
+            stroke.options.size,
+            paint.color,
+            stroke.penStyle! - Stroke.styleSymbolBase,
+          );
+        } else if (stroke.penStyle == Stroke.styleRainbow) {
+          drawRainbow(canvas, stroke.points, stroke.options.size);
+        } else if (stroke.penStyle == Stroke.styleLiner &&
+            stroke.points.length >= 2) {
+          drawLiner(canvas, stroke.points, stroke.options.size, paint.color);
+        } else {
+          canvas.drawPath(_selectPath(stroke), paint);
+        }
+        if (stroke.penStyle == Stroke.styleGlitter ||
+            stroke.penStyle == Stroke.styleRainbow) {
+          drawGlitter(canvas, stroke.points, stroke.options.size, color);
+        }
       }
     }
   }
@@ -209,7 +230,36 @@ class CanvasPainter extends CustomPainter {
     }
 
     // Current stroke always uses high quality
-    canvas.drawPath(currentStroke!.highQualityPath, paint);
+    if (currentStroke!.isSymbolBrush) {
+      drawSymbolBrush(
+        canvas,
+        currentStroke!.points,
+        currentStroke!.options.size,
+        color,
+        currentStroke!.penStyle! - Stroke.styleSymbolBase,
+      );
+    } else if (currentStroke!.penStyle == Stroke.styleRainbow) {
+      drawRainbow(canvas, currentStroke!.points, currentStroke!.options.size);
+    } else if (currentStroke!.penStyle == Stroke.styleLiner &&
+        currentStroke!.points.length >= 2) {
+      drawLiner(
+        canvas,
+        currentStroke!.points,
+        currentStroke!.options.size,
+        color,
+      );
+    } else {
+      canvas.drawPath(currentStroke!.highQualityPath, paint);
+    }
+    if (currentStroke!.penStyle == Stroke.styleGlitter ||
+        currentStroke!.penStyle == Stroke.styleRainbow) {
+      drawGlitter(
+        canvas,
+        currentStroke!.points,
+        currentStroke!.options.size,
+        color,
+      );
+    }
   }
 
   void _drawLaserStroke(Canvas canvas, LaserStroke stroke) {

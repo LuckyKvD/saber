@@ -23,4 +23,37 @@ class Highlighter extends Pen {
   static var currentHighlighter = Highlighter();
 
   static const highlighterIcon = FontAwesomeIcons.highlighter;
+
+  /// Gerader Modus: Start- bis Endpunkt als saubere Linie, waagerecht oder
+  /// senkrecht einrastend.
+  static const snapDegrees = 6.0;
+
+  @override
+  void onDragUpdate(Offset position, double? pressure) {
+    if (!stows.highlighterStraight.value) {
+      super.onDragUpdate(position, pressure);
+      return;
+    }
+    final stroke = Pen.currentStroke;
+    if (stroke == null) return;
+    if (stroke.points.length >= 2) {
+      stroke.points.removeRange(1, stroke.points.length);
+    }
+    var end = position;
+    if (stroke.points.isNotEmpty) {
+      final start = Offset(stroke.points.first.dx, stroke.points.first.dy);
+      final dx = (end.dx - start.dx).abs();
+      final dy = (end.dy - start.dy).abs();
+      final tolerance = snapDegrees * 3.14159265 / 180;
+      if (dx > 0 && dy / dx < tolerance) {
+        end = Offset(end.dx, start.dy);
+      } else if (dy > 0 && dx / dy < tolerance) {
+        end = Offset(start.dx, end.dy);
+      }
+    }
+    stroke.addPoint(end, pressure);
+  }
+
+  @override
+  bool get holdToShape => !stows.highlighterStraight.value && super.holdToShape;
 }

@@ -30,8 +30,11 @@ class const SyncingButton({super.key}) extends HookWidget {
     // Don't refresh if we're already refreshing.
     if (syncer.downloader.isRefreshing || syncer.uploader.isRefreshing) return;
 
-    // Reset progress indicator
-    filesTransferred.value = 0;
+    // Reset progress indicator (nur wenn nichts mehr ansteht, sonst
+    // verschwindet die Fortschrittsanzeige mitten im Sync)
+    if (syncer.downloader.numPending + syncer.uploader.numPending == 0) {
+      filesTransferred.value = 0;
+    }
 
     syncer.downloader.refresh();
     syncer.uploader.refresh();
@@ -61,8 +64,14 @@ class const SyncingButton({super.key}) extends HookWidget {
     });
 
     final percentage = getPercentage();
+    final pending = syncer.downloader.numPending + syncer.uploader.numPending;
+    final syncing = stows.loggedIn && (percentage == null || percentage < 1);
+    // Feder: Prozentzahl neben dem Sync-Symbol, solange synchronisiert wird.
+    final label = percentage == null
+        ? '…'
+        : '${(percentage * 100).floor()} % · $pending offen';
 
-    return IconButton(
+    final button = IconButton(
       onPressed: stows.loggedIn
           ? onPressed
           : (debugForceButtonActive ? () {} : null),
@@ -96,6 +105,15 @@ class const SyncingButton({super.key}) extends HookWidget {
           ),
         ],
       ),
+    );
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (syncing)
+          Text(label, style: Theme.of(context).textTheme.labelSmall),
+        button,
+      ],
     );
   }
 }

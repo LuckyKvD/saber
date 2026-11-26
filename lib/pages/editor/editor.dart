@@ -20,6 +20,9 @@ import 'package:saber/components/canvas/_asset_cache.dart';
 import 'package:saber/components/canvas/_stroke.dart';
 import 'package:saber/components/canvas/canvas.dart';
 import 'package:saber/components/canvas/guide_tools.dart';
+import 'package:saber/components/toolbar/text_stamp.dart';
+import 'package:saber/data/quick_note.dart';
+import 'package:saber/data/tools/extra_pens.dart';
 import 'package:saber/components/canvas/image/image_clip.dart';
 import 'package:saber/data/photo_sources.dart';
 import 'package:saber/components/canvas/canvas_gesture_detector.dart';
@@ -34,6 +37,8 @@ import 'package:saber/components/theming/saber_theme.dart';
 import 'package:saber/components/toolbar/color_bar.dart';
 import 'package:saber/components/toolbar/editor_bottom_sheet.dart';
 import 'package:saber/components/toolbar/editor_page_manager.dart';
+import 'package:saber/components/toolbar/pick_notebook_dialog.dart';
+import 'package:saber/data/page_transfer.dart';
 import 'package:saber/components/toolbar/toolbar.dart';
 import 'package:saber/data/editor/editor_core_info.dart';
 import 'package:saber/data/editor/editor_exporter.dart';
@@ -126,6 +131,47 @@ class EditorState extends State<Editor> {
     }
   }
 
+  /// Feder: Blättern wie im Buch (Seiten nebeneinander) für dieses Notizbuch.
+  bool get horizontalPaging =>
+      coreInfo.filePath.isNotEmpty &&
+      stows.horizontalPagingFiles.value.contains(coreInfo.filePath);
+
+  /// Scrollt zur Seite, egal ob vertikal oder horizontal geblättert wird.
+  void scrollToPageIndex(int pageIndex) {
+    if (horizontalPaging) {
+      CanvasGestureDetector.scrollToPageHorizontal(
+        pageIndex: pageIndex,
+        pages: coreInfo.pages,
+        containerWidth:
+            _canvasGestureDetectorKey.currentState?.containerBounds.maxWidth ??
+            MediaQuery.sizeOf(context).width,
+        containerHeight:
+            _canvasGestureDetectorKey.currentState?.containerBounds.maxHeight ??
+            MediaQuery.sizeOf(context).height * 0.85,
+        transformationController: _transformationController,
+      );
+    } else {
+      CanvasGestureDetector.scrollToPage(
+        pageIndex: pageIndex,
+        pages: coreInfo.pages,
+        screenWidth: MediaQuery.sizeOf(context).width,
+        transformationController: _transformationController,
+      );
+    }
+  }
+
+  void toggleHorizontalPaging() {
+    final pageIndex = currentPageIndex;
+    final files = [...stows.horizontalPagingFiles.value];
+    if (!files.remove(coreInfo.filePath)) files.add(coreInfo.filePath);
+    stows.horizontalPagingFiles.value = files;
+    _transformationController.value = Matrix4.identity();
+    setState(() {});
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) scrollToPageIndex(pageIndex);
+    });
+  }
+
   var history = EditorHistory();
 
   /// Schreibfeld (Easy-Writing) sichtbar?
@@ -209,7 +255,32 @@ class EditorState extends State<Editor> {
 
   GuideEdge? _guideEdge;
 
+  int? _guideSyncPage;
+
+  /// Hilfsmittel folgen der Seite, zu der man scrollt (nur beim Seitenwechsel
+  /// durch Scrollen, nicht nach einem Ziehen des Hilfsmittels selbst).
+  void _syncGuidesToPage() {
+    if (!mounted || !Guides.anyVisible || !identical(Guides.owner, coreInfo)) {
+      return;
+    }
+    _prepareGuides();
+    final index = currentPageIndex;
+    if (index == _guideSyncPage) return;
+    _guideSyncPage = index;
+    if (index == Guides.pageIndex || Guides.grabbing) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !Guides.grabbing) Guides.moveToPage(index);
+    });
+  }
+
+  void _prepareGuides() {
+    Guides.pageSizes = [for (final p in coreInfo.pages) p.size];
+    Guides.verticalPages = !horizontalPaging;
+  }
+
   void _toggleRuler() {
+    _prepareGuides();
+    _guideSyncPage = currentPageIndex;
     final index = currentPageIndex.clamp(0, coreInfo.pages.length - 1);
     setState(() {
       Guides.toggleRuler(coreInfo, index, coreInfo.pages[index].size);
@@ -217,6 +288,8 @@ class EditorState extends State<Editor> {
   }
 
   void _toggleProtractor() {
+    _prepareGuides();
+    _guideSyncPage = currentPageIndex;
     final index = currentPageIndex.clamp(0, coreInfo.pages.length - 1);
     setState(() {
       Guides.cycleProtractor(coreInfo, index, coreInfo.pages[index].size);
@@ -267,12 +340,7 @@ class EditorState extends State<Editor> {
         // Seite ist noch nicht aufgebaut (z. B. neue Seite): dorthin scrollen
         // und es danach noch einmal versuchen.
         if (retry && viewBox != null) {
-          CanvasGestureDetector.scrollToPage(
-            pageIndex: controller.pageIndex,
-            pages: coreInfo.pages,
-            screenWidth: MediaQuery.sizeOf(context).width,
-            transformationController: _transformationController,
-          );
+          scrollToPageIndex(controller.pageIndex);
           _revealWritingWindow(retry: false);
         }
         return;
@@ -378,6 +446,8 @@ class EditorState extends State<Editor> {
     DynamicMaterialApp.addFullscreenListener(_setState);
     Pen.onHoldShapeDetected = _setState;
     writingPadController.addListener(_onWritingPadChanged);
+    _transformationController.addListener(_syncGuidesToPage);
+    StampPen.onPlaceText = _placeTextStamp;
     EditorImage.dropHandler = _onDropImage;
     EditorImage.targetHandler = _startImageTarget;
 
@@ -511,7 +581,7 @@ class EditorState extends State<Editor> {
       }
     }
 
-    if (removedAPage) {
+    if (removedAPage && !horizontalPaging) {
       // scroll to the last page (only if we're below the last page)
 
       final scrollY = this.scrollY;
@@ -1418,6 +1488,11 @@ class EditorState extends State<Editor> {
     );
     final thumbnailPng = await thumbnail.toByteData(format: .png);
     thumbnail.dispose();
+    if (coreInfo.filePath == QuickNote.path) {
+      unawaited(
+        QuickNote.updatePreview(thumbnailPng!.buffer.asUint8List()),
+      );
+    }
     await FileManager.writeFile(
       // Note that this ends with .sbn2.p
       '$filePath.p',
@@ -1520,6 +1595,45 @@ class EditorState extends State<Editor> {
     }
   }
 
+  /// Feder: Jeder Stift merkt sich seine zuletzt benutzte Farbe.
+  void _savePenColor(Pen pen) {
+    try {
+      final map = Map<String, dynamic>.from(
+        jsonDecode(stows.penColors.value) as Map,
+      );
+      map[pen.name] = pen.color.toARGB32();
+      stows.penColors.value = jsonEncode(map);
+    } catch (_) {}
+  }
+
+  void _restorePenColor(Tool tool) {
+    if (tool is! Pen || tool is Highlighter || tool is TapePen) return;
+    try {
+      final map = jsonDecode(stows.penColors.value) as Map;
+      final saved = map[tool.name];
+      if (saved is int) tool.color = Color(saved);
+    } catch (_) {}
+  }
+
+  /// Feder: Text-Stempel als Bild in die Bildmitte legen.
+  Future<void> _placeTextStamp(String text, Color color) async {
+    final bytes = await renderTextStamp(text, color);
+    // Dialog erst ganz schließen lassen, sonst deaktiviert dessen
+    // Abschlussgeste den neuen Rahmen sofort wieder.
+    await Future<void>.delayed(const Duration(milliseconds: 450));
+    if (!mounted) return;
+    _lastPickedImages = const [];
+    await _pickPhotos([_PhotoInfo(bytes, '.png')]);
+    await Future<void>.delayed(const Duration(milliseconds: 350));
+    if (!mounted) return;
+    for (final image in _lastPickedImages) {
+      image.reactivate = true;
+      image.notifyListenersPlease();
+    }
+  }
+
+  List<EditorImage> _lastPickedImages = const [];
+
   /// Prompts the user to pick photos from their device.
   /// Returns the number of photos picked.
   ///
@@ -1576,6 +1690,7 @@ class EditorState extends State<Editor> {
       }
     }
 
+    _lastPickedImages = images;
     if (images.isNotEmpty) {
       // use the Select tool so that the user can move the new image
       currentTool = Select.currentSelect;
@@ -2135,6 +2250,7 @@ class EditorState extends State<Editor> {
       undo: undo,
       redo: redo,
       pages: coreInfo.pages,
+      horizontal: horizontalPaging,
       initialPageIndex: coreInfo.initialPageIndex,
       pageBuilder: pageBuilder,
       isTextEditing: () => currentTool == Tool.textEditing,
@@ -2167,8 +2283,9 @@ class EditorState extends State<Editor> {
     final Widget toolbar = Collapsible(
       axis: isToolbarVertical ? .horizontal : .vertical,
       collapsed:
-          DynamicMaterialApp.isFullscreen &&
-          !stows.editorToolbarShowInFullscreen.value,
+          _toolbarHidden ||
+          (DynamicMaterialApp.isFullscreen &&
+              !stows.editorToolbarShowInFullscreen.value),
       maintainState: true,
       child: SafeArea(
         bottom: stows.editorToolbarAlignment.value != .up,
@@ -2180,6 +2297,7 @@ class EditorState extends State<Editor> {
               tool = _lastNonEraserTool;
             }
 
+            _restorePenColor(tool);
             currentTool = tool;
 
             if (tool is Highlighter) {
@@ -2275,6 +2393,7 @@ class EditorState extends State<Editor> {
                 stows.lastTapePattern.value = -1; // Farbe gewählt = einfarbig
               } else if (currentTool is Pen) {
                 (currentTool as Pen).color = color;
+                _savePenColor(currentTool as Pen);
               } else if (currentTool is Select) {
                 // Changes color of selected strokes
                 final select = currentTool as Select;
@@ -2455,13 +2574,30 @@ class EditorState extends State<Editor> {
                     onPressed: () => setState(() {
                       final currentPageIndex = this.currentPageIndex;
                       insertPageAfter(currentPageIndex);
-                      CanvasGestureDetector.scrollToPage(
-                        pageIndex: currentPageIndex + 1,
-                        pages: coreInfo.pages,
-                        screenWidth: MediaQuery.sizeOf(context).width,
-                        transformationController: _transformationController,
-                      );
+                      scrollToPageIndex(currentPageIndex + 1);
                     }),
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      _toolbarHidden
+                          ? Icons.edit_outlined
+                          : Icons.keyboard_hide_outlined,
+                    ),
+                    tooltip: _toolbarHidden
+                        ? 'Werkzeugleiste einblenden'
+                        : 'Werkzeugleiste ausblenden',
+                    onPressed: () => setState(() {
+                      _toolbarHidden = !_toolbarHidden;
+                    }),
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      horizontalPaging ? Icons.swap_vert : Icons.swap_horiz,
+                    ),
+                    tooltip: horizontalPaging
+                        ? 'Seiten untereinander (vertikal blättern)'
+                        : 'Seiten nebeneinander (wie ein Buch blättern)',
+                    onPressed: toggleHorizontalPaging,
                   ),
                   IconButton(
                     icon: const AdaptiveIcon(
@@ -2513,6 +2649,9 @@ class EditorState extends State<Editor> {
       ),
     );
   }
+
+  /// Feder: Werkzeugleiste manuell ausblenden (mehr Platz im Quermodus).
+  bool _toolbarHidden = false;
 
   void snackBarNeedsToSaveBeforeExiting() {
     if (!mounted) return;
@@ -2644,9 +2783,61 @@ class EditorState extends State<Editor> {
     );
   }
 
+  /// Kopiert oder verschiebt Seiten in ein anderes Notizbuch.
+  Future<bool> transferPages(
+    BuildContext context,
+    List<int> pageIndexes,
+    bool move,
+  ) async {
+    if (coreInfo.readOnly && move) return false;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final target = await pickNotebook(
+      context,
+      title: move ? 'Seiten verschieben nach' : 'Seiten kopieren nach',
+      excludePath: coreInfo.filePath,
+    );
+    if (target == null) return false;
+
+    try {
+      final count = await copyPagesToNote(
+        source: coreInfo,
+        pageIndexes: pageIndexes,
+        targetPath: target,
+      );
+      if (move && mounted) {
+        setState(() {
+          for (final pageIndex in [...pageIndexes]..sort((a, b) => b - a)) {
+            final page = coreInfo.pages.removeAt(pageIndex);
+            createPage(pageIndex - 1);
+            history.recordChange(
+              HistoricPageDelete(pageIndex: pageIndex, page: page),
+            );
+          }
+          autosaveAfterDelay();
+        });
+      }
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Text(
+            move ? '$count Seite(n) verschoben' : '$count Seite(n) kopiert',
+          ),
+        ),
+      );
+      return true;
+    } catch (e, st) {
+      log.severe('Seiten übertragen fehlgeschlagen: $e', e, st);
+      messenger?.showSnackBar(
+        const SnackBar(content: Text('Übertragen fehlgeschlagen')),
+      );
+      return false;
+    }
+  }
+
   Widget pageManager(BuildContext context) {
     return EditorPageManager(
       coreInfo: coreInfo,
+      onTransfer: (pages, move) => transferPages(context, pages, move),
+      scrollToPageOverride: scrollToPageIndex,
       currentPageIndex: currentPageIndex,
       redrawAndSave: () => setState(() {
         if (coreInfo.readOnly) return;
@@ -2779,6 +2970,14 @@ class EditorState extends State<Editor> {
 
     final screenWidth = MediaQuery.sizeOf(context).width;
 
+    if (horizontalPaging) {
+      final detector = _canvasGestureDetectorKey.currentState;
+      if (detector == null) return _lastCurrentPageIndex;
+      return _lastCurrentPageIndex = detector.horizontalPageIndex
+          .clamp(0, math.max(0, coreInfo.pages.length - 1))
+          .toInt();
+    }
+
     return _lastCurrentPageIndex = getPageIndexFromScrollPosition(
       scrollY: -scrollY,
       screenWidth: screenWidth,
@@ -2814,6 +3013,8 @@ class EditorState extends State<Editor> {
     DynamicMaterialApp.removeFullscreenListener(_setState);
     if (Pen.onHoldShapeDetected == _setState) Pen.onHoldShapeDetected = null;
     writingPadController.removeListener(_onWritingPadChanged);
+    _transformationController.removeListener(_syncGuidesToPage);
+    StampPen.onPlaceText = null;
     WritingPadGuide.clear();
     Guides.clear();
     if (EditorImage.dropHandler == _onDropImage) EditorImage.dropHandler = null;

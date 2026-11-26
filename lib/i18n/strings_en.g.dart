@@ -356,8 +356,8 @@ class Translations$home$titles$en {
 
 	// Translations
 
-	/// en: 'Recent notes'
-	String get home => 'Recent notes';
+	/// en: 'My shelf'
+	String get home => 'My shelf';
 
 	/// en: 'Browse'
 	String get browse => 'Browse';

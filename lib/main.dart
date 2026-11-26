@@ -22,6 +22,7 @@ import 'package:saber/data/flavor_config.dart';
 import 'package:saber/data/nextcloud/nc_http_overrides.dart';
 import 'package:saber/data/nextcloud/saber_syncer.dart';
 import 'package:saber/data/prefs.dart';
+import 'package:saber/data/quick_note.dart';
 import 'package:saber/data/routes.dart';
 import 'package:saber/data/sentry/sentry_init.dart';
 import 'package:saber/data/tools/stroke_properties.dart';
@@ -52,9 +53,8 @@ Future<void> appRunner(List<String> args) async {
   final parser = ArgParser()..addFlag('verbose', abbr: 'v', negatable: false);
   final parsedArgs = parser.parse(args);
 
-  Logger.root.level = (kDebugMode || parsedArgs.flag('verbose'))
-      ? Level.INFO
-      : Level.WARNING;
+  // Feder: auch im Release INFO, damit Ladezeiten im Protokoll stehen.
+  Logger.root.level = Level.INFO;
   Logger.root.onRecord.listen((record) {
     logsHistory.add(record);
 
@@ -242,7 +242,7 @@ class const App({super.key}) extends StatefulWidget {
   static final log = Logger('App');
 
   static String initialLocation = pathToFunction(RoutePaths.home)({
-    'subpage': HomePage.recentSubpage,
+    'subpage': HomePage.browseSubpage,
   });
   static final _router = GoRouter(
     initialLocation: initialLocation,
@@ -251,7 +251,7 @@ class const App({super.key}) extends StatefulWidget {
       GoRoute(
         path: RoutePaths.home,
         builder: (context, state) => HomePage(
-          subpage: state.pathParameters['subpage'] ?? HomePage.recentSubpage,
+          subpage: state.pathParameters['subpage'] ?? HomePage.browseSubpage,
           path: state.uri.queryParameters['path'],
         ),
       ),
@@ -317,6 +317,14 @@ class _AppState extends State<App> {
   @override
   void initState() {
     setupSharingIntent();
+    // Feder: Schnellnotiz-Widget startet die feste Notiz.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future<void>.delayed(const Duration(milliseconds: 400), () {
+        QuickNote.setup(
+          (path) => App._router.push(RoutePaths.editFilePath(path)),
+        );
+      });
+    });
     super.initState();
   }
 

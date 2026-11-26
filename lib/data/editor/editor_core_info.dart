@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:logging/logging.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:path/path.dart' as p;
+import 'package:saber/data/editor/fast_bson.dart';
 import 'package:saber/components/canvas/_asset_cache.dart';
 import 'package:saber/components/canvas/_stroke.dart';
 import 'package:saber/components/canvas/image/editor_image.dart';
@@ -352,7 +353,9 @@ class EditorCoreInfo {
     String path, {
     bool onlyFirstPage = false,
   }) async {
+    final timer = Stopwatch()..start();
     final bsonBytes = await FileManager.readFile(path + Editor.extension);
+    final readMs = timer.elapsedMilliseconds;
 
     final String? jsonString;
     if (bsonBytes != null) {
@@ -368,12 +371,19 @@ class EditorCoreInfo {
       return EditorCoreInfo(filePath: path);
     }
 
-    return loadFromFileContents(
+    final loaded = await loadFromFileContents(
       jsonString: jsonString,
       bsonBytes: bsonBytes,
       path: path,
       onlyFirstPage: onlyFirstPage,
     );
+    // Feder: Ladezeiten fuer die Fehlersuche (steht im Protokoll, ohne Namen).
+    log.info(
+      'Notiz geladen: lesen/entschluesseln $readMs ms, '
+      'auswerten ${timer.elapsedMilliseconds - readMs} ms, '
+      '${bsonBytes?.length ?? 0} Bytes, ${loaded.pages.length} Seiten',
+    );
+    return loaded;
   }
 
   @visibleForTesting
@@ -394,11 +404,13 @@ class EditorCoreInfo {
       );
 
       final length = jsonString?.length ?? bsonBytes!.length;
-      if (alwaysUseIsolate || length > 2 * 1024 * 1024) {
-        // > 2 MB, run on a separate isolate
+      final outer = Stopwatch()..start();
+      if (alwaysUseIsolate || length > 256 * 1024) {
+        // > 256 KB (Feder: frueher als im Original), eigener Isolate
         final documentsDirectory = FileManager.documentsDirectory;
-        coreInfo = await workerManager.execute(
+        final result = await workerManager.execute(
           () async {
+            final inner = Stopwatch()..start();
             // We need to rerun some "init" methods in the isolate,
             // see https://github.com/saber-notes/saber/issues/1031.
             FlavorConfig.setupFromEnvironment();
@@ -407,10 +419,19 @@ class EditorCoreInfo {
               shouldWatchRootDirectory: false,
             );
             StrokeOptionsExtension.setDefaults();
-            return isolate();
+            final initMs = inner.elapsedMilliseconds;
+            final info = isolate();
+            return (info, initMs, _lastDecodeMs, inner.elapsedMilliseconds);
           },
           // less important than [WorkPriority.immediately]
           priority: WorkPriority.veryHigh,
+        );
+        coreInfo = result.$1;
+        // Feder: Aufschluesselung der Ladezeit (Protokoll, ohne Namen).
+        log.info(
+          'Notiz-Isolate: gesamt ${outer.elapsedMilliseconds} ms, '
+          'davon Start im Isolate ${result.$2} ms, '
+          'BSON lesen ${result.$3} ms, im Isolate insgesamt ${result.$4} ms',
         );
       } else {
         // if the file is small, just run it on the main thread
@@ -428,6 +449,9 @@ class EditorCoreInfo {
     return coreInfo;
   }
 
+  /// Feder: Dauer des BSON-Dekodierens im letzten Ladevorgang (pro Isolate).
+  static int _lastDecodeMs = 0;
+
   factory _loadFromFileIsolate(
     String? jsonString,
     Uint8List? bsonBytes,
@@ -437,8 +461,18 @@ class EditorCoreInfo {
     final dynamic json;
     try {
       if (bsonBytes != null) {
-        final bsonBinary = BsonBinary.from(bsonBytes);
-        json = BsonCodec.deserialize(bsonBinary);
+        final decodeTimer = Stopwatch()..start();
+        dynamic decoded;
+        try {
+          // Feder: schneller eigener Leser (siehe fast_bson.dart).
+          decoded = FastBson.decode(bsonBytes);
+        } catch (e) {
+          log.warning('Schneller BSON-Leser fehlgeschlagen, nutze Paket: $e');
+          final bsonBinary = BsonBinary.from(bsonBytes);
+          decoded = BsonCodec.deserialize(bsonBinary);
+        }
+        json = decoded;
+        _lastDecodeMs = decodeTimer.elapsedMilliseconds;
       } else if (jsonString != null) {
         json = jsonDecode(jsonString);
       } else {

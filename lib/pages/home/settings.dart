@@ -7,12 +7,12 @@ import 'package:flutter/foundation.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:saber/components/settings/about_feder.dart';
 import 'package:saber/components/settings/local_encryption_tile.dart';
 import 'package:saber/components/navbar/responsive_navbar.dart';
 import 'package:saber/components/security/app_lock.dart';
-import 'package:saber/components/settings/app_info.dart';
-import 'package:saber/components/import/saber_import_tile.dart';
 import 'package:saber/components/settings/nextcloud_profile.dart';
+import 'package:saber/components/settings/server_cleanup_tile.dart';
 import 'package:saber/components/settings/settings_button.dart';
 import 'package:saber/components/settings/settings_color.dart';
 import 'package:saber/components/settings/settings_directory_selector.dart';
@@ -31,6 +31,7 @@ import 'package:saber/data/flavor_config.dart';
 import 'package:saber/data/is_this_a_test.dart';
 import 'package:saber/data/locales.dart';
 import 'package:saber/data/prefs.dart';
+import 'package:saber/data/quick_note.dart';
 import 'package:saber/data/routes.dart';
 import 'package:saber/data/sentry/sentry_init.dart';
 import 'package:saber/data/tools/shape_pen.dart';
@@ -213,9 +214,9 @@ class _SettingsPageState extends State<SettingsPage> {
             sliver: SliverList.list(
               children: [
                 const NextcloudProfile(),
-                const SaberImportTile(),
+                const AboutFeder(),
                 const LocalEncryptionTile(),
-                const Padding(padding: .all(8), child: AppInfo()),
+                const ServerCleanupTile(),
                 SettingsSubtitle(subtitle: t.settings.prefCategories.general),
                 SettingsSwitch(
                   title: 'App-Sperre',
@@ -226,6 +227,62 @@ class _SettingsPageState extends State<SettingsPage> {
                   icon: Icons.lock,
                   pref: stows.appLockEnabled,
                   afterChange: (enabled) => unawaited(_verifyAppLock(enabled)),
+                ),
+                SettingsSwitch(
+                  title: 'Widget: Vorschau der Schnellnotiz',
+                  subtitle:
+                      'Zeigt die erste Seite der Notiz „Schnellnotiz“ im '
+                      'Widget auf dem Startbildschirm. Achtung: Die Vorschau '
+                      'liegt unverschlüsselt im privaten App-Speicher und ist '
+                      'auf dem Startbildschirm sichtbar. Ausschalten löscht sie.',
+                  icon: Icons.widgets_outlined,
+                  pref: stows.widgetPreview,
+                  afterChange: (enabled) {
+                    if (!enabled) unawaited(QuickNote.clearPreview());
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.sticky_note_2_outlined),
+                  title: const Text('Widget: Zettelfarbe'),
+                  subtitle: ValueListenableBuilder<int>(
+                    valueListenable: stows.widgetColor,
+                    builder: (context, selected, _) => Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Wrap(
+                        spacing: 10,
+                        children: [
+                          for (final c in const [
+                            0xFFFFF59D, // Gelb
+                            0xFFF8BBD0, // Rosa
+                            0xFFBBDEFB, // Blau
+                            0xFFC8E6C9, // Grün
+                            0xFFFFE0B2, // Orange
+                            0xFFFFFFFF, // Weiß
+                          ])
+                            GestureDetector(
+                              onTap: () {
+                                stows.widgetColor.value = c;
+                                unawaited(QuickNote.setColor(c));
+                              },
+                              child: Container(
+                                width: 32,
+                                height: 32,
+                                decoration: BoxDecoration(
+                                  color: Color(c),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    width: selected == c ? 3 : 1,
+                                    color: selected == c
+                                        ? ColorScheme.of(context).primary
+                                        : Colors.black38,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
                 SettingsDropdown(
                   title: t.settings.prefLabels.locale,

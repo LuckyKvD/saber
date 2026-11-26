@@ -254,6 +254,48 @@ class Stows {
     volatile: !_isOnMainIsolate,
   );
 
+  /// Stempel-Symbol (Index) und Größe in Seitenpunkten.
+  final stampSymbol = PlainStow('stampSymbol', 0, volatile: !_isOnMainIsolate);
+  final stampScale = PlainStow('stampScale', 48, volatile: !_isOnMainIsolate);
+
+  /// Schnellnotiz-Widget zeigt eine Vorschau der Notiz.
+  final widgetPreview = PlainStow(
+    'widgetPreview',
+    true,
+    volatile: !_isOnMainIsolate,
+  );
+
+  /// Zettelfarbe des Schnellnotiz-Widgets (ARGB, Standard: Gelb).
+  final widgetColor = PlainStow(
+    'widgetColor',
+    0xFFFFF59D,
+    volatile: !_isOnMainIsolate,
+  );
+
+  /// Glitzerstift in Regenbogenfarben (statt einer gewählten Farbe).
+  final glitterRainbow = PlainStow(
+    'glitterRainbow',
+    true,
+    volatile: !_isOnMainIsolate,
+  );
+
+  /// Zuletzt benutzte Farbe je Stift (JSON: Stiftname -> ARGB).
+  final penColors = PlainStow('penColors', '{}', volatile: !_isOnMainIsolate);
+
+  /// Muster-Stift: 0 = gestrichelt, sonst Zeichen-Nummer.
+  final patternSymbol = PlainStow(
+    'patternSymbol',
+    0,
+    volatile: !_isOnMainIsolate,
+  );
+
+  /// Textmarker zieht gerade Linien.
+  final highlighterStraight = PlainStow(
+    'highlighterStraight',
+    false,
+    volatile: !_isOnMainIsolate,
+  );
+
   /// Druckempfindlichkeit des Füllers in Prozent (perfect_freehand `thinning`).
   final fountainThinning = PlainStow(
     'fountainThinning',
@@ -411,9 +453,10 @@ class Stows {
         volatile: !_isOnMainIsolate,
       );
 
+  // Feder: neuer Schluessel, damit das Regal als Standard gilt.
   final homeLayout = PlainStow(
-    'homeLayout',
-    HomeLayout.masonryGrid,
+    'homeLayoutFeder',
+    HomeLayout.shelf,
     codec: HomeLayout.codec,
     volatile: !_isOnMainIsolate,
   );
@@ -421,6 +464,12 @@ class Stows {
     'browseSortMetric',
     SortMetric.nameAToZ,
     codec: SortMetric.codec,
+    volatile: !_isOnMainIsolate,
+  );
+  /// Feder: Notizbücher, die horizontal (wie ein Buch) geblättert werden.
+  final horizontalPagingFiles = PlainStow(
+    'horizontalPagingFiles',
+    <String>[],
     volatile: !_isOnMainIsolate,
   );
   final recentFiles = PlainStow(
@@ -432,6 +481,15 @@ class Stows {
   /// File paths that have been deleted locally
   final fileSyncAlreadyDeleted = PlainStow(
     'fileSyncAlreadyDeleted',
+    <String>{},
+    volatile: !_isOnMainIsolate,
+  );
+
+  /// Feder: Pfade, die lokal gelöscht/verschoben wurden und deren Löschung
+  /// noch nicht auf dem Server angekommen ist. Solange sie hier stehen, wird
+  /// die alte Server-Datei nicht zurückgeladen.
+  final fileSyncPendingDeletes = PlainStow(
+    'fileSyncPendingDeletes',
     <String>{},
     volatile: !_isOnMainIsolate,
   );

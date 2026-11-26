@@ -13,7 +13,7 @@ class const Welcome({super.key}) extends StatelessWidget {
           mainAxisAlignment: .center,
           children: [
             SvgPicture.asset(
-              'assets/images/undraw_learning_sketching_nd4f.svg',
+              'assets/images/feder_willkommen.svg',
               width: 300,
               height: 188,
               excludeFromSemantics: true,

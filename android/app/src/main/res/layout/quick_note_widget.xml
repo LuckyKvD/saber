@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/quick_note_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="4dp">
+
+    <ImageView
+        android:id="@+id/quick_note_bg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY"
+        android:src="@drawable/quick_note_widget_bg"
+        android:contentDescription="@null" />
+
+    <ImageView
+        android:id="@+id/quick_note_preview"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_marginStart="10dp"
+        android:layout_marginTop="22dp"
+        android:layout_marginEnd="10dp"
+        android:layout_marginBottom="10dp"
+        android:scaleType="fitStart"
+        android:contentDescription="Schnellnotiz" />
+
+    <TextView
+        android:id="@+id/quick_note_hint"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:paddingTop="12dp"
+        android:text="Schnellnotiz\nantippen zum Schreiben"
+        android:textColor="#FF3E2F00"
+        android:textSize="14sp" />
+
+    <ImageView
+        android:layout_width="26dp"
+        android:layout_height="26dp"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="2dp"
+        android:src="@drawable/quick_note_widget_pin"
+        android:contentDescription="@null" />
+</FrameLayout>

@@ -13,7 +13,7 @@ class const NoFiles({super.key}) extends StatelessWidget {
           mainAxisAlignment: .center,
           children: [
             SvgPicture.asset(
-              'assets/images/undraw_researching_re_fuod.svg',
+              'assets/images/feder_leer.svg',
               width: 300,
               height: 188,
               excludeFromSemantics: true,

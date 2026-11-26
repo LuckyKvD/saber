@@ -11,6 +11,7 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:saber/components/security/app_lock.dart';
 import 'package:saber/components/theming/saber_theme.dart';
+import 'package:saber/components/feder_splash.dart';
 import 'package:saber/components/theming/yaru_builder.dart';
 import 'package:saber/data/prefs.dart';
 import 'package:saber/i18n/extensions/redirecting_localization_delegate.dart';
@@ -246,6 +247,7 @@ class ExplicitlyThemedApp extends StatelessWidget {
         // ignore: deprecated_member_use (It's marked as deprecated since it's a temporary migration helper.)
         (_, child) => MaterialUiCompatibilityBridge(child: child!),
         (_, child) => AppLock(child: child!),
+        (_, child) => FederSplash(child: child!),
       ]),
     );
   }

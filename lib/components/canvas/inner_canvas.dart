@@ -208,7 +208,7 @@ class _InnerCanvasState extends State<InnerCanvas> {
                   child: ListenableBuilder(
                     listenable: Guides.notifier,
                     builder: (context, _) =>
-                        Guides.isActiveFor(widget.coreInfo, widget.pageIndex)
+                        Guides.offsetFor(widget.coreInfo, widget.pageIndex) != null
                         ? GuideOverlay(
                             coreInfo: widget.coreInfo,
                             pageIndex: widget.pageIndex,

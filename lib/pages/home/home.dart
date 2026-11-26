@@ -5,7 +5,6 @@ import 'package:saber/components/navbar/responsive_navbar.dart';
 import 'package:saber/components/settings/update_manager.dart';
 import 'package:saber/components/theming/dynamic_material_app.dart';
 import 'package:saber/pages/home/browse.dart';
-import 'package:saber/pages/home/recent_notes.dart';
 import 'package:saber/pages/home/settings.dart';
 import 'package:saber/pages/home/whiteboard.dart';
 
@@ -23,9 +22,7 @@ class HomePage extends StatefulWidget {
   static const whiteboardSubpage = 'whiteboard';
   static const settingsSubpage = 'settings';
   static const List<String> subpages = [
-    recentSubpage,
     browseSubpage,
-    whiteboardSubpage,
     settingsSubpage,
   ];
 }
@@ -55,10 +52,11 @@ class _HomePageState extends State<HomePage> {
       child: KeyedSubtree(
         key: ValueKey(widget.subpage),
         child: switch (widget.subpage) {
-          HomePage.browseSubpage => BrowsePage(path: widget.path),
+          HomePage.browseSubpage ||
+          HomePage.recentSubpage => BrowsePage(path: widget.path),
           HomePage.whiteboardSubpage => const Whiteboard(),
           HomePage.settingsSubpage => const SettingsPage(),
-          _ => const RecentPage(),
+          _ => BrowsePage(path: widget.path),
         },
       ),
     );
@@ -73,7 +71,9 @@ class _HomePageState extends State<HomePage> {
     }
 
     return ResponsiveNavbar(
-      selectedIndex: HomePage.subpages.indexOf(widget.subpage),
+      selectedIndex: widget.subpage == HomePage.recentSubpage
+          ? 0
+          : HomePage.subpages.indexOf(widget.subpage),
       body: body,
     );
   }

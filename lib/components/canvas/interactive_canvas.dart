@@ -34,6 +34,7 @@ class InteractiveCanvasViewer extends StatefulWidget {
     this.panAxis = PanAxis.free,
     this.boundaryMargin = .zero,
     this.constrained = true,
+    this.unboundedWidth = false,
     // These default scale values were eyeballed as reasonable limits for common
     // use cases.
     this.maxScale = 2.5,
@@ -96,6 +97,7 @@ class InteractiveCanvasViewer extends StatefulWidget {
     this.scaleFactor = 200.0,
     this.transformationController,
     this.alignment,
+    this.unboundedWidth = false,
     this.trackpadScrollCausesScale = false,
     required InteractiveCanvasViewerWidgetBuilder this.builder,
   }) : assert(minScale > 0),
@@ -119,6 +121,9 @@ class InteractiveCanvasViewer extends StatefulWidget {
 
   /// The alignment of the child's origin, relative to the size of the box.
   final Alignment? alignment;
+
+  /// Feder: Inhalt darf beliebig breit sein (horizontales Blättern).
+  final bool unboundedWidth;
 
   /// If set to [Clip.none], the child may extend beyond the size of the InteractiveCanvasViewer,
   /// but it will not receive gestures in these areas.
@@ -1088,6 +1093,7 @@ class _InteractiveCanvasViewerState extends State<InteractiveCanvasViewer>
         childKey: _childKey,
         clipBehavior: widget.clipBehavior,
         constrained: widget.constrained,
+        unboundedWidth: widget.unboundedWidth,
         matrix: _transformer.value,
         alignment: widget.alignment,
         child: widget.child!,
@@ -1104,6 +1110,7 @@ class _InteractiveCanvasViewerState extends State<InteractiveCanvasViewer>
             childKey: _childKey,
             clipBehavior: widget.clipBehavior,
             constrained: widget.constrained,
+            unboundedWidth: widget.unboundedWidth,
             alignment: widget.alignment,
             matrix: matrix,
             child: widget.builder!(
@@ -1139,6 +1146,7 @@ class _InteractiveCanvasViewerBuilt extends StatelessWidget {
     required this.childKey,
     required this.clipBehavior,
     required this.constrained,
+    required this.unboundedWidth,
     required this.matrix,
     required this.alignment,
   });
@@ -1147,6 +1155,7 @@ class _InteractiveCanvasViewerBuilt extends StatelessWidget {
   final GlobalKey childKey;
   final Clip clipBehavior;
   final bool constrained;
+  final bool unboundedWidth;
   final Matrix4 matrix;
   final Alignment? alignment;
 
@@ -1163,7 +1172,7 @@ class _InteractiveCanvasViewerBuilt extends StatelessWidget {
         alignment: .topLeft,
         minWidth: 0,
         minHeight: 0,
-        // maxWidth: double.infinity,
+        maxWidth: unboundedWidth ? double.infinity : null,
         maxHeight: double.infinity,
         child: child,
       );

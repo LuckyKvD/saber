@@ -57,6 +57,22 @@ class const SaberSyncInterface()
           break;
       }
     }
+    // Feder: Noch nicht gemeldete Löschungen erneut anstoßen (z. B. nach
+    // einem App-Neustart, bei dem die Warteschlange verloren ging).
+    for (final pending in stows.fileSyncPendingDeletes.value.toList()) {
+      if (FileManager.getFile(pending).existsSync()) {
+        stows.fileSyncPendingDeletes.value.remove(pending);
+        continue;
+      }
+      try {
+        final syncFile = await SaberSyncFile.relative(pending);
+        if (!syncFiles.any((f) => f.relativeLocalPath == pending)) {
+          syncFiles.add(syncFile);
+        }
+      } catch (e) {
+        log.warning('Offene Löschung nicht vormerkbar: $e');
+      }
+    }
     return syncFiles;
   }
 
@@ -95,6 +111,15 @@ class const SaberSyncInterface()
             return null;
           case .remote:
             // Remote file is newer or doesn't exist locally
+
+            // Feder: lokal gelöscht/verschoben, Löschung noch unterwegs:
+            // die alte Server-Datei nicht zurückladen.
+            if (!syncFile.localFile.existsSync() &&
+                stows.fileSyncPendingDeletes.value.contains(
+                  syncFile.relativeLocalPath,
+                )) {
+              return null;
+            }
 
             final remotelyDeleted = syncFile.remoteFile!.size! <= 0;
             final locallyDeleted = stows.fileSyncAlreadyDeleted.value.contains(
@@ -273,6 +298,10 @@ class const SaberSyncInterface()
       PathUri.parse(file.remotePath),
       lastModified: lastModified,
     );
+    // Feder: Löschung bzw. neue Version ist auf dem Server angekommen.
+    if (stows.fileSyncPendingDeletes.value.remove(file.relativeLocalPath)) {
+      stows.fileSyncPendingDeletes.notifyListeners();
+    }
   }
 
   static NextcloudClient? _client;

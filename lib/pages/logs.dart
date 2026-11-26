@@ -69,6 +69,14 @@ class const LogsPage({super.key}) extends StatelessWidget {
                   ),
                 ),
                 actions: [
+                  // Feder: Protokoll leeren, damit man neue Meldungen sofort sieht.
+                  IconButton(
+                    tooltip: 'Protokoll leeren',
+                    icon: const Icon(Icons.delete_outline),
+                    onPressed: logsHistory.history.isEmpty
+                        ? null
+                        : logsHistory.clear,
+                  ),
                   if (logsHistory.isFrozen)
                     IconButton(
                       icon: const AdaptiveIcon(
@@ -120,7 +128,7 @@ class const LogsPage({super.key}) extends StatelessWidget {
                       mainAxisAlignment: .center,
                       children: [
                         SvgPicture.asset(
-                          'assets/images/undraw_detailed_analysis_re_tk6j.svg',
+                          'assets/images/feder_protokoll.svg',
                           width: 300,
                           height: 300 * 570 / 925.49161,
                           excludeFromSemantics: true,

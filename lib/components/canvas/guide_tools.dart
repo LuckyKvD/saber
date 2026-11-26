@@ -108,6 +108,9 @@ class Guides {
 
   static Object? owner;
   static int pageIndex = 0;
+
+  /// Seitengrößen der Notiz, damit Hilfsmittel auf andere Seiten wechseln können.
+  static List<Size> pageSizes = const [];
   static GuideShape? ruler;
   static GuideShape? protractor;
 
@@ -125,6 +128,26 @@ class Guides {
       identical(owner, coreInfo) &&
       index == pageIndex &&
       (ruler != null || protractor != null);
+
+  /// Wo steht das Hilfsmittel auf Seite [index]? `null` = dort nicht zeichnen.
+  /// Auf der Besitzerseite 0, auf der Nachbarseite der Versatz, damit das
+  /// Hilfsmittel beim Ziehen über den Seitenrand auf beiden Seiten sichtbar ist.
+  static double? offsetFor(Object coreInfo, int index) {
+    if (owner == null || !identical(owner, coreInfo) || !anyVisible) {
+      return null;
+    }
+    if (index == pageIndex) return 0;
+    if (!verticalPages) return null;
+    if (index == pageIndex - 1 && index >= 0 && index < pageSizes.length) {
+      return pageSizes[index].height;
+    }
+    if (index == pageIndex + 1 &&
+        pageIndex < pageSizes.length &&
+        index < pageSizes.length) {
+      return -pageSizes[pageIndex].height;
+    }
+    return null;
+  }
 
   static bool get anyVisible => ruler != null || protractor != null;
 
@@ -191,11 +214,78 @@ class Guides {
     return null;
   }
 
+  /// Nur bei vertikal untereinander liegenden Seiten wechselt ein Hilfsmittel
+  /// beim Ziehen auf die Nachbarseite.
+  static bool verticalPages = true;
+
+  /// Wie weit ein Hilfsmittel beim Ziehen über den Seitenrand hinaus darf
+  /// (nur dort, wo eine Nachbarseite existiert).
+  static double _overshoot(Size pageSize) => 8 * pxPerCm(pageSize);
+
   static void moveBy(GuideShape shape, Offset delta, Size pageSize) {
+    final canUp = verticalPages && pageIndex > 0;
+    final canDown =
+        verticalPages && pageIndex + 1 < pageSizes.length;
+    final over = _overshoot(pageSize);
     shape.center = Offset(
       (shape.center.dx + delta.dx).clamp(0, pageSize.width).toDouble(),
-      (shape.center.dy + delta.dy).clamp(0, pageSize.height).toDouble(),
+      (shape.center.dy + delta.dy)
+          .clamp(canUp ? -over : 0, pageSize.height + (canDown ? over : 0))
+          .toDouble(),
     );
+  }
+
+  /// Beim Loslassen: Liegt der Mittelpunkt außerhalb der Seite, wandert das
+  /// Hilfsmittel (und sein Partner) auf die Nachbarseite.
+  static void settle() {
+    if (!verticalPages || !anyVisible) return;
+    if (pageIndex < 0 || pageIndex >= pageSizes.length) return;
+    final lead = ruler ?? protractor!;
+    final dy = lead.center.dy;
+    final size = pageSizes[pageIndex];
+    var shift = 0.0;
+    var next = pageIndex;
+    if (dy < 0 && pageIndex > 0) {
+      next = pageIndex - 1;
+      shift = pageSizes[next].height;
+    } else if (dy > size.height && pageIndex + 1 < pageSizes.length) {
+      next = pageIndex + 1;
+      shift = -size.height;
+    } else {
+      return;
+    }
+    final target = pageSizes[next];
+    for (final shape in [ruler, protractor]) {
+      if (shape == null) continue;
+      shape.center = Offset(
+        shape.center.dx.clamp(0, target.width).toDouble(),
+        (shape.center.dy + shift).clamp(0, target.height).toDouble(),
+      );
+    }
+    pageIndex = next;
+    grabbing = false;
+    notifier.ping();
+  }
+
+  /// Hilfsmittel auf die Seite verschieben, die gerade im Bild ist.
+  static void moveToPage(int index) {
+    if (!anyVisible || index == pageIndex) return;
+    if (index < 0 || index >= pageSizes.length) return;
+    if (pageIndex >= pageSizes.length) return;
+    final old = pageSizes[pageIndex];
+    final size = pageSizes[index];
+    for (final shape in [ruler, protractor]) {
+      if (shape == null) continue;
+      shape.center = Offset(
+        shape.center.dx.clamp(0, size.width).toDouble(),
+        (shape.center.dy / old.height * size.height)
+            .clamp(0, size.height)
+            .toDouble(),
+      );
+    }
+    pageIndex = index;
+    grabbing = false;
+    notifier.ping();
   }
 
   /// Nächstliegende Kante in Reichweite des Stifts.

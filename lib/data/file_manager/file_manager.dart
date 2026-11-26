@@ -41,7 +41,7 @@ class FileManager {
 
   /// A regex that matches the file names/paths of asset files,
   /// including previews, e.g. `mynote.sbn2.1`.
-  static final assetFileRegex = RegExp(r'\.sbn2?\.[\dp]+$');
+  static final assetFileRegex = RegExp(r'\.sbn2?\.[\dpc]+$');
 
   /// Forbidden names for files and directories (on any/all platforms).
   /// These patterns match the base name only (not the full path).
@@ -424,6 +424,7 @@ class FileManager {
       log.warning('Tried to move non-existent file from $fromPath to $toPath');
     }
 
+    _markPendingDelete(fromPath);
     syncer.uploader.enqueueRel(fromPath);
     syncer.uploader.enqueueRel(toPath);
 
@@ -441,8 +442,8 @@ class FileManager {
           break;
         }
       }
-      {
-        const assetNumber = 'p';
+      for (final assetNumber in const ['p', 'c']) {
+        // p = Vorschaubild, c = Einband (Notizbuch)
         final assetFile = getFile('$fromPath.$assetNumber');
         if (assetFile.existsSync()) {
           assets.add(assetNumber);
@@ -462,6 +463,14 @@ class FileManager {
     return toPath;
   }
 
+  /// Feder: Merkt einen lokal entfernten Pfad vor, bis die Löschung auf dem
+  /// Server angekommen ist (verhindert das Zurückladen der alten Datei).
+  static void _markPendingDelete(String relativePath) {
+    if (!stows.loggedIn) return;
+    stows.fileSyncPendingDeletes.value.add(relativePath);
+    stows.fileSyncPendingDeletes.notifyListeners();
+  }
+
   static Future deleteFile(
     String filePath, {
     bool alsoUpload = true,
@@ -473,7 +482,10 @@ class FileManager {
     if (!file.existsSync()) return;
     await file.delete();
 
-    if (alsoUpload) syncer.uploader.enqueueRel(filePath);
+    if (alsoUpload) {
+      _markPendingDelete(filePath);
+      syncer.uploader.enqueueRel(filePath);
+    }
 
     _removeReferences(filePath);
     broadcastFileWrite(FileOperationType.delete, filePath);
@@ -490,11 +502,14 @@ class FileManager {
       }
 
       final previewFile = getFile('$filePath.p');
+      final coverFile = getFile('$filePath.c');
       await Future.wait([
         for (final assetNumber in assets)
           deleteFile('$filePath.$assetNumber', alsoDeleteAssets: false),
         if (previewFile.existsSync())
           deleteFile('$filePath.p', alsoDeleteAssets: false),
+        if (coverFile.existsSync())
+          deleteFile('$filePath.c', alsoDeleteAssets: false),
       ]);
     }
   }
@@ -517,11 +532,40 @@ class FileManager {
     await Future.wait(futures);
   }
 
+  /// Feder: Verschiebt einen kompletten Ordner (samt Inhalt) nach [newPath]
+  /// (voller neuer Pfad inkl. Ordnername). Gibt `false` zurück, wenn der
+  /// Zielordner schon existiert oder in sich selbst verschoben würde.
+  static Future<bool> moveDirectory(String directoryPath, String newPath) async {
+    directoryPath = _sanitisePath(directoryPath);
+    newPath = _sanitisePath(newPath);
+    if (directoryPath == newPath || newPath.startsWith('$directoryPath/')) {
+      return false;
+    }
+    final directory = Directory(documentsDirectory + directoryPath);
+    if (!directory.existsSync()) return false;
+    if (Directory(documentsDirectory + newPath).existsSync()) return false;
+    await Directory(documentsDirectory + newPath).parent.create(recursive: true);
+    await _renameDirectoryTo(directory, directoryPath, newPath);
+    return true;
+  }
+
   static Future renameDirectory(String directoryPath, String newName) async {
     directoryPath = _sanitisePath(directoryPath);
 
     final directory = Directory(documentsDirectory + directoryPath);
     if (!directory.existsSync()) return;
+
+    final String newPath =
+        directoryPath.substring(0, directoryPath.lastIndexOf('/') + 1) +
+        newName;
+    await _renameDirectoryTo(directory, directoryPath, newPath);
+  }
+
+  static Future<void> _renameDirectoryTo(
+    Directory directory,
+    String directoryPath,
+    String newPath,
+  ) async {
 
     /// recursively find children of [directory] for [_renameReferences]
     final List<String> children = [];
@@ -531,15 +575,17 @@ class FileManager {
       }
     }
 
-    final String newPath =
-        directoryPath.substring(0, directoryPath.lastIndexOf('/') + 1) +
-        newName;
     await directory.rename(documentsDirectory + newPath);
 
     for (final child in children) {
       _renameReferences(directoryPath + child, newPath + child);
       broadcastFileWrite(FileOperationType.delete, directoryPath + child);
       broadcastFileWrite(FileOperationType.write, newPath + child);
+      // Feder: Sync ueber die Aenderung informieren. Ohne das bleiben die
+      // alten Dateien auf dem Server liegen und werden zurueckgeladen.
+      _markPendingDelete(directoryPath + child);
+      syncer.uploader.enqueueRel(directoryPath + child);
+      syncer.uploader.enqueueRel(newPath + child);
     }
   }
 

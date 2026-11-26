@@ -26,6 +26,10 @@ import org.bouncycastle.crypto.generators.Argon2BytesGenerator
 import org.bouncycastle.crypto.params.Argon2Parameters
 
 class MainActivity: FlutterFragmentActivity() {
+    // Feder-Schnellnotiz-Widget: Start über das Widget merken bzw. an Dart melden.
+    private var quickNotePending = false
+    private var widgetChannel: MethodChannel? = null
+
     // Feder-Fotoauswahl: Galerie, Google Fotos, Ente; Bilder werden nativ verkleinert.
     private var photoResult: MethodChannel.Result? = null
     private var photoMaxSize = 2048
@@ -42,6 +46,24 @@ class MainActivity: FlutterFragmentActivity() {
         super.configureFlutterEngine(flutterEngine)
         registerCryptoChannel(flutterEngine)
         registerPhotoChannel(flutterEngine)
+        registerWidgetChannel(flutterEngine)
+        // Feder: Blaettergeraeusch (res/raw/page_flip.wav)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "de.luckykvd.feder/sound")
+            .setMethodCallHandler { call, result ->
+                if (call.method == "pageFlip") {
+                    try {
+                        val id = resources.getIdentifier("page_flip", "raw", packageName)
+                        if (id != 0) {
+                            val player = android.media.MediaPlayer.create(this, id)
+                            player?.setOnCompletionListener { it.release() }
+                            player?.start()
+                        }
+                    } catch (e: Throwable) {}
+                    result.success(null)
+                } else {
+                    result.notImplemented()
+                }
+            }
         // Feder-App-Sperre: FLAG_SECURE verbirgt den Inhalt in der App-Übersicht.
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "de.luckykvd.feder/secure")
             .setMethodCallHandler { call, result ->
@@ -59,6 +81,47 @@ class MainActivity: FlutterFragmentActivity() {
                     result.notImplemented()
                 }
             }
+    }
+
+    private fun registerWidgetChannel(flutterEngine: FlutterEngine) {
+        val channel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "de.luckykvd.feder/widget")
+        widgetChannel = channel
+        channel.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "consumeLaunchAction" -> {
+                    val pending = quickNotePending
+                    quickNotePending = false
+                    result.success(pending)
+                }
+                "setPreview" -> {
+                    QuickNoteWidget.setPreview(applicationContext, call.arguments as? ByteArray)
+                    result.success(null)
+                }
+                "setColor" -> {
+                    val color = (call.arguments as? Number)?.toInt()
+                    if (color != null) QuickNoteWidget.setColor(applicationContext, color)
+                    result.success(null)
+                }
+                "clearPreview" -> {
+                    QuickNoteWidget.setPreview(applicationContext, null)
+                    result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    private fun handleWidgetIntent(intent: Intent?) {
+        if (intent?.action == QuickNoteWidget.ACTION_QUICK_NOTE) {
+            quickNotePending = true
+            intent.action = null
+            widgetChannel?.invokeMethod("quickNote", null)
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleWidgetIntent(intent)
     }
 
     private fun registerPhotoChannel(flutterEngine: FlutterEngine) {
@@ -255,6 +318,7 @@ class MainActivity: FlutterFragmentActivity() {
             startActivity(intent);
         }
         super.onCreate(savedInstanceState)
+        handleWidgetIntent(intent)
 
         WindowCompat.setDecorFitsSystemWindows(window, false)
 

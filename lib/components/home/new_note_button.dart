@@ -3,6 +3,7 @@ import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:saber/components/navbar/bottom_navbar.dart';
+import 'package:saber/components/shelf/cover_dialogs.dart';
 import 'package:saber/components/theming/saber_theme.dart';
 import 'package:saber/data/file_manager/file_manager.dart';
 import 'package:saber/data/routes.dart';
@@ -60,6 +61,11 @@ class _NewNoteButtonState extends State<NewNoteButton> {
         );
       },
       children: [
+        SpeedDialChild(
+          child: const Icon(Icons.menu_book),
+          label: 'Neues Notizbuch',
+          onTap: () => startNewNotebook(context, widget.path),
+        ),
         SpeedDialChild(
           child: const Icon(Icons.create),
           label: t.home.create.newNote,

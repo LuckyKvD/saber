@@ -72,6 +72,7 @@ class _HomeLayoutDialogOption extends StatelessWidget {
       title: Text(switch (homeLayout) {
         .masonryGrid => t.home.layout.masonryGrid,
         .simpleGrid => t.home.layout.simpleGrid,
+        .shelf => 'Regal',
       }),
       trailing: selected ? const Icon(Icons.check) : null,
       selected: selected,
@@ -85,12 +86,14 @@ enum HomeLayout({
   required final bool fillVertical,
 }) {
   masonryGrid(fillVertical: false),
-  simpleGrid(fillVertical: true);
+  simpleGrid(fillVertical: true),
+  shelf(fillVertical: false);
 
   static const codec = EnumCodec(values);
 
   Widget get icon => switch (this) {
     .masonryGrid => const Icon(Symbols.browse),
     .simpleGrid => const Icon(Icons.grid_view),
+    .shelf => const Icon(Icons.menu_book),
   };
 }
