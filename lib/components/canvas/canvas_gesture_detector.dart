@@ -9,6 +9,7 @@ import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/services.dart';
 import 'package:keybinder/keybinder.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:saber/components/canvas/page_curl_painter.dart';
 import 'package:saber/components/canvas/hud/canvas_hud.dart';
 import 'package:saber/components/canvas/interactive_canvas.dart';
 import 'package:saber/data/editor/page.dart';
@@ -245,7 +246,7 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
       _pageKeys.putIfAbsent(index, () => GlobalKey());
   late final AnimationController _flipAnim = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 420),
+    duration: const Duration(milliseconds: 520),
   );
   ui.Image? _flipImage;
   var _flipForward = true;
@@ -995,31 +996,12 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
           Positioned.fromRect(
             rect: _flipRect,
             child: IgnorePointer(
-              child: AnimatedBuilder(
-                animation: _flipAnim,
-                builder: (context, _) {
-                  final t = Curves.easeInOut.transform(_flipAnim.value);
-                  final theta = (_flipForward ? t : 1 - t) * pi / 2;
-                  return Transform(
-                    alignment: Alignment.centerLeft,
-                    transform: Matrix4.identity()
-                      ..setEntry(3, 2, 0.0012)
-                      ..rotateY(theta),
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        RawImage(image: _flipImage, fit: BoxFit.fill),
-                        DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(
-                              alpha: 0.35 * theta / (pi / 2),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
+              child: CustomPaint(
+                painter: PageCurlPainter(
+                  image: _flipImage!,
+                  animation: _flipAnim,
+                  forward: _flipForward,
+                ),
               ),
             ),
           ),
