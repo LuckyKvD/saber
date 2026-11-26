@@ -157,8 +157,9 @@ class _GuidePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final offsetY = Guides.offsetFor(coreInfo, pageIndex);
     if (offsetY == null) return;
-    // Nie über den eigenen Seitenrand hinaus zeichnen (sonst doppelt/verdeckt).
-    canvas.clipRect(Offset.zero & size);
+    // Oben und unten nie über den eigenen Seitenrand hinaus zeichnen (sonst
+    // erscheint das Hilfsmittel doppelt); seitlich darf es überstehen.
+    canvas.clipRect(Rect.fromLTRB(-100000, 0, 100000, size.height));
     if (offsetY != 0) canvas.translate(0, offsetY);
     final ppc = Guides.pxPerCm(pageSize);
     final ruler = Guides.ruler;
