@@ -7,6 +7,7 @@ import 'package:saber/components/toolbar/tool_setting_chips.dart';
 import 'package:saber/data/extensions/axis_extensions.dart';
 import 'package:saber/data/prefs.dart';
 import 'package:saber/data/tools/calligraphy_pen.dart';
+import 'package:saber/data/tools/extra_pens.dart';
 import 'package:saber/data/tools/highlighter.dart';
 import 'package:saber/data/tools/pen.dart';
 import 'package:saber/data/tools/pencil.dart';
@@ -42,6 +43,12 @@ class _PenModalState<T extends Pen> extends State<PenModal<T>> {
       spacing: 8,
       children: [
         SizePicker(axis: axis, pen: pen),
+        if (pen is Highlighter)
+          ToolSettingChips<bool>(
+            label: 'Linie',
+            pref: stows.highlighterStraight,
+            options: [(false, 'Frei'), (true, 'Gerade')],
+          ),
         if (pen is TapePen) const TapePatternPicker(),
 
         if (pen is! Highlighter && pen is! Pencil && pen is! TapePen) ...[
@@ -87,6 +94,52 @@ class _PenModalState<T extends Pen> extends State<PenModal<T>> {
               ),
             ),
           ),
+          _PenSelector(
+            isSelected: Pen.currentPen.icon == BrushPen.brushIcon,
+            onPressed: () => setState(() => widget.setTool(BrushPen.current)),
+            tooltip: 'Pinsel',
+            icon: const FaIcon(BrushPen.brushIcon),
+          ),
+          _PenSelector(
+            isSelected: Pen.currentPen.icon == FinelinerPen.finelinerIcon,
+            onPressed: () =>
+                setState(() => widget.setTool(FinelinerPen.current)),
+            tooltip: 'Fineliner',
+            icon: const FaIcon(FinelinerPen.finelinerIcon),
+          ),
+          _PenSelector(
+            isSelected: Pen.currentPen.icon == DashedPen.dashedIcon,
+            onPressed: () => setState(() => widget.setTool(DashedPen.current)),
+            tooltip: 'Gestrichelt',
+            icon: const FaIcon(DashedPen.dashedIcon),
+          ),
+          _PenSelector(
+            isSelected: Pen.currentPen.icon == GlitterPen.glitterIcon,
+            onPressed: () => setState(() => widget.setTool(GlitterPen.current)),
+            tooltip: 'Glitzer',
+            icon: const FaIcon(GlitterPen.glitterIcon),
+          ),
+          _PenSelector(
+            isSelected: Pen.currentPen.icon == StampPen.stampIcon,
+            onPressed: () => setState(() => widget.setTool(StampPen.current)),
+            tooltip: 'Stempel',
+            icon: const FaIcon(StampPen.stampIcon),
+          ),
+          if (Pen.currentPen.icon == StampPen.stampIcon) ...[
+            ToolSettingChips<int>(
+              label: 'Symbol',
+              pref: stows.stampSymbol,
+              options: [
+                for (var i = 0; i < StampPen.symbolNames.length; i++)
+                  (i, StampPen.symbolNames[i]),
+              ],
+            ),
+            ToolSettingChips<int>(
+              label: 'Größe',
+              pref: stows.stampScale,
+              options: [(28, 'Klein'), (48, 'Mittel'), (80, 'Groß')],
+            ),
+          ],
           if (Pen.currentPen.icon == CalligraphyPen.calligraphyIcon)
             ToolSettingChips<int>(
               label: 'Winkel',

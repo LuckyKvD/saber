@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:one_dollar_unistroke_recognizer/one_dollar_unistroke_recognizer.dart';
 import 'package:path_drawing/path_drawing.dart';
 import 'package:perfect_freehand/perfect_freehand.dart';
+import 'package:saber/components/canvas/glitter_geometry.dart';
 import 'package:saber/components/canvas/_circle_stroke.dart';
 import 'package:saber/components/canvas/_rectangle_stroke.dart';
 import 'package:saber/components/canvas/_stroke.dart';
@@ -169,6 +170,9 @@ class CanvasPainter extends CustomPainter {
         );
       } else {
         canvas.drawPath(_selectPath(stroke), paint);
+        if (stroke.penStyle == Stroke.styleGlitter) {
+          drawGlitter(canvas, stroke.points, stroke.options.size, color);
+        }
       }
     }
   }
@@ -210,6 +214,14 @@ class CanvasPainter extends CustomPainter {
 
     // Current stroke always uses high quality
     canvas.drawPath(currentStroke!.highQualityPath, paint);
+    if (currentStroke!.penStyle == Stroke.styleGlitter) {
+      drawGlitter(
+        canvas,
+        currentStroke!.points,
+        currentStroke!.options.size,
+        color,
+      );
+    }
   }
 
   void _drawLaserStroke(Canvas canvas, LaserStroke stroke) {

@@ -254,6 +254,17 @@ class Stows {
     volatile: !_isOnMainIsolate,
   );
 
+  /// Stempel-Symbol (Index) und Größe in Seitenpunkten.
+  final stampSymbol = PlainStow('stampSymbol', 0, volatile: !_isOnMainIsolate);
+  final stampScale = PlainStow('stampScale', 48, volatile: !_isOnMainIsolate);
+
+  /// Textmarker zieht gerade Linien.
+  final highlighterStraight = PlainStow(
+    'highlighterStraight',
+    false,
+    volatile: !_isOnMainIsolate,
+  );
+
   /// Druckempfindlichkeit des Füllers in Prozent (perfect_freehand `thinning`).
   final fountainThinning = PlainStow(
     'fountainThinning',

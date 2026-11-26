@@ -12,6 +12,7 @@ import 'package:saber/components/settings/local_encryption_tile.dart';
 import 'package:saber/components/navbar/responsive_navbar.dart';
 import 'package:saber/components/security/app_lock.dart';
 import 'package:saber/components/settings/nextcloud_profile.dart';
+import 'package:saber/components/settings/server_cleanup_tile.dart';
 import 'package:saber/components/settings/settings_button.dart';
 import 'package:saber/components/settings/settings_color.dart';
 import 'package:saber/components/settings/settings_directory_selector.dart';
@@ -214,6 +215,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 const NextcloudProfile(),
                 const AboutFeder(),
                 const LocalEncryptionTile(),
+                const ServerCleanupTile(),
                 SettingsSubtitle(subtitle: t.settings.prefCategories.general),
                 SettingsSwitch(
                   title: 'App-Sperre',

@@ -45,6 +45,13 @@ class Stroke {
   /// Muster-Nummer eines Klebebands (null = einfarbig). Zusatzschlüssel `tp`.
   int? tapePattern;
 
+  /// Feder: Strichstil (null = normal, 1 = gestrichelt, 2 = Glitzer).
+  /// Zusatzschlüssel `ps`; ältere Versionen zeigen eine normale Linie.
+  int? penStyle;
+
+  static const styleDashed = 1;
+  static const styleGlitter = 2;
+
   List<Offset>? _lowQualityPolygon, _highQualityPolygon;
   List<Offset> get lowQualityPolygon =>
       _lowQualityPolygon ??= getPolygon(quality: .low);
@@ -82,6 +89,7 @@ class Stroke {
     required this.toolId,
     this.nibAngle,
     this.tapePattern,
+    this.penStyle,
   });
 
   factory fromJson(
@@ -163,6 +171,7 @@ class Stroke {
       toolId: toolId,
       nibAngle: (json['na'] as num?)?.toDouble(),
       tapePattern: (json['tp'] as num?)?.toInt(),
+      penStyle: (json['ps'] as num?)?.toInt(),
     )..points.addAll(points);
   }
   Map<String, dynamic> toJson() {
@@ -179,6 +188,7 @@ class Stroke {
       'c': color.toARGB32(),
       if (nibAngle != null) 'na': nibAngle,
       if (tapePattern != null) 'tp': tapePattern,
+      if (penStyle != null) 'ps': penStyle,
     }..addAll(options.toJson());
   }
 
@@ -238,8 +248,8 @@ class Stroke {
 
   @protected
   List<Offset> getPolygon({required StrokeQuality quality}) {
-    if (nibAngle != null) {
-      // Kalligrafie: Polygon = Mittellinie (für Radierer und Auswahl).
+    if (nibAngle != null || penStyle == styleDashed) {
+      // Kalligrafie/gestrichelt: Polygon = Mittellinie (Radierer, Auswahl).
       // Die sichtbare Form entsteht in [getPath].
       return [
         for (final p in skipPoints(points, quality.N)) Offset(p.dx, p.dy),
@@ -282,6 +292,13 @@ class Stroke {
   /// in [polygon] for performance.
   @protected
   Path getPath(List<Offset> polygon, {bool smooth = true}) {
+    if (penStyle == styleDashed) {
+      final path = Path();
+      for (final dash in dashPolygons(smooth ? points : skipPoints(points, 2))) {
+        path.addPolygon(dash, true);
+      }
+      return path;
+    }
     if (nibAngle != null) {
       return nibPath(
         smooth ? points : skipPoints(points, 2),
@@ -380,6 +397,7 @@ class Stroke {
             page: page,
             toolId: toolId,
             nibAngle: nibAngle,
+            penStyle: penStyle,
           )..points.addAll(run),
     ];
   }
@@ -393,6 +411,7 @@ class Stroke {
     page: page,
     toolId: toolId,
     nibAngle: nibAngle,
+    penStyle: penStyle,
   )..points.addAll(run);
 
   /// Returns a list with every Nth point in [points].
@@ -426,7 +445,69 @@ class Stroke {
     return path..close();
   }
 
+  /// Feder: Polygone der einzelnen Striche eines gestrichelten Strichs.
+  List<List<Offset>> dashPolygons(List<PointVector> source) {
+    final size = options.size;
+    final on = max(size * 2.4, 6.0);
+    final off = max(size * 1.7, 4.0);
+    final result = <List<Offset>>[];
+    if (source.length < 2) {
+      if (source.isNotEmpty) {
+        final p = source.first;
+        result.add(_dashPolygon([Offset(p.dx, p.dy), Offset(p.dx + 0.1, p.dy)]));
+      }
+      return result;
+    }
+    var drawing = true;
+    var remaining = on;
+    var current = <Offset>[Offset(source.first.dx, source.first.dy)];
+    for (var i = 1; i < source.length; i++) {
+      var a = Offset(source[i - 1].dx, source[i - 1].dy);
+      final b = Offset(source[i].dx, source[i].dy);
+      var len = (b - a).distance;
+      while (len > remaining) {
+        final cut = a + (b - a) * (remaining / len);
+        if (drawing) {
+          current.add(cut);
+          result.add(_dashPolygon(current));
+          current = [];
+        } else {
+          current = [cut];
+        }
+        drawing = !drawing;
+        len -= remaining;
+        a = cut;
+        remaining = drawing ? on : off;
+      }
+      remaining -= len;
+      if (drawing) current.add(b);
+    }
+    if (drawing && current.length >= 2) result.add(_dashPolygon(current));
+    return result;
+  }
+
+  List<Offset> _dashPolygon(List<Offset> centerline) {
+    return getStroke(
+      [
+        for (final p in centerline) PointVector.fromOffset(offset: p),
+      ],
+      options: options.copyWith(
+        simulatePressure: false,
+        smoothing: 0,
+        streamline: 0,
+        isComplete: true,
+      ),
+    );
+  }
+
   String toSvgPath() {
+    if (penStyle == styleDashed) {
+      return [
+        for (final dash in dashPolygons(points))
+          if (dash.isNotEmpty)
+            'M${dash.where((o) => o.isFinite).map((o) => '${o.dx} ${page.size.height - o.dy}').join('L')}Z',
+      ].join();
+    }
     String toSvgPoint(Offset point) {
       return '${point.dx} '
           '${page.size.height - point.dy}';
@@ -547,6 +628,7 @@ class Stroke {
     toolId: toolId,
     nibAngle: nibAngle,
     tapePattern: tapePattern,
+    penStyle: penStyle,
   )..points.addAll(points);
 }
 
