@@ -1847,8 +1847,13 @@ class EditorState extends State<Editor> {
         .map((p) => p.dy)
         .fold<double>(-double.infinity, math.max);
     final oldBottom = maxY(existing);
-    final delta = maxY(extra) - oldBottom;
-    if (delta <= 1) return;
+    _shiftContentBelow(select, oldBottom, maxY(extra) - oldBottom);
+  }
+
+  /// Feder: Alles unterhalb von [oldBottom] (außer der Auswahl) um [delta]
+  /// nach unten (oder bei negativem Wert nach oben) schieben, mit Rückgängig.
+  void _shiftContentBelow(Select select, double oldBottom, double delta) {
+    if (delta.abs() <= 1) return;
     final pageIndex = select.selectResult.pageIndex;
     final page = coreInfo.pages[pageIndex];
     final selected = {...select.selectResult.strokes};
@@ -1872,7 +1877,7 @@ class EditorState extends State<Editor> {
     if (strokes.isEmpty && images.isEmpty) return;
 
     final pageBottom = page.size.height;
-    for (final s in strokes) {
+    for (final s in delta > 0 ? strokes : <Stroke>[]) {
       if (s.pointsAsOffsets().map((p) => p.dy).reduce(math.max) + delta >
           pageBottom) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1961,6 +1966,15 @@ class EditorState extends State<Editor> {
       select.selectResult = select.selectResult.copyWith(strokes: updated);
     });
     history.recordChange(HistoricReplace(removed: old, added: updated));
+    // Tabelle skaliert: Inhalt darunter um die Höhenänderung mitnehmen.
+    if (scale != 1 && old.any((s) => s.tableAxis != null)) {
+      double bottom(Iterable<Stroke> list) => list
+          .expand((s) => s.pointsAsOffsets())
+          .map((p) => p.dy)
+          .fold<double>(-double.infinity, math.max);
+      final oldBottom = bottom(old);
+      _shiftContentBelow(select, oldBottom, bottom(updated) - oldBottom);
+    }
     autosaveAfterDelay();
   }
 

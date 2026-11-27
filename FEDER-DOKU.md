@@ -232,3 +232,8 @@ Zusammengeführte Zweige: `feature/regal`, `feature/blaettern`, `feature/widget`
 - Neue Tabellen und Vorlagen werden nicht mehr über vorhandenen Inhalt gesetzt: Der Editor sucht ab der gewünschten Stelle den nächsten freien Streifen auf der Seite (zuerst nach unten, dann nach oben). Gibt es keinen, bleibt es bei der gewünschten Stelle.
 - Grund: Beim Lasso um eine Tabelle würde sonst der Text darunter mit ausgewählt und am Lassorand zerschnitten.
 - Grenze: Prüfung nur nach Höhe (ganze Seitenbreite), nicht nach Fläche.
+
+## 24. Tabelle vergrößern/verkleinern schiebt Inhalt mit
+
+- Lasso → Regler → Verkleinern/Vergrößern: Enthält die Auswahl Tabellenlinien, wird der Inhalt unterhalb um die Höhenänderung nach unten bzw. oben mitgeschoben (eigener Rückgängig-Schritt).
+- Skaliert wird um die linke obere Ecke der Auswahl. Inhalt neben der Tabelle (gleiche Höhe) bleibt stehen, was darunter liegt wandert über die ganze Seitenbreite.
