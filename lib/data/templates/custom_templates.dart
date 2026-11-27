@@ -4,7 +4,6 @@ import 'dart:typed_data';
 import 'package:material_ui/material_ui.dart';
 import 'package:saber/components/canvas/_stroke.dart';
 import 'package:saber/components/canvas/image/editor_image.dart';
-import 'package:saber/components/canvas/image/png_editor_image.dart';
 import 'package:saber/data/editor/editor_core_info.dart';
 import 'package:saber/data/editor/page.dart';
 import 'package:saber/data/file_manager/file_manager.dart';
