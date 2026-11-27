@@ -182,7 +182,12 @@ abstract class SearchIndex {
 
       // Getippter Text: direkt, ohne Erkennung.
       try {
-        final typed = page.quill.controller.document.toPlainText();
+        final typed = [
+          page.quill.controller.document.toPlainText(),
+          for (final b in page.textBoxes)
+            b.quill.controller.document.toPlainText(),
+          if (page.bookmark != null) page.bookmark!,
+        ].join('\n');
         for (final line in typed.split('\n')) {
           if (line.trim().isNotEmpty) lines.add(line.trim());
         }

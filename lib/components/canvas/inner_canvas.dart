@@ -10,6 +10,7 @@ import 'package:saber/components/canvas/guide_overlay.dart';
 import 'package:saber/components/canvas/guide_tools.dart';
 import 'package:saber/components/canvas/canvas_image.dart';
 import 'package:saber/components/canvas/image/editor_image.dart';
+import 'package:saber/components/canvas/text_box_widget.dart';
 import 'package:saber/data/editor/editor_core_info.dart';
 import 'package:saber/data/extensions/color_extensions.dart';
 import 'package:saber/data/prefs.dart';
@@ -35,6 +36,7 @@ class InnerCanvas extends StatefulWidget {
     this.onRenderObjectChange,
     required this.currentToolIsSelect,
     required this.currentScale,
+    this.textBoxActions,
   });
 
   final int pageIndex;
@@ -53,6 +55,9 @@ class InnerCanvas extends StatefulWidget {
   final bool currentToolIsSelect;
 
   final double currentScale;
+
+  /// Feder: Rückmeldungen der Textfelder an den Editor.
+  final TextBoxActions? textBoxActions;
 
   static const defaultBackgroundColor = Color(0xFFFCFCFC);
 
@@ -184,6 +189,18 @@ class _InnerCanvasState extends State<InnerCanvas> {
                     child: quillEditor,
                   ),
                 ),
+                for (final box in page.textBoxes)
+                  TextBoxWidget(
+                    key: ObjectKey(box),
+                    box: box,
+                    pageSize: Size(widget.width, widget.height),
+                    lineHeight: widget.coreInfo.lineHeight,
+                    invert: invert,
+                    secondary: colorScheme.secondary,
+                    textEditing: widget.textEditing,
+                    readOnly: widget.coreInfo.readOnly,
+                    actions: widget.textBoxActions,
+                  ),
                 for (int i = 0; i < page.images.length; i++)
                   CanvasImage(
                     filePath: widget.coreInfo.filePath,

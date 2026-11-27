@@ -67,6 +67,7 @@ class Toolbar extends StatefulWidget {
     required this.solveMath,
     required this.insertTable,
     required this.insertTemplate,
+    required this.addTextBox,
     required this.extendTable,
     required this.adjustSelection,
     required this.exportAsSba,
@@ -120,6 +121,9 @@ class Toolbar extends StatefulWidget {
 
   /// Feder: Vorlage (Besprechung, Jour fixe) in die geöffnete Seite einfügen.
   final VoidCallback insertTemplate;
+
+  /// Feder: neues freies Textfeld auf der aktuellen Seite.
+  final VoidCallback addTextBox;
   final void Function(int rows, int cols) extendTable;
 
   /// Feder: Strichdicke ([thickness]) oder Größe ([scale]) der Auswahl ändern.
@@ -808,30 +812,52 @@ class _ToolbarState extends State<Toolbar> {
               ),
             ),
           );
+          final quillToolbar = quill != null
+              ? QuillSimpleToolbar(
+                  controller: quill.controller,
+                  config: QuillSimpleToolbarConfig(
+                    axis: isToolbarVertical ? .vertical : .horizontal,
+                    buttonOptions: QuillSimpleToolbarButtonOptions(
+                      base: QuillToolbarBaseButtonOptions(
+                        iconTheme: iconTheme,
+                      ),
+                    ),
+                    // scrollable on Android and iOS
+                    multiRowsDisplay: !Platform.isAndroid && !Platform.isIOS,
+                    showUndo: false,
+                    showRedo: false,
+                    showFontSize: true,
+                    showFontFamily: true,
+                    showClearFormat: true,
+                    showColorButton: true,
+                    showBackgroundColorButton: true,
+                    showAlignmentButtons: true,
+                    showHeaderStyle: true,
+                    showListNumbers: true,
+                    showListBullets: true,
+                    showStrikeThrough: true,
+                    showSearchButton: true,
+                  ),
+                )
+              : const SizedBox.shrink();
+          final addButton = IconButton(
+            icon: const Icon(Icons.add_box_outlined),
+            tooltip: 'Textfeld hinzufügen',
+            onPressed: widget.addTextBox,
+          );
           return Collapsible(
             axis: isToolbarVertical ? .horizontal : .vertical,
             maintainState: false,
-            collapsed: !widget.textEditing || quill == null,
-            child: quill != null
-                ? QuillSimpleToolbar(
-                    controller: quill.controller,
-                    config: QuillSimpleToolbarConfig(
-                      axis: isToolbarVertical ? .vertical : .horizontal,
-                      buttonOptions: QuillSimpleToolbarButtonOptions(
-                        base: QuillToolbarBaseButtonOptions(
-                          iconTheme: iconTheme,
-                        ),
-                      ),
-                      // scrollable on Android and iOS
-                      multiRowsDisplay: !Platform.isAndroid && !Platform.isIOS,
-                      showUndo: false,
-                      showRedo: false,
-                      showFontSize: false,
-                      showFontFamily: false,
-                      showClearFormat: false,
-                    ),
-                  )
-                : const SizedBox.shrink(),
+            collapsed: !widget.textEditing,
+            child: isToolbarVertical
+                ? Column(mainAxisSize: MainAxisSize.min, children: [
+                    addButton,
+                    Flexible(child: quillToolbar),
+                  ])
+                : Row(children: [
+                    addButton,
+                    Expanded(child: quillToolbar),
+                  ]),
           );
         },
       ),

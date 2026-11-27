@@ -238,10 +238,11 @@ class const HistoricPageDelete({
 class const HistoricQuillChange({
   required final int pageIndex,
   required final DocChange quillChange,
+  final QuillStruct? quill,
 }) extends Historic {
   @override
   HistoricQuillReverseChange reverse() =>
-      .new(pageIndex: pageIndex, quillChange: quillChange);
+      .new(pageIndex: pageIndex, quillChange: quillChange, quill: quill);
 }
 
 /// A reversed change in the Quill text editor.
@@ -251,10 +252,11 @@ class const HistoricQuillChange({
 class const HistoricQuillReverseChange({
   required final int pageIndex,
   required final DocChange quillChange,
+  final QuillStruct? quill,
 }) extends Historic {
   @override
   HistoricQuillChange reverse() =>
-      .new(pageIndex: pageIndex, quillChange: quillChange);
+      .new(pageIndex: pageIndex, quillChange: quillChange, quill: quill);
 }
 
 /// Some strokes' colors were changed.
@@ -279,4 +281,43 @@ class const HistoricBackgroundPatternChange({
   @override
   HistoricBackgroundPatternChange reverse() =>
       .new(pageIndex: pageIndex, change: change.reverse());
+}
+
+/// Feder: Textfeld hinzugefuegt (rueckgaengig = entfernen).
+class const HistoricTextBoxAdd({
+  required final int pageIndex,
+  required final FreeTextBox box,
+}) extends Historic {
+  @override
+  HistoricTextBoxRemove reverse() => .new(pageIndex: pageIndex, box: box);
+}
+
+/// Feder: Textfeld entfernt (rueckgaengig = wieder einfuegen).
+class const HistoricTextBoxRemove({
+  required final int pageIndex,
+  required final FreeTextBox box,
+}) extends Historic {
+  @override
+  HistoricTextBoxAdd reverse() => .new(pageIndex: pageIndex, box: box);
+}
+
+/// Feder: Textfeld verschoben oder in der Groesse geaendert.
+class const HistoricTextBoxRect({
+  required final FreeTextBox box,
+  required final Rect before,
+  required final Rect after,
+}) extends Historic {
+  @override
+  HistoricTextBoxRect reverse() => .new(box: box, before: after, after: before);
+}
+
+/// Feder: Lesezeichen einer Seite geaendert.
+class const HistoricBookmark({
+  required final int pageIndex,
+  required final String? before,
+  required final String? after,
+}) extends Historic {
+  @override
+  HistoricBookmark reverse() =>
+      .new(pageIndex: pageIndex, before: after, after: before);
 }

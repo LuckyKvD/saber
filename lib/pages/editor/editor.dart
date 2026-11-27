@@ -19,6 +19,7 @@ import 'package:pdfrx/pdfrx.dart';
 import 'package:saber/components/canvas/_asset_cache.dart';
 import 'package:saber/components/canvas/_stroke.dart';
 import 'package:saber/components/canvas/canvas.dart';
+import 'package:saber/components/canvas/text_box_widget.dart';
 import 'package:saber/components/canvas/guide_tools.dart';
 import 'package:saber/components/toolbar/text_stamp.dart';
 import 'package:saber/components/math/math_solve_dialog.dart';
@@ -502,6 +503,9 @@ class EditorState extends State<Editor> {
 
     for (int pageIndex = 0; pageIndex < coreInfo.pages.length; pageIndex++) {
       listenToQuillChanges(coreInfo.pages[pageIndex].quill, pageIndex);
+      for (final box in coreInfo.pages[pageIndex].textBoxes) {
+        listenToQuillChanges(box.quill, pageIndex, isTextBox: true);
+      }
     }
 
     if (coreInfo.isEmpty) {
@@ -735,12 +739,30 @@ class EditorState extends State<Editor> {
         }
 
       case (final HistoricQuillChange historic):
-        final quill = coreInfo.pages[historic.pageIndex].quill;
+        final quill =
+            historic.quill ?? coreInfo.pages[historic.pageIndex].quill;
         quill.controller.undo();
 
       case (final HistoricQuillReverseChange historic):
-        final quill = coreInfo.pages[historic.pageIndex].quill;
+        final quill =
+            historic.quill ?? coreInfo.pages[historic.pageIndex].quill;
         quill.controller.redo();
+
+      case (final HistoricTextBoxAdd historic):
+        // rückgängig: Textfeld wieder entfernen
+        coreInfo.pages[historic.pageIndex].textBoxes.remove(historic.box);
+        if (quillFocus.value == historic.box.quill) quillFocus.value = null;
+
+      case (final HistoricTextBoxRemove historic):
+        createPage(historic.pageIndex);
+        final boxes = coreInfo.pages[historic.pageIndex].textBoxes;
+        if (!boxes.contains(historic.box)) boxes.add(historic.box);
+
+      case (final HistoricTextBoxRect historic):
+        historic.box.rect = historic.before;
+
+      case (final HistoricBookmark historic):
+        coreInfo.pages[historic.pageIndex].bookmark = historic.before;
 
       case (final HistoricColorChange historic):
         for (final entry in historic.colorChanges.entries) {
@@ -1307,7 +1329,11 @@ class EditorState extends State<Editor> {
     autosaveAfterDelay();
   }
 
-  void listenToQuillChanges(QuillStruct quill, int pageIndex) {
+  void listenToQuillChanges(
+    QuillStruct quill,
+    int pageIndex, {
+    bool isTextBox = false,
+  }) {
     quill.changeSubscription?.cancel();
     quill.changeSubscription = quill.controller.changes.listen((event) {
       final undoRedoButtonsNeedUpdating = !history.canUndo || history.canRedo;
@@ -1315,6 +1341,7 @@ class EditorState extends State<Editor> {
         quill: quill,
         pageIndex: pageIndex,
         event: event,
+        isTextBox: isTextBox,
       );
       createPage(pageIndex); // create empty last page
       if (undoRedoButtonsNeedUpdating) {
@@ -1327,8 +1354,10 @@ class EditorState extends State<Editor> {
 
   void _onQuillFocusChange() {
     for (final page in coreInfo.pages) {
-      if (!page.quill.focusNode.hasFocus) continue;
-      quillFocus.value = page.quill;
+      if (page.quill.focusNode.hasFocus) quillFocus.value = page.quill;
+      for (final box in page.textBoxes) {
+        if (box.quill.focusNode.hasFocus) quillFocus.value = box.quill;
+      }
     }
   }
 
@@ -1336,6 +1365,7 @@ class EditorState extends State<Editor> {
     required QuillStruct quill,
     required int pageIndex,
     required flutter_quill.DocChange event,
+    bool isTextBox = false,
   }) {
     final eventWasUndo = quill.controller.hasRedo;
     if (eventWasUndo) return;
@@ -1346,6 +1376,7 @@ class EditorState extends State<Editor> {
       final lastChange = history.peekUndo();
       if (lastChange is HistoricQuillChange &&
           lastChange.pageIndex == pageIndex &&
+          lastChange.quill == (isTextBox ? quill : null) &&
           lastChange.quillChange.before == event.before) {
         // Remove the last change, to be replaced.
         // This only pops it from the list; [this.undo] is not called.
@@ -1354,7 +1385,11 @@ class EditorState extends State<Editor> {
     }
 
     history.recordChange(
-      HistoricQuillChange(pageIndex: pageIndex, quillChange: event),
+      HistoricQuillChange(
+        pageIndex: pageIndex,
+        quillChange: event,
+        quill: isTextBox ? quill : null,
+      ),
     );
   }
 
@@ -3059,6 +3094,7 @@ class EditorState extends State<Editor> {
           solveMath: _solveMathFromSelection,
           insertTable: _insertTable,
           insertTemplate: _insertTemplate,
+          addTextBox: _addTextBox,
           extendTable: _extendTable,
           adjustSelection: _adjustSelection,
           saveAsTemplate: _saveSelectionAsTemplate,
@@ -3180,6 +3216,9 @@ class EditorState extends State<Editor> {
                   page.quill.controller.selection.extentOffset,
                 );
                 page.quill.focusNode.unfocus();
+                for (final box in page.textBoxes) {
+                  box.quill.focusNode.unfocus();
+                }
               }
             } else {
               currentTool = Tool.textEditing;
@@ -3347,6 +3386,11 @@ class EditorState extends State<Editor> {
                         ? 'Seiten untereinander (vertikal blättern)'
                         : 'Seiten nebeneinander (wie ein Buch blättern)',
                     onPressed: toggleHorizontalPaging,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.bookmarks_outlined),
+                    tooltip: 'Inhaltsverzeichnis',
+                    onPressed: _showToc,
                   ),
                   IconButton(
                     icon: const AdaptiveIcon(
@@ -3541,6 +3585,7 @@ class EditorState extends State<Editor> {
       },
       currentTool: currentTool,
       currentScale: _transformationController.value.approxScale,
+      textBoxActions: _textBoxActions,
     );
   }
 
@@ -3612,6 +3657,224 @@ class EditorState extends State<Editor> {
     );
   }
 
+  // ---------------------------------------------------------------------
+  // Feder: Textfelder und Inhaltsverzeichnis
+  // ---------------------------------------------------------------------
+
+  late final TextBoxActions _textBoxActions = TextBoxActions(
+    onRectChanged: (box, before, after) {
+      history.recordChange(
+        HistoricTextBoxRect(box: box, before: before, after: after),
+      );
+      setState(() {});
+      autosaveAfterDelay();
+    },
+    onDelete: _removeTextBox,
+  );
+
+  /// Neues Textfeld auf der aktuellen Seite.
+  void _addTextBox() {
+    if (coreInfo.readOnly || coreInfo.pages.isEmpty) return;
+    final pageIndex = currentPageIndex
+        .clamp(0, coreInfo.pages.length - 1)
+        .toInt();
+    final page = coreInfo.pages[pageIndex];
+    final w = page.size.width * 0.6;
+    const h = 220.0;
+    // jedes weitere Feld etwas versetzt, damit es nicht verdeckt wird
+    final n = page.textBoxes.length;
+    final left = (page.size.width * 0.12 + 40.0 * (n % 5))
+        .clamp(0.0, page.size.width - w)
+        .toDouble();
+    final top = (page.size.height * 0.12 + 60.0 * (n % 8))
+        .clamp(0.0, page.size.height - h)
+        .toDouble();
+    final box = FreeTextBox(rect: Rect.fromLTWH(left, top, w, h));
+    setState(() {
+      page.textBoxes.add(box);
+      listenToQuillChanges(box.quill, pageIndex, isTextBox: true);
+      history.recordChange(HistoricTextBoxAdd(pageIndex: pageIndex, box: box));
+    });
+    autosaveAfterDelay();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      quillFocus.value = box.quill;
+      box.quill.focusNode.requestFocus();
+    });
+  }
+
+  void _removeTextBox(FreeTextBox box) {
+    if (coreInfo.readOnly) return;
+    for (int i = 0; i < coreInfo.pages.length; i++) {
+      final page = coreInfo.pages[i];
+      if (!page.textBoxes.contains(box)) continue;
+      box.quill.focusNode.unfocus();
+      setState(() {
+        page.textBoxes.remove(box);
+        if (quillFocus.value == box.quill) quillFocus.value = null;
+        history.recordChange(HistoricTextBoxRemove(pageIndex: i, box: box));
+      });
+      autosaveAfterDelay();
+      return;
+    }
+  }
+
+  void _setBookmark(int pageIndex, String? name) {
+    if (coreInfo.readOnly) return;
+    final page = coreInfo.pages[pageIndex];
+    final cleaned = (name == null || name.trim().isEmpty) ? null : name.trim();
+    if (page.bookmark == cleaned) return;
+    history.recordChange(
+      HistoricBookmark(
+        pageIndex: pageIndex,
+        before: page.bookmark,
+        after: cleaned,
+      ),
+    );
+    setState(() => page.bookmark = cleaned);
+    autosaveAfterDelay();
+  }
+
+  Future<String?> _askBookmarkName(String initial) async {
+    final controller = TextEditingController(text: initial);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Lesezeichen'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'Name'),
+          onSubmitted: (v) => Navigator.of(context).pop(v),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(controller.text),
+            child: const Text('Speichern'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    return result;
+  }
+
+  /// Inhaltsverzeichnis: alle Seiten mit Lesezeichen.
+  Future<void> _showToc() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) {
+          final entries = <int>[
+            for (int i = 0; i < coreInfo.pages.length; i++)
+              if (coreInfo.pages[i].bookmark != null) i,
+          ];
+          final current = currentPageIndex
+              .clamp(0, coreInfo.pages.length - 1)
+              .toInt();
+          final currentName = coreInfo.pages[current].bookmark;
+          return SafeArea(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.8,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(20, 16, 20, 4),
+                    child: Text(
+                      'Inhaltsverzeichnis',
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  if (entries.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(20, 8, 20, 8),
+                      child: Text(
+                        'Noch keine Lesezeichen. Setze unten eines für die aktuelle Seite.',
+                      ),
+                    )
+                  else
+                    Flexible(
+                      child: ListView(
+                        shrinkWrap: true,
+                        children: [
+                          for (final i in entries)
+                            ListTile(
+                              leading: const Icon(Icons.bookmark),
+                              title: Text(coreInfo.pages[i].bookmark!),
+                              subtitle: Text('Seite ${i + 1}'),
+                              onTap: () {
+                                Navigator.of(sheetContext).pop();
+                                scrollToPageIndex(i);
+                              },
+                              trailing: coreInfo.readOnly
+                                  ? null
+                                  : Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        IconButton(
+                                          icon: const Icon(Icons.edit_outlined),
+                                          tooltip: 'Umbenennen',
+                                          onPressed: () async {
+                                            final name = await _askBookmarkName(
+                                              coreInfo.pages[i].bookmark ?? '',
+                                            );
+                                            if (name == null) return;
+                                            _setBookmark(i, name);
+                                            setSheetState(() {});
+                                          },
+                                        ),
+                                        IconButton(
+                                          icon: const Icon(Icons.delete_outline),
+                                          tooltip: 'Lesezeichen entfernen',
+                                          onPressed: () {
+                                            _setBookmark(i, null);
+                                            setSheetState(() {});
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  if (!coreInfo.readOnly)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                      child: FilledButton.icon(
+                        icon: const Icon(Icons.bookmark_add_outlined),
+                        label: Text(
+                          currentName == null
+                              ? 'Lesezeichen auf Seite ${current + 1} setzen'
+                              : 'Lesezeichen von Seite ${current + 1} umbenennen',
+                        ),
+                        onPressed: () async {
+                          final name = await _askBookmarkName(
+                            currentName ?? 'Seite ${current + 1}',
+                          );
+                          if (name == null) return;
+                          _setBookmark(current, name);
+                          setSheetState(() {});
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   void _duplicatePage(int pageIndex) => setState(() {
     if (coreInfo.readOnly) return;
     final page = coreInfo.pages[pageIndex];
@@ -3631,10 +3894,14 @@ class EditorState extends State<Editor> {
         ),
         focusNode: FocusNode(debugLabel: 'Quill Focus Node'),
       ),
+      textBoxes: page.textBoxes.map((b) => b.copy()).toList(),
       backgroundImage: page.backgroundImage?.copy()?..pageIndex += 1,
     );
     coreInfo.pages.insert(pageIndex + 1, newPage);
     listenToQuillChanges(newPage.quill, pageIndex + 1);
+    for (final box in newPage.textBoxes) {
+      listenToQuillChanges(box.quill, pageIndex + 1, isTextBox: true);
+    }
     history.recordChange(
       HistoricPageInsert(pageIndex: pageIndex + 1, page: newPage),
     );
