@@ -7,6 +7,9 @@ void main() {
   test('Rechnen', () {
     expect(r('(12+8)*3/4'), '15');
     expect(r('3+4='), '7');
+    expect(r('3+5-'), '8');
+    expect(MathSolver.solve('3+5=').writeText, '8');
+    expect(MathSolver.solve('1/4').writeText, '0,25');
     expect(r('12:4'), '3');
     expect(r('5x4'), '20');
     expect(r('2,5*2'), '5');

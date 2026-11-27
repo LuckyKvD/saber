@@ -22,6 +22,7 @@ import 'package:saber/components/canvas/canvas.dart';
 import 'package:saber/components/canvas/guide_tools.dart';
 import 'package:saber/components/toolbar/text_stamp.dart';
 import 'package:saber/components/math/math_solve_dialog.dart';
+import 'package:saber/data/math/handwriting_text.dart';
 import 'package:saber/components/tasks/create_task_dialog.dart';
 import 'package:saber/data/tasks/ink_recognition.dart';
 import 'package:saber/data/tasks/nextcloud_dav.dart';
@@ -1689,7 +1690,83 @@ class EditorState extends State<Editor> {
     }
     messenger.hideCurrentSnackBar();
     if (!mounted) return;
-    await showMathSolveDialog(context, candidates: candidates, problem: problem);
+
+    // Lage der Handschrift merken, bevor sich die Auswahl ändert.
+    final pageIndex = select.selectResult.pageIndex;
+    var minX = double.infinity, minY = double.infinity;
+    var maxX = -double.infinity, maxY = -double.infinity;
+    for (final stroke in strokes) {
+      for (final p in stroke.points) {
+        minX = math.min(minX, p.dx);
+        maxX = math.max(maxX, p.dx);
+        minY = math.min(minY, p.dy);
+        maxY = math.max(maxY, p.dy);
+      }
+    }
+    final color = strokes.first.color;
+
+    final text = await showMathSolveDialog(
+      context,
+      candidates: candidates,
+      problem: problem,
+    );
+    if (text == null || !mounted) return;
+    if (!minX.isFinite || pageIndex < 0 || pageIndex >= coreInfo.pages.length) {
+      return;
+    }
+    await _writeHandwrittenResult(
+      text,
+      color,
+      Rect.fromLTRB(minX, minY, maxX, maxY),
+      pageIndex,
+    );
+  }
+
+  /// Feder: Ergebnis in Handschrift-Optik rechts hinter die Aufgabe setzen
+  /// (passt nichts mehr daneben, dann darunter).
+  Future<void> _writeHandwrittenResult(
+    String text,
+    Color color,
+    Rect task,
+    int pageIndex,
+  ) async {
+    if (coreInfo.readOnly) return;
+    final fontSize = (task.height * 0.9).clamp(28.0, 110.0).toDouble();
+    final img = await renderHandwriting(text, color, fontSize);
+    if (!mounted) return;
+
+    final page = coreInfo.pages[pageIndex];
+    final gap = fontSize * 0.4;
+    var left = task.right + gap;
+    var top = task.center.dy - img.size.height / 2;
+    if (page.size.isFinite && left + img.size.width > page.size.width) {
+      left = task.left;
+      top = task.bottom + gap;
+    }
+    if (page.size.isFinite) {
+      left = left.clamp(0, math.max(0, page.size.width - img.size.width)).toDouble();
+      top = top.clamp(0, math.max(0, page.size.height - img.size.height)).toDouble();
+    }
+
+    final image = PngEditorImage(
+      id: coreInfo.nextImageId++,
+      extension: '.png',
+      imageProvider: MemoryImage(img.bytes),
+      pageIndex: pageIndex,
+      pageSize: page.size,
+      onMoveImage: onMoveImage,
+      onDeleteImage: onDeleteImage,
+      onMiscChange: autosaveAfterDelay,
+      onLoad: () => setState(() {}),
+      assetCache: coreInfo.assetCache,
+      dstRect: Rect.fromLTWH(left, top, img.size.width, img.size.height),
+    );
+    history.recordChange(HistoricAdd(strokes: const [], images: [image]));
+    setState(() {
+      createPage(pageIndex);
+      coreInfo.pages[pageIndex].images.add(image);
+    });
+    autosaveAfterDelay();
   }
 
   /// Feder: Text-Stempel als Bild in die Bildmitte legen.

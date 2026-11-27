@@ -4,12 +4,13 @@ import 'package:saber/data/math/math_solver.dart';
 
 /// Feder: Fenster "Matheaufgabe lösen": erkannte Aufgabe korrigieren,
 /// Ergebnis und Rechenweg sehen. Rechnet live beim Tippen, alles auf dem Gerät.
-Future<void> showMathSolveDialog(
+/// Gibt den Text zurück, der in die Notiz geschrieben werden soll (oder null).
+Future<String?> showMathSolveDialog(
   BuildContext context, {
   required List<String> candidates,
   String? problem,
 }) {
-  return showDialog<void>(
+  return showDialog<String>(
     context: context,
     builder: (context) =>
         _MathDialog(candidates: candidates, problem: problem),
@@ -170,10 +171,15 @@ class _MathDialogState extends State<_MathDialog> {
             },
             child: const Text('Ergebnis kopieren'),
           ),
-        FilledButton(
+        TextButton(
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Schließen'),
         ),
+        if (solution != null)
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(solution.writeText),
+            child: const Text('In Notiz schreiben'),
+          ),
       ],
     );
   }

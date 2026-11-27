@@ -204,3 +204,4 @@ Zusammengeführte Zweige: `feature/regal`, `feature/blaettern`, `feature/widget`
 - Kann: + − · ÷ ^, Klammern, √, Dezimalzahlen (Komma/Punkt), Brüche exakt, Gleichungen mit einer Unbekannten bis x² mit Rechenweg und Probe (linear).
 - Grenzen: Die Texterkennung liest keine Formelschrift (Brüche mit Strich, Hochzahlen oben, Integrale). Deshalb Schreibweise mit Zeichen: `3x+5=20`, `x^2-4=0`, `(12+8)*3/4`. Das erkannte Ergebnis lässt sich im Fenster korrigieren, das Ergebnis wird live neu gerechnet.
 - Tests: `test/math_solver_test.dart`.
+- Ergebnis schreiben: Im Fenster „In Notiz schreiben" setzt das Ergebnis in Handschrift-Optik (Schrift Neucha, Farbe der Aufgabe) rechts hinter die Aufgabe, bei Platzmangel darunter. Es ist ein verschiebbares Bild und mit Rückgängig entfernbar. Ein schlecht gelesenes Gleichheitszeichen am Ende der Aufgabe wird ignoriert.

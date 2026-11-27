@@ -14,7 +14,12 @@ class MathError implements Exception {
 }
 
 class MathSolution {
-  const MathSolution({required this.result, required this.steps, this.note});
+  const MathSolution({
+    required this.result,
+    required this.steps,
+    this.note,
+    String? writeText,
+  }) : writeText = writeText ?? result;
 
   /// Kurzes Ergebnis, z. B. `x = 5`.
   final String result;
@@ -22,6 +27,9 @@ class MathSolution {
   /// Rechenweg, je Eintrag eine Zeile.
   final List<String> steps;
   final String? note;
+
+  /// Kurzform zum Hinschreiben hinter die Aufgabe, z. B. `8` oder `x = 5`.
+  final String writeText;
 }
 
 abstract class MathSolver {
@@ -40,6 +48,9 @@ abstract class MathSolver {
     s = s.replaceAll(',', '.');
     // "3x4" (Ziffer x Ziffer) ist Malnehmen, nicht die Unbekannte.
     s = s.replaceAll(RegExp(r'(?<=[0-9])x(?=[0-9])'), '*');
+    // Ein schlecht erkanntes Gleichheitszeichen kommt oft als - oder _ an;
+    // am Ende der Aufgabe ist jedes Rechenzeichen ohnehin unvollständig.
+    s = s.replaceFirst(RegExp(r'[=?_~≡≈+\-*/^]+$'), '');
     return s;
   }
 
@@ -85,6 +96,7 @@ abstract class MathSolver {
         result: v,
         steps: ['Aufgabe: ${_pretty(s)}', 'Ergebnis: $v'],
         note: note,
+        writeText: p.c[0].short(),
       );
     }
     final v = ctx.variable ?? 'x';
@@ -325,6 +337,12 @@ class _Frac {
     final frac = s.substring(s.length - digits).replaceFirst(RegExp(r'0+$'), '');
     final sign = n.isNegative && scaled != BigInt.zero ? '-' : '';
     return '$sign$intPart${frac.isEmpty ? '' : ',$frac'}';
+  }
+
+  /// Kurzform zum Hinschreiben: Ganzzahl, Dezimalzahl oder Näherung.
+  String short() {
+    if (isInt) return n.toString();
+    return _terminates(6) ? _decimal(6) : '≈ ${_decimal(4)}';
   }
 
   /// Ganzzahl oder Bruch mit Dezimalwert.
