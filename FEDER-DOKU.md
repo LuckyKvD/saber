@@ -254,7 +254,9 @@ Zusammengeführte Zweige: `feature/regal`, `feature/blaettern`, `feature/widget`
 
 ## 27. Eigene Vorlagen
 
-- Lasso-Auswahl → Lesezeichen-Symbol **„Als Vorlage speichern"** → Name vergeben. Gespeichert werden Striche (auch Tabellen, Linien, Formen) und Bilder (auch Handschrift-Beschriftungen) der Auswahl.
-- Einfügen: ⋮ → **Vorlage einfügen** → Abschnitt „Eigene Vorlagen". Sie landet an der sichtbaren, freien Stelle der Seite (wie Abschnitt 23), ein Rückgängig-Schritt. Löschen über das Papierkorb-Symbol in der Liste.
-- Speicherort: `feder_vorlagen/*.json` im App-Support-Ordner des Geräts. **Nicht** in Notizen, nicht im Repo, nicht in Nextcloud (kein Abgleich zwischen Geräten).
-- Grenzen: gedrehte Bilder verlieren die Drehung; SVG-/PDF-Bilder und nicht lesbare Bilder werden übersprungen (Hinweis). Text-Felder (Quill) sind nicht Teil der Auswahl und gehen nicht mit.
+- Lasso-Auswahl → Lesezeichen-Symbol **„Als Vorlage speichern"** → Name vergeben (gleicher Name: Rückfrage zum Ersetzen). Gespeichert werden Striche (auch Tabellen, Linien, Formen) und PNG-Bilder (auch Handschrift-Beschriftungen) der Auswahl.
+- Einfügen: ⋮ → **Vorlage einfügen** → Abschnitt „Eigene Vorlagen". Sie landet horizontal zentriert an der sichtbaren, freien Stelle der Seite (wie Abschnitt 23), ein Rückgängig-Schritt. Löschen über das Papierkorb-Symbol in der Liste (löscht auch auf den anderen Geräten).
+- **Format:** Eine Vorlage ist eine normale Feder-Notiz (`.sbn2`) mit einer Seite im versteckten Ordner `/_Vorlagen` (`lib/data/templates/custom_templates.dart`). Daher gelten lokale Verschlüsselung und der Nextcloud-Abgleich (Ordner `Feder/_Vorlagen`) automatisch, ein Gerät sieht die Vorlagen der anderen nach dem nächsten Abgleich.
+- Der Ordner `_Vorlagen` ist in Dateilisten, Verschieben-Dialog und Zuletzt-Liste ausgeblendet. „Alles neu synchronisieren" nimmt ihn mit.
+- Erste Fassung (JSON-Datei, nur lokal) hat nicht funktioniert: Striche enthalten BSON-Binärdaten, die `jsonEncode` nicht schreiben kann.
+- Grenzen: gedrehte Bilder verlieren die Drehung; SVG-/PDF-Bilder und nicht lesbare Bilder werden übersprungen (Hinweis). Text-Felder (Quill) gehören nicht zur Lasso-Auswahl.

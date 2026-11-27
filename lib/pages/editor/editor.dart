@@ -1987,23 +1987,6 @@ class EditorState extends State<Editor> {
     final images = [...select.selectResult.images];
     if (strokes.isEmpty && images.isEmpty) return;
 
-    var minX = double.infinity, minY = double.infinity;
-    var maxX = -double.infinity, maxY = -double.infinity;
-    for (final s in strokes) {
-      for (final p in s.pointsAsOffsets()) {
-        minX = math.min(minX, p.dx);
-        minY = math.min(minY, p.dy);
-        maxX = math.max(maxX, p.dx);
-        maxY = math.max(maxY, p.dy);
-      }
-    }
-    for (final i in images) {
-      minX = math.min(minX, i.dstRect.left);
-      minY = math.min(minY, i.dstRect.top);
-      maxX = math.max(maxX, i.dstRect.right);
-      maxY = math.max(maxY, i.dstRect.bottom);
-    }
-
     final controller = TextEditingController();
     final name = await showDialog<String>(
       context: context,
@@ -2033,132 +2016,102 @@ class EditorState extends State<Editor> {
     controller.dispose();
     if (name == null || name.isEmpty || !mounted) return;
 
-    final origin = Offset(minX, minY);
-    final strokeJson = <Map<String, dynamic>>[];
-    for (final s in strokes) {
-      final json = (s.copy()..shift(-origin)).toJson();
-      json.remove('i');
-      strokeJson.add(json);
-    }
-    final imageJson = <Map<String, dynamic>>[];
-    var skipped = 0;
-    for (final i in images) {
-      try {
-        if (i is! PngEditorImage) {
-          skipped++;
-          continue;
-        }
-        final provider = i.imageProvider;
-        final Uint8List bytes;
-        if (provider is MemoryImage) {
-          bytes = provider.bytes;
-        } else if (provider is FileImage) {
-          bytes = await FileManager.readBytes(provider.file);
-        } else {
-          skipped++;
-          continue;
-        }
-        imageJson.add({
-          'b': base64Encode(bytes),
-          'e': i.extension,
-          'x': i.dstRect.left - minX,
-          'y': i.dstRect.top - minY,
-          'w': i.dstRect.width,
-          'h': i.dstRect.height,
-        });
-      } catch (_) {
-        skipped++;
-      }
+    if (await CustomTemplates.exists(name)) {
+      if (!mounted) return;
+      final overwrite = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('„$name" gibt es schon'),
+          content: const Text('Die vorhandene Vorlage ersetzen?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Abbrechen'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Ersetzen'),
+            ),
+          ],
+        ),
+      );
+      if (overwrite != true) return;
     }
 
-    await CustomTemplates.save(
-      CustomTemplate(
-        id: CustomTemplates.newId(),
-        name: name,
-        width: maxX - minX,
-        height: maxY - minY,
-        originX: minX,
-        strokes: strokeJson,
-        images: imageJson,
-      ),
-    );
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          skipped == 0
-              ? 'Vorlage „$name" gespeichert.'
-              : 'Vorlage „$name" gespeichert, $skipped Bild(er) konnten nicht übernommen werden.',
+    try {
+      final skipped = await CustomTemplates.save(
+        name,
+        strokes: strokes,
+        images: images,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            skipped == 0
+                ? 'Vorlage „$name" gespeichert.'
+                : 'Vorlage „$name" gespeichert, $skipped Bild(er) konnten nicht übernommen werden.',
+          ),
         ),
-      ),
-    );
+      );
+    } catch (e, st) {
+      log.severe('Vorlage speichern fehlgeschlagen: $e', e, st);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Vorlage konnte nicht gespeichert werden: $e')),
+      );
+    }
   }
 
   /// Feder: Eigene Vorlage an der sichtbaren, freien Stelle der Seite einfügen.
-  Future<void> _applyCustomTemplate(CustomTemplate template) async {
+  Future<void> _applyCustomTemplate(String name) async {
     if (coreInfo.readOnly || coreInfo.pages.isEmpty) return;
+    final template = await CustomTemplates.load(name);
+    if (template == null || !mounted) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Vorlage „$name" konnte nicht geladen werden.')),
+        );
+      }
+      return;
+    }
     final (pageIndex, center) = _visibleTarget();
     final page = coreInfo.pages[pageIndex];
     final cell = coreInfo.lineHeight.toDouble();
     var top = ((center.dy - 6 * cell) / cell).round() * cell;
     top = top
-        .clamp(cell, math.max(cell, page.size.height - template.height - cell))
+        .clamp(cell, math.max(cell, page.size.height - template.size.height - cell))
         .toDouble();
-    top = _freeTop(pageIndex, top, template.height, cell) ?? top;
-    var left = template.originX;
+    top = _freeTop(pageIndex, top, template.size.height, cell) ?? top;
+    var left = (page.size.width - template.size.width) / 2;
     if (page.size.isFinite) {
-      left = left
-          .clamp(0, math.max(0, page.size.width - template.width))
-          .toDouble();
+      left = left.clamp(0, math.max(0, page.size.width - template.size.width)).toDouble();
     }
     final shift = Offset(left, top);
 
-    final strokes = <Stroke>[];
-    for (final json in template.strokes) {
-      try {
-        strokes.add(
-          Stroke.fromJson(
-            Map<String, dynamic>.from(json),
-            fileVersion: EditorCoreInfo.sbnVersion,
-            pageIndex: pageIndex,
-            page: page,
-          )..shift(shift),
-        );
-      } catch (_) {
-        // kaputten Strich überspringen
-      }
-    }
-    final images = <EditorImage>[];
-    for (final json in template.images) {
-      try {
-        final bytes = base64Decode(json['b'] as String);
-        final w = (json['w'] as num).toDouble();
-        final h = (json['h'] as num).toDouble();
-        images.add(
-          PngEditorImage(
-            id: coreInfo.nextImageId++,
-            extension: (json['e'] as String?) ?? '.png',
-            imageProvider: MemoryImage(bytes),
-            pageIndex: pageIndex,
-            pageSize: page.size,
-            onMoveImage: onMoveImage,
-            onDeleteImage: onDeleteImage,
-            onMiscChange: autosaveAfterDelay,
-            onLoad: () => setState(() {}),
-            assetCache: coreInfo.assetCache,
-            dstRect: Rect.fromLTWH(
-              (json['x'] as num).toDouble() + left,
-              (json['y'] as num).toDouble() + top,
-              w,
-              h,
-            ),
-          ),
-        );
-      } catch (_) {
-        // kaputtes Bild überspringen
-      }
-    }
-    if (strokes.isEmpty && images.isEmpty) return;
+    final strokes = [
+      for (final s in template.strokes)
+        s.copy()
+          ..shift(shift)
+          ..pageIndex = pageIndex
+          ..page = page,
+    ];
+    final images = <EditorImage>[
+      for (final (ext, bytes, rect) in template.images)
+        PngEditorImage(
+          id: coreInfo.nextImageId++,
+          extension: ext,
+          imageProvider: MemoryImage(bytes),
+          pageIndex: pageIndex,
+          pageSize: page.size,
+          onMoveImage: onMoveImage,
+          onDeleteImage: onDeleteImage,
+          onMiscChange: autosaveAfterDelay,
+          onLoad: () => setState(() {}),
+          assetCache: coreInfo.assetCache,
+          dstRect: rect.shift(shift),
+        ),
+    ];
 
     setState(() {
       createPage(pageIndex);
@@ -2201,7 +2154,7 @@ class EditorState extends State<Editor> {
   /// einfügen (ein Rückgängig-Schritt). Vorhandener Inhalt bleibt unberührt.
   Future<void> _insertTemplate() async {
     if (coreInfo.readOnly || coreInfo.pages.isEmpty) return;
-    final custom = await CustomTemplates.list();
+    final custom = await CustomTemplates.list();  // Namen
     if (!mounted) return;
     final choice = await showModalBottomSheet<Object>(
       context: context,
@@ -2232,7 +2185,7 @@ class EditorState extends State<Editor> {
                   for (final t in mine)
                     ListTile(
                       leading: const Icon(Icons.bookmark_outline),
-                      title: Text(t.name),
+                      title: Text(t),
                       onTap: () => Navigator.of(context).pop(t),
                       trailing: IconButton(
                         tooltip: 'Vorlage löschen',
@@ -2241,9 +2194,10 @@ class EditorState extends State<Editor> {
                           final ok = await showDialog<bool>(
                             context: context,
                             builder: (context) => AlertDialog(
-                              title: Text('„${t.name}" löschen?'),
+                              title: Text('„$t" löschen?'),
                               content: const Text(
-                                'Die Vorlage wird auf diesem Gerät endgültig gelöscht. '
+                                'Die Vorlage wird endgültig gelöscht, auch auf deinen '
+                                'anderen Geräten (Nextcloud). '
                                 'Bereits eingefügte Inhalte in Notizen bleiben.',
                               ),
                               actions: [
@@ -2259,7 +2213,7 @@ class EditorState extends State<Editor> {
                             ),
                           );
                           if (ok != true) return;
-                          await CustomTemplates.delete(t.id);
+                          await CustomTemplates.delete(t);
                           setSheet(() => mine.remove(t));
                         },
                       ),
@@ -2278,7 +2232,7 @@ class EditorState extends State<Editor> {
         );
       },
     );
-    if (choice is CustomTemplate) {
+    if (choice is String) {
       await _applyCustomTemplate(choice);
       return;
     }
