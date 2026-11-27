@@ -216,6 +216,15 @@ class const HistoricPageInsert({
   HistoricPageDelete reverse() => .new(pageIndex: pageIndex, page: page);
 }
 
+/// Feder: Eine Seite wurde von [from] nach [to] verschoben (Seitenübersicht).
+class const HistoricPageReorder({
+  required final int from,
+  required final int to,
+}) extends Historic {
+  @override
+  HistoricPageReorder reverse() => .new(from: to, to: from);
+}
+
 /// The [page] at [pageIndex] was deleted.
 class const HistoricPageDelete({
   required final int pageIndex,

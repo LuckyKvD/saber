@@ -260,3 +260,21 @@ Zusammengeführte Zweige: `feature/regal`, `feature/blaettern`, `feature/widget`
 - Der Ordner `_Vorlagen` ist in Dateilisten, Verschieben-Dialog und Zuletzt-Liste ausgeblendet. „Alles neu synchronisieren" nimmt ihn mit.
 - Erste Fassung (JSON-Datei, nur lokal) hat nicht funktioniert: Striche enthalten BSON-Binärdaten, die `jsonEncode` nicht schreiben kann.
 - Grenzen: gedrehte Bilder verlieren die Drehung; SVG-/PDF-Bilder und nicht lesbare Bilder werden übersprungen (Hinweis). Text-Felder (Quill) gehören nicht zur Lasso-Auswahl.
+
+## 28. Seitenübersicht als Vollbild-Raster
+
+- Raster-Symbol in der Notiz-Leiste öffnet jetzt einen Vollbild-Bildschirm (`lib/components/toolbar/page_overview.dart`) statt des schmalen Dialogs.
+- Miniaturen in 2–6 Spalten je nach Breite, Seitenzahl unter jeder Miniatur, aktuelle Seite farbig umrandet.
+- Tippen springt zur Seite und schließt die Übersicht. Lang drücken und auf eine andere Miniatur ziehen sortiert um. Das Umsortieren ist ein Rückgängig-Schritt im Editor (`HistoricPageReorder`).
+- „Auswählen": mehrere Seiten markieren, dann Kopieren/Verschieben in ein anderes Notizbuch, Duplizieren oder Löschen (Löschen mit Rückfrage, per Rückgängig im Editor wiederholbar). „+" fügt am Ende eine Seite ein.
+- Der alte Dialog (`EditorPageManager`) bleibt im Code, wird aber nicht mehr geöffnet.
+- Offen: Ob Fotos in Miniaturen von nicht sichtbaren Seiten sofort erscheinen, ist ungeprüft (Unsicher).
+
+## 29. Handschrift-Suche (Branch `feature/handschrift-suche`)
+
+- Lupe in der Startseiten-Leiste → Suchseite. Gesucht wird in Handschrift **und** getipptem Text aller Notizen. Treffer zeigen Notiz, Seite und die erkannte Zeile; Tippen öffnet die Notiz direkt auf der Seite (`/edit?path=…&page=N`).
+- **Index:** Pro Notiz werden die Seiten gelesen. Striche werden anhand ihrer Lage zu Zeilen gebündelt (`LineGrouper`; Linien, Tabellen, Formen und große Zeichnungen werden übersprungen), jede Zeile wird mit der vorhandenen Handschrift-Erkennung (ML Kit, auf dem Gerät) gelesen. Gespeichert werden bis zu 3 Kandidaten je Zeile. Getippter Text kommt unverändert in den Index.
+- **Aktualisierung:** Beim Öffnen der Suche werden nur neue oder geänderte Notizen (Änderungszeit) neu gelesen, gelöschte entfernt. Menü: „Index aktualisieren", „komplett neu aufbauen". Der erste Lauf kann bei vielen Notizen dauern; die Suche funktioniert währenddessen mit dem bisherigen Stand.
+- **Unscharfe Suche** (`SearchText`): Umlaute/Akzente vereinfacht, Teilwörter und Wortanfänge, bei längeren Wörtern 1–2 Zeichen Abweichung (4 Zeichen und kürzer exakt). Alle Suchwörter müssen auf der Seite vorkommen.
+- **Datenschutz:** Der Index liegt nur lokal im App-Ordner (`feder_suche/index.bin`), wird bei aktiver lokaler Verschlüsselung verschlüsselt, **nicht** mit Nextcloud abgeglichen und nicht im Repo. Jedes Gerät baut seinen eigenen Index. Der Ordner `_Vorlagen` wird nicht indexiert.
+- **Grenzen (Vermutung/Unsicher):** Erkennungsqualität hängt an der Schrift; Fotos, PDF-Text und Handschrift-Beschriftungen als Bild (Vorlagen) werden nicht gelesen; erste Erkennung braucht einmalig Internet für das Sprachmodell.

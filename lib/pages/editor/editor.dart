@@ -46,6 +46,7 @@ import 'package:saber/components/theming/saber_theme.dart';
 import 'package:saber/components/toolbar/color_bar.dart';
 import 'package:saber/components/toolbar/editor_bottom_sheet.dart';
 import 'package:saber/components/toolbar/editor_page_manager.dart';
+import 'package:saber/components/toolbar/page_overview.dart';
 import 'package:saber/components/toolbar/pick_notebook_dialog.dart';
 import 'package:saber/data/page_transfer.dart';
 import 'package:saber/components/toolbar/toolbar.dart';
@@ -76,7 +77,13 @@ import 'package:super_clipboard/super_clipboard.dart';
 class const _PhotoInfo(final Uint8List bytes, final String extension);
 
 class Editor extends StatefulWidget {
-  new({super.key, String? path, this.customTitle, this.pdfPath})
+  new({
+    super.key,
+    String? path,
+    this.customTitle,
+    this.pdfPath,
+    this.initialPage,
+  })
     : initialPath = path != null
           ? Future.value(path)
           : FileManager.newFilePath('/'),
@@ -87,6 +94,9 @@ class Editor extends StatefulWidget {
 
   final String? customTitle;
   final String? pdfPath;
+
+  /// Feder: Seite (ab 0), bei der die Notiz geöffnet wird (z. B. aus der Suche).
+  final int? initialPage;
 
   /// The file extension used by the app.
   /// Files with this extension are
@@ -508,6 +518,11 @@ class EditorState extends State<Editor> {
       }
     }
 
+    final jump = widget.initialPage;
+    if (jump != null && jump >= 0 && jump < coreInfo.pages.length) {
+      coreInfo.initialPageIndex = jump;
+    }
+
     if (currentTool == Tool.textEditing) {
       int pageIndex;
       if (coreInfo.initialPageIndex != null) {
@@ -680,6 +695,10 @@ class EditorState extends State<Editor> {
           final page = coreInfo.pages[i];
           page.updatePageIndex(i);
         }
+
+      case (final HistoricPageReorder historic):
+        // rückgängig: Seite von [to] zurück nach [from]
+        _movePage(historic.to, historic.from);
 
       case (final HistoricMove historic):
         for (final stroke in historic.strokes) {
@@ -3331,12 +3350,24 @@ class EditorState extends State<Editor> {
                     ),
                     tooltip: t.editor.pages,
                     onPressed: () {
-                      showDialog(
-                        context: context,
-                        builder: (context) => AdaptiveAlertDialog(
-                          title: Text(t.editor.pages),
-                          content: pageManager(context),
-                          actions: const [],
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          fullscreenDialog: true,
+                          builder: (context) => PageOverview(
+                            coreInfo: coreInfo,
+                            currentPageIndex: currentPageIndex,
+                            scrollToPage: scrollToPageIndex,
+                            insertPageAfter: insertPageAfter,
+                            duplicatePage: _duplicatePage,
+                            deletePage: _deletePage,
+                            reorderPage: _reorderPage,
+                            redrawAndSave: () => setState(() {
+                              if (coreInfo.readOnly) return;
+                              autosaveAfterDelay();
+                            }),
+                            onTransfer: (pages, move) =>
+                                transferPages(context, pages, move),
+                          ),
                         ),
                       );
                     },
@@ -3569,46 +3600,70 @@ class EditorState extends State<Editor> {
         autosaveAfterDelay();
       }),
       insertPageAfter: insertPageAfter,
-      duplicatePage: (int pageIndex) => setState(() {
-        if (coreInfo.readOnly) return;
-        final page = coreInfo.pages[pageIndex];
-        final newPage = page.copyWith(
-          strokes: page.strokes
-              .map((stroke) => stroke.copy()..pageIndex += 1)
-              .toList(),
-          images: page.images
-              .map((image) => image.clone()..pageIndex += 1)
-              .toList(),
-          quill: QuillStruct(
-            controller: flutter_quill.QuillController(
-              document: flutter_quill.Document.fromDelta(
-                page.quill.controller.document.toDelta(),
-              ),
-              selection: const TextSelection.collapsed(offset: 0),
-            ),
-            focusNode: FocusNode(debugLabel: 'Quill Focus Node'),
-          ),
-          backgroundImage: page.backgroundImage?.copy()?..pageIndex += 1,
-        );
-        coreInfo.pages.insert(pageIndex + 1, newPage);
-        listenToQuillChanges(newPage.quill, pageIndex + 1);
-        history.recordChange(
-          HistoricPageInsert(pageIndex: pageIndex + 1, page: newPage),
-        );
-        autosaveAfterDelay();
-      }),
+      duplicatePage: _duplicatePage,
       clearPage: clearPage,
-      deletePage: (int pageIndex) => setState(() {
-        if (coreInfo.readOnly) return;
-        final page = coreInfo.pages.removeAt(pageIndex);
-        createPage(pageIndex - 1);
-        history.recordChange(
-          HistoricPageDelete(pageIndex: pageIndex, page: page),
-        );
-        autosaveAfterDelay();
-      }),
+      deletePage: _deletePage,
       transformationController: _transformationController,
     );
+  }
+
+  void _duplicatePage(int pageIndex) => setState(() {
+    if (coreInfo.readOnly) return;
+    final page = coreInfo.pages[pageIndex];
+    final newPage = page.copyWith(
+      strokes: page.strokes
+          .map((stroke) => stroke.copy()..pageIndex += 1)
+          .toList(),
+      images: page.images
+          .map((image) => image.clone()..pageIndex += 1)
+          .toList(),
+      quill: QuillStruct(
+        controller: flutter_quill.QuillController(
+          document: flutter_quill.Document.fromDelta(
+            page.quill.controller.document.toDelta(),
+          ),
+          selection: const TextSelection.collapsed(offset: 0),
+        ),
+        focusNode: FocusNode(debugLabel: 'Quill Focus Node'),
+      ),
+      backgroundImage: page.backgroundImage?.copy()?..pageIndex += 1,
+    );
+    coreInfo.pages.insert(pageIndex + 1, newPage);
+    listenToQuillChanges(newPage.quill, pageIndex + 1);
+    history.recordChange(
+      HistoricPageInsert(pageIndex: pageIndex + 1, page: newPage),
+    );
+    autosaveAfterDelay();
+  });
+
+  void _deletePage(int pageIndex) => setState(() {
+    if (coreInfo.readOnly) return;
+    final page = coreInfo.pages.removeAt(pageIndex);
+    createPage(pageIndex - 1);
+    history.recordChange(
+      HistoricPageDelete(pageIndex: pageIndex, page: page),
+    );
+    autosaveAfterDelay();
+  });
+
+  /// Feder: Seite verschieben und Seitennummern der Inhalte neu setzen.
+  void _movePage(int from, int to) {
+    final pages = coreInfo.pages;
+    if (from == to || from < 0 || to < 0 || from >= pages.length || to >= pages.length) {
+      return;
+    }
+    pages.insert(to, pages.removeAt(from));
+    for (var i = 0; i < pages.length; i++) {
+      pages[i].updatePageIndex(i);
+    }
+  }
+
+  /// Feder: Seite in der Übersicht umsortieren (mit Rückgängig).
+  void _reorderPage(int from, int to) {
+    if (coreInfo.readOnly || from == to) return;
+    setState(() => _movePage(from, to));
+    history.recordChange(HistoricPageReorder(from: from, to: to));
+    autosaveAfterDelay();
   }
 
   void insertPageAfter(int pageIndex) => setState(() {
