@@ -325,3 +325,9 @@ Zusammengeführte Zweige: `feature/regal`, `feature/blaettern`, `feature/widget`
 ## 35. Textfeld → Nextcloud
 
 Im Textmodus gibt es in der Leiste neben „Textfeld hinzufügen" ein Wolken-Symbol: markierter Text (sonst der ganze Inhalt des zuletzt benutzten Textfelds) kann als Aufgabe, Termin oder Kontakt an Nextcloud gesendet werden. Das Lasso wählt weiterhin nur Handschrift, keine Textfelder.
+
+## 36. Zwei Seiten nebeneinander
+
+- Senkrechtes Scrollen, Querformat: Wird weit genug ausgezoomt, stehen zwei Seiten pro Zeile nebeneinander; Einzoomen schaltet zurück auf eine Seite. Die Umschaltung hat eine Hysterese (Eintritt früher als Rückkehr), die Ansicht bleibt dabei auf der gleichen Stelle. Sprünge zu einer Seite (Seitenübersicht, neue Seite) schalten auf eine Seite pro Zeile zurück.
+- Buch-Blättern, Querformat: Doppelblatt wie ein echtes Buch (Seite 1 allein rechts, dann 2/3, 4/5 …; letzte Seite allein links). Jede Seite passt komplett ins Bild. Blättern geht um ein Blatt; statt des Blätter-Effekts gleitet das Blatt seitlich.
+- Im Hochformat bleibt alles wie bisher (eine Seite).

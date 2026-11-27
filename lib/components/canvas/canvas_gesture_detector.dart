@@ -155,17 +155,49 @@ class CanvasGestureDetector extends StatefulWidget {
     );
   }
 
+  /// Feder: Buch-Doppelblatt (Querformat beim seitlichen Blättern).
+  static bool isSpread(double containerWidth, double containerHeight) =>
+      containerHeight.isFinite && containerWidth > containerHeight;
+
+  /// Fach (Blatt) der Seite. Doppelblatt: Seite 1 steht allein (rechts),
+  /// dann 2/3, 4/5 … wie in einem echten Buch.
+  static int slotOfPage(int page, bool spread) =>
+      spread ? (page + 1) ~/ 2 : page;
+
+  static int firstPageOfSlot(int slot, bool spread) =>
+      spread ? (slot <= 0 ? 0 : 2 * slot - 1) : slot;
+
+  static int slotCount(int pageCount, bool spread) =>
+      spread ? pageCount ~/ 2 + 1 : pageCount;
+
+  /// Erste Seite des Fachs, das [delta] Fächer entfernt liegt.
+  static int adjacentPage(
+    int page,
+    int delta,
+    int pageCount,
+    bool spread,
+  ) {
+    final slots = slotCount(pageCount, spread);
+    final slot = (slotOfPage(page, spread) + delta).clamp(0, slots - 1).toInt();
+    return min(firstPageOfSlot(slot, spread), max(0, pageCount - 1));
+  }
+
   /// Horizontal: die Seite passt komplett ins Bild (Breite und Höhe).
   static double _fittedWidth(
     EditorPage page,
     double containerWidth, [
     double containerHeight = double.infinity,
   ]) {
-    final byWidth = min(page.size.width, containerWidth);
-    // Quermodus: Seite füllt die Bildbreite, senkrecht wird gescrollt.
-    if (containerHeight.isFinite && containerWidth > containerHeight) {
-      return byWidth;
+    // Doppelblatt: jede Seite bekommt die halbe Breite und passt in die Höhe.
+    if (isSpread(containerWidth, containerHeight)) {
+      return min(
+        min(page.size.width, (containerWidth - Editor.gapBetweenPages) / 2),
+        (containerHeight - Editor.gapBetweenPages * 2) *
+            page.size.width /
+            page.size.height,
+      );
     }
+    final byWidth = min(page.size.width, containerWidth);
     return min(
       byWidth,
       (containerHeight - Editor.gapBetweenPages * 2) *
@@ -185,7 +217,9 @@ class CanvasGestureDetector extends StatefulWidget {
     if (pages.isEmpty) return 0;
     final index = pageIndex.clamp(0, pages.length - 1).toInt();
     final width = _fittedWidth(pages[index], containerWidth, containerHeight);
-    return index * containerWidth + (containerWidth - width) / 2;
+    final spread = isSpread(containerWidth, containerHeight);
+    return slotOfPage(index, spread) * containerWidth +
+        (containerWidth - width) / 2;
   }
 
   /// Verschiebung, bei der das Fach der Seite im Bild steht (Zoom 1.0).
@@ -197,7 +231,8 @@ class CanvasGestureDetector extends StatefulWidget {
   }) {
     if (pages.isEmpty) return 0;
     final index = pageIndex.clamp(0, pages.length - 1).toInt();
-    return -index * containerWidth;
+    final spread = isSpread(containerWidth, containerHeight);
+    return -slotOfPage(index, spread) * containerWidth;
   }
 
   static void scrollToPageHorizontal({
@@ -227,10 +262,12 @@ class CanvasGestureDetector extends StatefulWidget {
     double containerHeight = double.infinity,
   }) {
     if (pages.isEmpty || containerWidth <= 0) return 0;
-    return (contentX / containerWidth)
+    final spread = isSpread(containerWidth, containerHeight);
+    final slot = (contentX / containerWidth)
         .floor()
-        .clamp(0, pages.length - 1)
+        .clamp(0, slotCount(pages.length, spread) - 1)
         .toInt();
+    return min(firstPageOfSlot(slot, spread), pages.length - 1);
   }
 
   static int getPageIndex({
@@ -326,7 +363,12 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
       return;
     }
     final start = horizontalPageIndex;
-    final page = (start + delta).clamp(0, widget.pages.length - 1).toInt();
+    final page = CanvasGestureDetector.adjacentPage(
+      start,
+      delta,
+      widget.pages.length,
+      _spread,
+    );
     if (page == start) return;
     _turnPage(
       start,
@@ -343,7 +385,8 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
   Future<void> _turnPage(int from, int to, double targetX) async {
     final forward = to > from;
     _playFlipSound();
-    final image = await _capturePage(forward ? from : to);
+    // Doppelblatt: einfaches seitliches Gleiten statt Blätter-Effekt.
+    final image = _spread ? null : await _capturePage(forward ? from : to);
     if (!mounted) {
       image?.dispose();
       return;
@@ -448,8 +491,22 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
     // Umblättern, wenn mehr als ein Siebtel der Breite gezogen wurde.
     final moved = controller.value.getTranslation().x - startX;
     var page = start;
-    if (moved < -width / 7) page = start + 1;
-    if (moved > width / 7) page = start - 1;
+    if (moved < -width / 7) {
+      page = CanvasGestureDetector.adjacentPage(
+        start,
+        1,
+        widget.pages.length,
+        _spread,
+      );
+    }
+    if (moved > width / 7) {
+      page = CanvasGestureDetector.adjacentPage(
+        start,
+        -1,
+        widget.pages.length,
+        _spread,
+      );
+    }
     page = page.clamp(0, widget.pages.length - 1).toInt();
     final target = CanvasGestureDetector.getTranslationXOfPage(
       pageIndex: page,
@@ -475,6 +532,13 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
       ..forward();
   }
 
+  bool get _spread =>
+      widget.horizontal &&
+      CanvasGestureDetector.isSpread(
+        containerBounds.maxWidth,
+        containerBounds.maxHeight,
+      );
+
   /// Quermodus aktiv (Bild breiter als hoch, horizontales Blättern).
   bool get _landscapeFill =>
       widget.horizontal &&
@@ -483,18 +547,25 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
   /// Mindest-Verschiebung y, damit das Seitenende erreichbar bleibt.
   double _minYOfCurrentPage(double scale) {
     if (widget.pages.isEmpty) return 0;
-    final page = widget.pages[horizontalPageIndex];
-    final w = CanvasGestureDetector._fittedWidth(
-      page,
-      containerBounds.maxWidth,
-      containerBounds.maxHeight,
-    );
-    final h = w / page.size.width * page.size.height;
+    final first = horizontalPageIndex;
+    var h = 0.0;
+    for (final i in [first, if (_spread && first > 0) first + 1]) {
+      if (i >= widget.pages.length) continue;
+      final page = widget.pages[i];
+      final w = CanvasGestureDetector._fittedWidth(
+        page,
+        containerBounds.maxWidth,
+        containerBounds.maxHeight,
+      );
+      h = max(h, w / page.size.width * page.size.height);
+    }
     final content = (h + Editor.gapBetweenPages * 2) * scale;
     return min(0.0, containerBounds.maxHeight - content);
   }
 
-  double get _contentWidth => containerBounds.maxWidth * widget.pages.length;
+  double get _contentWidth =>
+      containerBounds.maxWidth *
+      CanvasGestureDetector.slotCount(widget.pages.length, _spread);
 
   /// Setzt Zoom auf 1.0x und zentriert die Seite in der Bildmitte
   /// (nur horizontales Blättern).
@@ -790,15 +861,24 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
           widget.pages.isNotEmpty &&
           (scale - 1).abs() < 0.06) {
         final start = _startPage ??= horizontalPageIndex;
-        final last = widget.pages.length - 1;
         final lo = CanvasGestureDetector.getTranslationXOfPage(
-          pageIndex: min(start + 1, last),
+          pageIndex: CanvasGestureDetector.adjacentPage(
+            start,
+            1,
+            widget.pages.length,
+            _spread,
+          ),
           pages: widget.pages,
           containerWidth: containerBounds.maxWidth,
       containerHeight: containerBounds.maxHeight,
         );
         final hi = CanvasGestureDetector.getTranslationXOfPage(
-          pageIndex: max(start - 1, 0),
+          pageIndex: CanvasGestureDetector.adjacentPage(
+            start,
+            -1,
+            widget.pages.length,
+            _spread,
+          ),
           pages: widget.pages,
           containerWidth: containerBounds.maxWidth,
       containerHeight: containerBounds.maxHeight,
@@ -1280,6 +1360,69 @@ class _PagesBuilder extends StatelessWidget {
     );
   }
 
+  /// Feder: Buch-Doppelblatt. Seite 1 steht allein rechts, dann 2/3, 4/5 …
+  Widget _buildSpread(BuildContext context) {
+    final slots = CanvasGestureDetector.slotCount(pages.length, true);
+    final children = <Widget>[];
+    for (var slot = 0; slot < slots; slot++) {
+      final first = CanvasGestureDetector.firstPageOfSlot(slot, true);
+      // Index der Seiten links und rechts (null = leer).
+      final int? leftPage = slot == 0 ? null : first;
+      int? rightPage = slot == 0 ? 0 : first + 1;
+      if (rightPage != null && rightPage >= pages.length) rightPage = null;
+      final leftOfSlot = slot * containerWidth;
+      final isInViewport =
+          boundingBox.right >= leftOfSlot - containerWidth * 0.2 &&
+          boundingBox.left <= leftOfSlot + containerWidth * 1.2;
+
+      Widget cell(int? index, int sizeFrom) {
+        final ref = pages[min(sizeFrom, pages.length - 1)];
+        final w = CanvasGestureDetector._fittedWidth(
+          ref,
+          containerWidth,
+          containerHeight,
+        );
+        final h = w / ref.size.width * ref.size.height;
+        if (index == null) return SizedBox(width: w, height: h);
+        final page = pages[index];
+        final shouldRender = page.hasTextFocus || isInViewport;
+        page.isRendered = shouldRender;
+        return SizedBox(
+          width: w,
+          height: h,
+          child: RepaintBoundary(
+            key: pageKeyFor?.call(index),
+            child: shouldRender
+                ? pageBuilder(context, index)
+                : placeholderPageBuilder(context, index),
+          ),
+        );
+      }
+
+      final sizeFrom = leftPage ?? rightPage ?? 0;
+      children.add(
+        SizedBox(
+          width: containerWidth,
+          child: Center(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                cell(leftPage, sizeFrom),
+                const SizedBox(width: 2),
+                cell(rightPage, rightPage ?? sizeFrom),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: Editor.gapBetweenPages),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: children),
+    );
+  }
+
   Widget _buildHorizontal(BuildContext context) {
     final children = <Widget>[];
     for (int pageIndex = 0; pageIndex < pages.length; pageIndex++) {
@@ -1326,6 +1469,10 @@ class _PagesBuilder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (horizontal &&
+        CanvasGestureDetector.isSpread(containerWidth, containerHeight)) {
+      return _buildSpread(context);
+    }
     if (horizontal) return _buildHorizontal(context);
     if (twoUp) return _buildTwoUp(context);
     final List<Widget> children = [
