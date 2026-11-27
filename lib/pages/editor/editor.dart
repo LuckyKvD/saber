@@ -21,6 +21,7 @@ import 'package:saber/components/canvas/_stroke.dart';
 import 'package:saber/components/canvas/canvas.dart';
 import 'package:saber/components/canvas/guide_tools.dart';
 import 'package:saber/components/toolbar/text_stamp.dart';
+import 'package:saber/components/math/math_solve_dialog.dart';
 import 'package:saber/components/tasks/create_task_dialog.dart';
 import 'package:saber/data/tasks/ink_recognition.dart';
 import 'package:saber/data/tasks/nextcloud_dav.dart';
@@ -1657,6 +1658,40 @@ class EditorState extends State<Editor> {
     }
   }
 
+  /// Feder: Handschrift der Lasso-Auswahl als Matheaufgabe lesen und lösen
+  /// (Erkennung und Rechnen auf dem Gerät).
+  Future<void> _solveMathFromSelection() async {
+    final select = currentTool;
+    if (select is! Select || !select.doneSelecting) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final strokes = [...select.selectResult.strokes];
+    if (strokes.isEmpty) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Im Lasso ist keine Handschrift.')),
+      );
+      return;
+    }
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text('Handschrift wird gelesen …'),
+        duration: Duration(seconds: 20),
+      ),
+    );
+    var candidates = <String>[];
+    String? problem;
+    try {
+      candidates = await InkRecognition.recognize(strokes);
+      if (candidates.isEmpty) {
+        problem = 'Es wurde nichts erkannt. Bitte selbst eintippen.';
+      }
+    } catch (e) {
+      problem = 'Erkennung nicht möglich: $e';
+    }
+    messenger.hideCurrentSnackBar();
+    if (!mounted) return;
+    await showMathSolveDialog(context, candidates: candidates, problem: problem);
+  }
+
   /// Feder: Text-Stempel als Bild in die Bildmitte legen.
   Future<void> _placeTextStamp(String text, Color color) async {
     final bytes = await renderTextStamp(text, color);
@@ -2359,6 +2394,7 @@ class EditorState extends State<Editor> {
           },
           currentTool: currentTool,
           sendToNextcloud: _sendSelectionToNextcloud,
+          solveMath: _solveMathFromSelection,
           duplicateSelection: () {
             final select = currentTool as Select;
             if (!select.doneSelecting) return;

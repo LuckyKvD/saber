@@ -12,11 +12,15 @@ class SelectionBar extends StatelessWidget {
   /// Nextcloud senden.
   final void Function(NcKind kind) sendToNextcloud;
 
+  /// Feder: Auswahl als Matheaufgabe lesen und lösen.
+  final VoidCallback solveMath;
+
   const new({
     super.key,
     required this.duplicateSelection,
     required this.deleteSelection,
     required this.sendToNextcloud,
+    required this.solveMath,
   });
 
   @override
@@ -24,6 +28,14 @@ class SelectionBar extends StatelessWidget {
     return Row(
       mainAxisAlignment: .center,
       children: [
+        TextButton.icon(
+          onPressed: solveMath,
+          style: TextButton.styleFrom(
+            foregroundColor: ColorScheme.of(context).secondary,
+          ),
+          icon: const Icon(Icons.calculate),
+          label: const Text('Rechnen'),
+        ),
         PopupMenuButton<NcKind>(
           tooltip: 'An Nextcloud senden',
           onSelected: sendToNextcloud,

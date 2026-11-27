@@ -198,3 +198,9 @@ Zusammengeführte Zweige: `feature/regal`, `feature/blaettern`, `feature/widget`
 
 ### 18b. Whiteboard entfernt (27.11.2026)
 - Die Whiteboard-Seite, ihre Einstellung ("automatisch löschen") und die zugehörige Logik sind entfernt. Der Dateipfad `/_whiteboard` bleibt nur als reservierter Name, damit eine alte Whiteboard-Datei nicht im Regal auftaucht.
+
+## 19. Mathe-Solver (Branch `feature/mathe`, Stand 27.11.2026)
+- Lasso-Auswahl → „Rechnen". Die Handschrift wird wie bei Aufgaben auf dem Gerät gelesen (ML Kit), danach rechnet ein eigener Rechner in Dart. Nichts verlässt das Gerät.
+- Kann: + − · ÷ ^, Klammern, √, Dezimalzahlen (Komma/Punkt), Brüche exakt, Gleichungen mit einer Unbekannten bis x² mit Rechenweg und Probe (linear).
+- Grenzen: Die Texterkennung liest keine Formelschrift (Brüche mit Strich, Hochzahlen oben, Integrale). Deshalb Schreibweise mit Zeichen: `3x+5=20`, `x^2-4=0`, `(12+8)*3/4`. Das erkannte Ergebnis lässt sich im Fenster korrigieren, das Ergebnis wird live neu gerechnet.
+- Tests: `test/math_solver_test.dart`.

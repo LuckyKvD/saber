@@ -63,6 +63,7 @@ class Toolbar extends StatefulWidget {
     required this.duplicateSelection,
     required this.deleteSelection,
     required this.sendToNextcloud,
+    required this.solveMath,
     required this.exportAsSba,
     required this.exportAsPdf,
     required this.exportAsPng,
@@ -106,6 +107,7 @@ class Toolbar extends StatefulWidget {
 
   /// Auswahl als Aufgabe an Nextcloud senden.
   final void Function(NcKind kind) sendToNextcloud;
+  final VoidCallback solveMath;
 
   final Future Function(BuildContext)? exportAsSba;
   final Future Function(BuildContext)? exportAsPdf;
@@ -685,6 +687,7 @@ class _ToolbarState extends State<Toolbar> {
                 duplicateSelection: widget.duplicateSelection,
                 deleteSelection: widget.deleteSelection,
                 sendToNextcloud: widget.sendToNextcloud,
+                solveMath: widget.solveMath,
               ),
             },
           );
