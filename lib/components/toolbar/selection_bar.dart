@@ -17,6 +17,9 @@ class SelectionBar extends StatelessWidget {
   final VoidCallback solveMath;
   final VoidCallback convertToText;
 
+  /// Feder: Auswahl (z. B. Handschrift) mit einer anderen Notiz verknüpfen.
+  final VoidCallback linkSelection;
+
   /// Feder: Auswahl enthält eine Tabelle → Zeilen/Spalten anfügen.
   final bool hasTable;
   final void Function(int rows, int cols) extendTable;
@@ -32,6 +35,7 @@ class SelectionBar extends StatelessWidget {
     required this.sendToNextcloud,
     required this.solveMath,
     required this.convertToText,
+    required this.linkSelection,
     required this.hasTable,
     required this.extendTable,
     required this.adjustSelection,
@@ -96,6 +100,14 @@ class SelectionBar extends StatelessWidget {
           ),
           icon: const Icon(Icons.text_fields),
           label: const Text('In Text'),
+        ),
+        TextButton.icon(
+          onPressed: linkSelection,
+          style: TextButton.styleFrom(
+            foregroundColor: ColorScheme.of(context).secondary,
+          ),
+          icon: const Icon(Icons.link),
+          label: const Text('Link'),
         ),
         TextButton.icon(
           onPressed: solveMath,

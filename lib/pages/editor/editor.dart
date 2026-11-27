@@ -58,6 +58,7 @@ import 'package:saber/data/editor/editor_exporter.dart';
 import 'package:saber/data/editor/editor_history.dart';
 import 'package:saber/data/routes.dart';
 import 'package:saber/data/editor/page.dart';
+import 'package:saber/data/search/correction_dictionary.dart';
 import 'package:saber/data/search/line_grouper.dart';
 import 'package:saber/data/extensions/change_notifier_extensions.dart';
 import 'package:saber/data/extensions/matrix4_extensions.dart';
@@ -1835,6 +1836,7 @@ class EditorState extends State<Editor> {
       ),
     );
     final lines = <String>[];
+    final rawLines = <String>[];
     String? problem;
     try {
       final groups = LineGrouper.group(
@@ -1845,7 +1847,9 @@ class EditorState extends State<Editor> {
         final candidates = await InkRecognition.recognize([
           for (final i in g) strokes[i],
         ]);
-        lines.add(candidates.isEmpty ? '' : candidates.first);
+        final raw = candidates.isEmpty ? '' : candidates.first;
+        rawLines.add(raw);
+        lines.add(CorrectionDictionary.apply(raw));
       }
       if (lines.every((l) => l.isEmpty)) {
         problem = 'Es wurde kein Text erkannt.';
@@ -1910,6 +1914,20 @@ class EditorState extends State<Editor> {
     final text = controller.text.trim();
     controller.dispose();
     if (ok != true || text.isEmpty || !mounted) return;
+
+    // Korrekturwörterbuch: aus deinen Änderungen lernen.
+    final learned = CorrectionDictionary.learn(rawLines.join('\n'), text);
+    if (learned > 0) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            learned == 1
+                ? 'Gemerkt: 1 Wort wird künftig automatisch korrigiert.'
+                : 'Gemerkt: $learned Wörter werden künftig automatisch korrigiert.',
+          ),
+        ),
+      );
+    }
 
     final margin = coreInfo.lineHeight * 0.4;
     var rect = area.inflate(margin);
@@ -3357,6 +3375,7 @@ class EditorState extends State<Editor> {
           sendToNextcloud: _sendSelectionToNextcloud,
           solveMath: _solveMathFromSelection,
           convertToText: _convertSelectionToText,
+          linkSelection: _linkSelection,
           insertTable: _insertTable,
           insertTemplate: _insertTemplate,
           addTextBox: _addTextBox,
@@ -4186,14 +4205,14 @@ class EditorState extends State<Editor> {
   }
 
   /// Feder: Verknüpfung (Textfeld mit Ziel-Notiz) anlegen.
-  Future<void> _addLinkBox() async {
-    if (coreInfo.readOnly || coreInfo.pages.isEmpty) return;
+  /// Fragt Ziel-Notiz und Zielseite ab (null bei Abbruch).
+  Future<(String, int)?> _askLinkTarget() async {
     final target = await pickNotebook(
       context,
       title: 'Verknüpfen mit Notiz',
       excludePath: coreInfo.filePath,
     );
-    if (target == null || !mounted) return;
+    if (target == null || !mounted) return null;
     final pageController = TextEditingController(text: '1');
     final pageText = await showDialog<String>(
       context: context,
@@ -4218,9 +4237,16 @@ class EditorState extends State<Editor> {
       ),
     );
     pageController.dispose();
-    if (pageText == null || !mounted) return;
+    if (pageText == null || !mounted) return null;
     final targetPage = ((int.tryParse(pageText.trim()) ?? 1) - 1).clamp(0, 9999).toInt();
+    return (target, targetPage);
+  }
 
+  Future<void> _addLinkBox() async {
+    if (coreInfo.readOnly || coreInfo.pages.isEmpty) return;
+    final picked = await _askLinkTarget();
+    if (picked == null || !mounted) return;
+    final (target, targetPage) = picked;
     final pageIndex = currentPageIndex
         .clamp(0, coreInfo.pages.length - 1)
         .toInt();
@@ -4250,6 +4276,36 @@ class EditorState extends State<Editor> {
       history.recordChange(HistoricTextBoxAdd(pageIndex: pageIndex, box: box));
     });
     autosaveAfterDelay();
+  }
+
+  /// Feder: Lasso-Auswahl (z. B. Handschrift) mit einer anderen Notiz
+  /// verknüpfen. Über der Auswahl liegt ein unsichtbarer, leicht getönter
+  /// Link-Bereich; Antippen öffnet die Ziel-Notiz.
+  Future<void> _linkSelection() async {
+    final select = currentTool;
+    if (select is! Select || !select.doneSelecting || coreInfo.readOnly) return;
+    final pageIndex = select.selectResult.pageIndex;
+    final area = select.selectResult.path.getBounds().inflate(8);
+    final picked = await _askLinkTarget();
+    if (picked == null || !mounted) return;
+    final (target, targetPage) = picked;
+    final page = coreInfo.pages[pageIndex];
+    final box = FreeTextBox(
+      rect: area,
+      linkPath: target,
+      linkPage: targetPage,
+    );
+    setState(() {
+      page.textBoxes.add(box);
+      listenToQuillChanges(box.quill, pageIndex, isTextBox: true);
+      history.recordChange(HistoricTextBoxAdd(pageIndex: pageIndex, box: box));
+    });
+    autosaveAfterDelay();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Link gesetzt. Antippen öffnet die Notiz.')),
+      );
+    }
   }
 
   /// Feder: Verknüpfung antippen = Ziel-Notiz öffnen.

@@ -56,6 +56,9 @@ class _WritingPadState extends State<WritingPad> {
   /// Lage der Umbruch-Marke in Prozent der Feldbreite (bleibt gespeichert).
   late double _marker = stows.easyWritingMarker.value / 100;
 
+  /// Gewählte Höhe der Eingabefläche (0 = automatisch nach Bildschirmbreite).
+  late double _userHeight = stows.easyWritingHeight.value.toDouble();
+
   WritingPadController get c => widget.controller;
 
   double get _zoom => _padWidth <= 0 ? 1 : _padWidth / c.width;
@@ -134,7 +137,12 @@ class _WritingPadState extends State<WritingPad> {
     final page = pages[c.pageIndex.clamp(0, pages.length - 1)];
 
     final screenWidth = MediaQuery.sizeOf(context).width;
-    final padHeight = (screenWidth * 0.22).clamp(120.0, 230.0).toDouble();
+    final screenHeight = MediaQuery.sizeOf(context).height;
+    final autoHeight = (screenWidth * 0.22).clamp(120.0, 230.0).toDouble();
+    final maxHeight = (screenHeight * 0.6).clamp(160.0, 600.0).toDouble();
+    final padHeight = _userHeight > 0
+        ? _userHeight.clamp(80.0, maxHeight).toDouble()
+        : autoHeight;
 
     return Material(
       color: colorScheme.surfaceContainerHigh,
@@ -147,10 +155,30 @@ class _WritingPadState extends State<WritingPad> {
               child: Row(
                 children: [
                   const SizedBox(width: 12),
-                  Icon(
-                    Icons.drag_indicator,
-                    size: 20,
-                    color: colorScheme.outline,
+                  // Griff: nach oben ziehen = Feld höher, nach unten = niedriger.
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onVerticalDragUpdate: (d) {
+                      setState(() {
+                        _userHeight = (padHeight - d.delta.dy)
+                            .clamp(80.0, maxHeight)
+                            .toDouble();
+                      });
+                    },
+                    onVerticalDragEnd: (_) {
+                      stows.easyWritingHeight.value = _userHeight.round();
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 10,
+                      ),
+                      child: Icon(
+                        Icons.height,
+                        size: 24,
+                        color: colorScheme.primary,
+                      ),
+                    ),
                   ),
                   const Spacer(),
                   IconButton(

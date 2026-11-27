@@ -314,3 +314,10 @@ Zusammengeführte Zweige: `feature/regal`, `feature/blaettern`, `feature/widget`
 - **Zwei Notizen nebeneinander:** Symbol „geteilter Bildschirm“ in der Editor-Leiste. Beide Seiten sind volle Editoren; Trenner in der Mitte ist verschiebbar; „Andere Notiz“ pro Seite. Beide Notizen müssen verschieden sein. Innerhalb von Feder, nicht über Android-Mehrfenster.
 - **Rechtschreibung:** Nicht umgesetzt. Die verwendete Editor-Bibliothek bietet keine Anbindung an die Android-Rechtschreibprüfung (Compiler-Test: Parameter existiert nicht). Offen: eigene Prüfung mit Wörterbuch.
 - Handschrift → Text: Text jetzt in Zeilenhöhe-Größe.
+
+## 34. Schreibfeld-Höhe, Korrekturwörterbuch, Lasso-Link, Zwei-Notizen-X
+
+- Schreibfeld: Das Symbol links in der Leiste des Feldes (Pfeile hoch/runter) ziehen = Eingabefläche höher oder niedriger. Der Wert bleibt gespeichert (`easyWritingHeight`); der blaue Rahmen auf dem Blatt passt sich an.
+- Zwei Notizen: Jede Seite hat ein X. Schließt man eine Seite, bleibt die andere Notiz allein im Vollbild.
+- Korrekturwörterbuch (`correction_dictionary.dart`): Beim Bestätigen von „Handschrift in Text" werden geänderte Wörter (erkannt → richtig) gemerkt, sofern der Text gleich viele Wörter hat. Beim nächsten Umwandeln und bei der Indexierung für die Suche wird das Wörterbuch angewandt. Die Einträge liegen nur lokal in den Einstellungen, nicht im Code.
+- Lasso-Link: Auswahl → „Link" → Ziel-Notiz und Seite wählen. Über der Auswahl liegt ein leicht getönter Link-Bereich (technisch ein Verknüpfungs-Textfeld ohne Text); Antippen öffnet das Ziel.

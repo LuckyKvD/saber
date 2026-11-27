@@ -14,6 +14,7 @@ import 'package:saber/data/crypto/local_crypto.dart';
 import 'package:saber/data/editor/editor_core_info.dart';
 import 'package:saber/data/file_manager/file_manager.dart';
 import 'package:saber/data/prefs.dart';
+import 'package:saber/data/search/correction_dictionary.dart';
 import 'package:saber/data/search/line_grouper.dart';
 import 'package:saber/data/search/search_text.dart';
 import 'package:saber/data/tasks/ink_recognition.dart';
@@ -208,7 +209,14 @@ abstract class SearchIndex {
               for (final i in g) writing[i],
             ]);
             if (candidates.isNotEmpty) {
-              lines.add(candidates.take(3).join('|'));
+              final variants = <String>[
+                for (final c in candidates.take(3)) c,
+              ];
+              for (final c in candidates.take(3)) {
+                final fixed = CorrectionDictionary.apply(c);
+                if (fixed != c) variants.add(fixed);
+              }
+              lines.add(variants.join('|'));
             }
           } catch (e) {
             // Modell fehlt o. ä.: wird oben in der Oberfläche gemeldet.

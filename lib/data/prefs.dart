@@ -421,6 +421,20 @@ class Stows {
     volatile: !_isOnMainIsolate,
   );
 
+  /// Korrekturwörterbuch der Handschrifterkennung (JSON: erkannt → richtig).
+  final handwritingCorrections = PlainStow(
+    'handwritingCorrections',
+    '',
+    volatile: !_isOnMainIsolate,
+  );
+
+  /// Schreibfeld: Höhe der Eingabefläche in Pixeln (0 = automatisch).
+  final easyWritingHeight = PlainStow(
+    'easyWritingHeight',
+    0,
+    volatile: !_isOnMainIsolate,
+  );
+
   /// Schreibfeld: Lage der Umbruch-Marke in Prozent der Feldbreite.
   final easyWritingMarker = PlainStow(
     'easyWritingMarker',
