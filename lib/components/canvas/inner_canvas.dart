@@ -15,7 +15,6 @@ import 'package:saber/data/editor/editor_core_info.dart';
 import 'package:saber/data/extensions/color_extensions.dart';
 import 'package:saber/data/prefs.dart';
 import 'package:saber/data/tools/select.dart';
-import 'package:saber/i18n/strings.g.dart';
 import 'package:sbn/canvas_background_pattern.dart';
 import 'package:sbn/quill_styles.dart';
 
@@ -102,9 +101,7 @@ class _InnerCanvasState extends State<InnerCanvas> {
               scrollable: false,
               autoFocus: false,
               expands: true,
-              placeholder: widget.textEditing
-                  ? t.editor.quill.typeSomething
-                  : null,
+              placeholder: null,
               showCursor: true,
               keyboardAppearance: invert ? .dark : .light,
               padding: .only(
@@ -185,7 +182,13 @@ class _InnerCanvasState extends State<InnerCanvas> {
                   width: widget.width,
                   height: widget.height,
                   child: IgnorePointer(
-                    ignoring: widget.coreInfo.readOnly || !widget.textEditing,
+                    // Feder: Der alte Seitentext ist nur bei Notizen aktiv, die
+                    // schon Text darauf haben. Neue Textfelder zieht man auf.
+                    ignoring:
+                        widget.coreInfo.readOnly ||
+                        !widget.textEditing ||
+                        (page.quill.controller.document.isEmpty() &&
+                            !page.quill.focusNode.hasFocus),
                     child: quillEditor,
                   ),
                 ),

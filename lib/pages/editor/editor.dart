@@ -537,8 +537,10 @@ class EditorState extends State<Editor> {
       }
       assert(pageIndex < coreInfo.pages.length);
 
-      quillFocus.value = coreInfo.pages[pageIndex].quill
-        ..focusNode.requestFocus();
+      final legacy = coreInfo.pages[pageIndex].quill;
+      if (!legacy.controller.document.isEmpty()) {
+        quillFocus.value = legacy..focusNode.requestFocus();
+      }
     }
 
     setState(() {});
@@ -856,7 +858,11 @@ class EditorState extends State<Editor> {
     if (dragPageIndex == null) return false;
 
     if (currentTool == Tool.textEditing) {
-      return false;
+      // Feder: Mit Stift (oder Fingerzeichnen) ein Textfeld aufziehen.
+      return stows.editorFingerDrawing.value ||
+          currentPointerKind == PointerDeviceKind.stylus ||
+          currentPointerKind == PointerDeviceKind.invertedStylus ||
+          currentPressure != null;
     } else if (showWritingPad &&
         currentPointerKind == PointerDeviceKind.touch &&
         (_focalPointOnWritingHandle(details.focalPoint, dragPageIndex!) ||
@@ -876,9 +882,23 @@ class EditorState extends State<Editor> {
 
   static const changePageThreshold = 50.0;
 
+  /// Feder: Textfeld, das gerade aufgezogen wird.
+  FreeTextBox? _drawingTextBox;
+  Offset _drawingTextStart = Offset.zero;
+
   void onDrawStart(ScaleStartDetails details) {
     final page = coreInfo.pages[dragPageIndex!];
     var position = page.renderBox!.globalToLocal(details.focalPoint);
+
+    if (currentTool == Tool.textEditing) {
+      _drawingTextStart = position;
+      final box = FreeTextBox(
+        rect: Rect.fromLTWH(position.dx, position.dy, 1, 1),
+      );
+      _drawingTextBox = box;
+      setState(() => page.textBoxes.add(box));
+      return;
+    }
 
     _guideEdge = null;
     if (currentTool is Pen &&
@@ -964,6 +984,20 @@ class EditorState extends State<Editor> {
   }
 
   void onDrawUpdate(ScaleUpdateDetails details) {
+    final drawingBox = _drawingTextBox;
+    if (drawingBox != null && dragPageIndex != null) {
+      final page = coreInfo.pages[dragPageIndex!];
+      final now = page.renderBox?.globalToLocal(details.focalPoint);
+      if (now == null) return;
+      final clamped = Offset(
+        now.dx.clamp(0.0, page.size.width).toDouble(),
+        now.dy.clamp(0.0, page.size.height).toDouble(),
+      );
+      setState(
+        () => drawingBox.rect = Rect.fromPoints(_drawingTextStart, clamped),
+      );
+      return;
+    }
     if (_resizingWritingPad && dragPageIndex != null) {
       final box = coreInfo.pages[dragPageIndex!].renderBox;
       if (box != null) {
@@ -1153,6 +1187,34 @@ class EditorState extends State<Editor> {
   }
 
   void onDrawEnd(ScaleEndDetails details) {
+    final drawingBox = _drawingTextBox;
+    if (drawingBox != null && dragPageIndex != null) {
+      _drawingTextBox = null;
+      final pageIndex = dragPageIndex!;
+      final page = coreInfo.pages[pageIndex];
+      var rect = drawingBox.rect;
+      if (rect.width < 40 && rect.height < 40) {
+        // nur angetippt statt aufgezogen: Standardgröße an dieser Stelle
+        rect = Rect.fromLTWH(rect.left, rect.top, 420, 160);
+      }
+      final w = rect.width.clamp(140.0, page.size.width).toDouble();
+      final h = rect.height.clamp(70.0, page.size.height).toDouble();
+      final left = rect.left.clamp(0.0, page.size.width - w).toDouble();
+      final top = rect.top.clamp(0.0, page.size.height - h).toDouble();
+      drawingBox.rect = Rect.fromLTWH(left, top, w, h);
+      listenToQuillChanges(drawingBox.quill, pageIndex, isTextBox: true);
+      history.recordChange(
+        HistoricTextBoxAdd(pageIndex: pageIndex, box: drawingBox),
+      );
+      setState(() {});
+      autosaveAfterDelay();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        quillFocus.value = drawingBox.quill;
+        drawingBox.quill.focusNode.requestFocus();
+      });
+      return;
+    }
     _guideEdge = null;
     if (_placingWritingPad) {
       if (_draggingWritingPad) writingPadController.endMove();
@@ -3222,8 +3284,14 @@ class EditorState extends State<Editor> {
               }
             } else {
               currentTool = Tool.textEditing;
-              quillFocus.value = coreInfo.pages[currentPageIndex].quill
-                ..focusNode.requestFocus();
+              // Feder: nur alten Seitentext fokussieren, wenn er existiert;
+              // sonst wartet die Textfunktion auf ein aufgezogenes Feld.
+              final legacy = coreInfo.pages[currentPageIndex].quill;
+              if (!legacy.controller.document.isEmpty()) {
+                quillFocus.value = legacy..focusNode.requestFocus();
+              } else {
+                quillFocus.value = null;
+              }
             }
           }),
           undo: undo,
