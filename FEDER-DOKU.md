@@ -331,3 +331,7 @@ Im Textmodus gibt es in der Leiste neben „Textfeld hinzufügen" ein Wolken-Sym
 - Senkrechtes Scrollen, Querformat: Wird weit genug ausgezoomt, stehen zwei Seiten pro Zeile nebeneinander; Einzoomen schaltet zurück auf eine Seite. Die Umschaltung hat eine Hysterese (Eintritt früher als Rückkehr), die Ansicht bleibt dabei auf der gleichen Stelle. Sprünge zu einer Seite (Seitenübersicht, neue Seite) schalten auf eine Seite pro Zeile zurück.
 - Buch-Blättern, Querformat: Doppelblatt wie ein echtes Buch (Seite 1 allein rechts, dann 2/3, 4/5 …; letzte Seite allein links). Jede Seite passt komplett ins Bild. Blättern geht um ein Blatt; statt des Blätter-Effekts gleitet das Blatt seitlich.
 - Im Hochformat bleibt alles wie bisher (eine Seite).
+
+### Nachbesserung Doppelblatt
+- Tippen auf die äußeren ~35 % der rechten/linken Buchseite blättert; die rechte Seite rollt über den Falz und blendet am Falz aus (rückwärts umgekehrt). Wischen blättert ebenso.
+- Lineal und Winkelmesser lassen sich über den Falz auf die Nachbarseite ziehen und von dort auch wieder greifen.

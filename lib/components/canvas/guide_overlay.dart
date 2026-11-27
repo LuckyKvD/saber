@@ -32,19 +32,27 @@ class _GuideOverlayState extends State<GuideOverlay> {
 
   double get _ppc => Guides.pxPerCm(widget.pageSize);
 
+  /// Lage dieser Seite relativ zur Besitzerseite des Hilfsmittels
+  /// (Doppelblatt: Partnerseite).
+  Offset get _shift => Offset(
+    Guides.offsetXFor(widget.coreInfo, widget.pageIndex),
+    0,
+  );
+  Offset _own(Offset local) => local - _shift;
+
   void _down(PointerDownEvent e) {
     if (e.kind != PointerDeviceKind.touch) return;
     if (_ids.isEmpty) {
-      final shape = Guides.pick(e.localPosition, widget.pageSize);
+      final shape = Guides.pick(_own(e.localPosition), widget.pageSize);
       if (shape == null) return;
       _active = shape;
-      _rotating = shape.hitHandle(e.localPosition, _ppc);
+      _rotating = shape.hitHandle(_own(e.localPosition), _ppc);
       Guides.grabbing = true;
     } else if (_active == null) {
       return;
     }
     _ids.add(e.pointer);
-    _positions[e.pointer] = e.localPosition;
+    _positions[e.pointer] = _own(e.localPosition);
   }
 
   static double _wrap(double a) {
@@ -57,7 +65,7 @@ class _GuideOverlayState extends State<GuideOverlay> {
     final shape = _active;
     final prev = _positions[e.pointer];
     if (shape == null || prev == null) return;
-    final now = e.localPosition;
+    final now = _own(e.localPosition);
     final size = widget.pageSize;
 
     if (_ids.length >= 2 && (e.pointer == _ids[0] || e.pointer == _ids[1])) {
@@ -142,12 +150,11 @@ class _GuidePainter extends CustomPainter {
   static ui.Picture? _fullPicture;
   static double _protractorPpc = 0;
 
-  bool get _active => Guides.isActiveFor(coreInfo, pageIndex);
-
   @override
   bool? hitTest(Offset position) {
-    if (!_active) return false;
-    return Guides.pick(position, pageSize) != null;
+    if (Guides.offsetFor(coreInfo, pageIndex) == null) return false;
+    final dx = Guides.offsetXFor(coreInfo, pageIndex);
+    return Guides.pick(position - Offset(dx, 0), pageSize) != null;
   }
 
   @override
@@ -160,7 +167,8 @@ class _GuidePainter extends CustomPainter {
     // Oben und unten nie über den eigenen Seitenrand hinaus zeichnen (sonst
     // erscheint das Hilfsmittel doppelt); seitlich darf es überstehen.
     canvas.clipRect(Rect.fromLTRB(-100000, 0, 100000, size.height));
-    if (offsetY != 0) canvas.translate(0, offsetY);
+    final offsetX = Guides.offsetXFor(coreInfo, pageIndex);
+    if (offsetY != 0 || offsetX != 0) canvas.translate(offsetX, offsetY);
     final ppc = Guides.pxPerCm(pageSize);
     final ruler = Guides.ruler;
     if (ruler != null) _paintRuler(canvas, ruler, ppc);

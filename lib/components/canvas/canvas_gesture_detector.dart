@@ -328,6 +328,7 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
   ui.Image? _flipImage;
   var _flipForward = true;
   var _flipRect = Rect.zero;
+  var _flipLeftBlank = 0.0;
 
   Future<ui.Image?> _capturePage(int index) async {
     final object = _pageKeys[index]?.currentContext?.findRenderObject();
@@ -385,8 +386,16 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
   Future<void> _turnPage(int from, int to, double targetX) async {
     final forward = to > from;
     _playFlipSound();
-    // Doppelblatt: einfaches seitliches Gleiten statt Blätter-Effekt.
-    final image = _spread ? null : await _capturePage(forward ? from : to);
+    // Doppelblatt: die rechte Seite rollt über den Falz (vorwärts die
+    // bisherige rechte Seite, rückwärts die rechte Seite des Ziels).
+    final spread = _spread;
+    int? imagePage = forward ? from : to;
+    if (spread) {
+      final slot = CanvasGestureDetector.slotOfPage(forward ? from : to, true);
+      final right = slot == 0 ? 0 : 2 * slot;
+      imagePage = right < widget.pages.length ? right : null;
+    }
+    final image = imagePage == null ? null : await _capturePage(imagePage);
     if (!mounted) {
       image?.dispose();
       return;
@@ -407,11 +416,14 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
     controller.value = matrix;
 
     final ratio = min(MediaQuery.devicePixelRatioOf(context), 2.0);
-    final w = image.width / ratio;
+    final pageW = image.width / ratio;
     final h = image.height / ratio;
+    // Doppelblatt: Fläche beider Seiten (+2 px Falz), Bild nur rechts.
+    final w = spread ? pageW * 2 + 2 : pageW;
     setState(() {
       _flipImage = image;
       _flipForward = forward;
+      _flipLeftBlank = spread ? pageW + 2 : 0;
       _flipRect = Rect.fromLTWH(
         (containerBounds.maxWidth - w) / 2,
         matrix.getTranslation().y + Editor.gapBetweenPages,
@@ -1102,9 +1114,11 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
     if (box == null) return;
     final x = box.globalToLocal(event.position).dx;
     final width = box.size.width;
-    if (x > width * 0.82) {
+    // Doppelblatt: Tippen auf die rechte/linke Buchseite blättert.
+    final zone = _spread ? 0.35 : 0.18;
+    if (x > width * (1 - zone)) {
       turnBy(1);
-    } else if (x < width * 0.18) {
+    } else if (x < width * zone) {
       turnBy(-1);
     }
   }
@@ -1215,6 +1229,7 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
                   image: _flipImage!,
                   animation: _flipAnim,
                   forward: _flipForward,
+                  leftBlank: _flipLeftBlank,
                 ),
               ),
             ),

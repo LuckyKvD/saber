@@ -13,7 +13,12 @@ class PageCurlPainter extends CustomPainter {
     required this.image,
     required this.animation,
     required this.forward,
+    this.leftBlank = 0,
   }) : super(repaint: animation);
+
+  /// Doppelblatt: Breite des leeren Bereichs links (die andere Buchseite).
+  /// Das Bild ist dann nur die rechte Seite; sie rollt über den Falz.
+  final double leftBlank;
 
   final ui.Image image;
   final Animation<double> animation;
@@ -24,10 +29,14 @@ class PageCurlPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final t = Curves.easeInOut.transform(animation.value);
-    final p = forward ? t : 1 - t;
+    final p0 = forward ? t : 1 - t;
     final w = size.width;
     final h = size.height;
     if (w <= 0 || h <= 0) return;
+    final book = leftBlank > 0;
+    // Buch: Die Seite rollt nur bis zum Falz und blendet dann aus.
+    final p = book ? p0 * (1 - leftBlank / w) : p0;
+    final cw = w - leftBlank;
 
     final iw = image.width.toDouble();
     final ih = image.height.toDouble();
@@ -36,17 +45,27 @@ class PageCurlPainter extends CustomPainter {
 
     canvas.save();
     canvas.clipRect(Offset.zero & size);
+    if (book) {
+      final fade = ((p0 - 0.7) / 0.3).clamp(0.0, 1.0);
+      final alpha = 1 - fade;
+      if (alpha < 1) {
+        canvas.saveLayer(
+          Offset.zero & size,
+          Paint()..color = Color.fromRGBO(255, 255, 255, alpha),
+        );
+      }
+    }
 
     final paint = Paint()
       ..isAntiAlias = false
       ..filterQuality = FilterQuality.low;
 
     // Flacher Teil.
-    if (xc > 0.5) {
+    if (xc > leftBlank + 0.5) {
       canvas.drawImageRect(
         image,
-        Rect.fromLTWH(0, 0, iw * xc / w, ih),
-        Rect.fromLTWH(0, 0, xc, h),
+        Rect.fromLTWH(0, 0, iw * (xc - leftBlank) / cw, ih),
+        Rect.fromLTWH(leftBlank, 0, xc - leftBlank, h),
         paint,
       );
     }
@@ -62,6 +81,7 @@ class PageCurlPainter extends CustomPainter {
       for (var i = 0; i < _strips; i++) {
         final s0 = total * i / _strips;
         final s1 = total * (i + 1) / _strips;
+        if (xc + s1 <= leftBlank) continue;
         final x0 = posOf(s0);
         final x1 = posOf(s1);
         final left = min(x0, x1) - 0.6;
@@ -77,9 +97,9 @@ class PageCurlPainter extends CustomPainter {
           canvas.drawImageRect(
             image,
             Rect.fromLTWH(
-              (xc + s0) / w * iw,
+              max(0.0, xc + s0 - leftBlank) / cw * iw,
               0,
-              (s1 - s0) / w * iw + 0.5,
+              (s1 - s0) / cw * iw + 0.5,
               ih,
             ),
             dst,
@@ -120,10 +140,13 @@ class PageCurlPainter extends CustomPainter {
         );
       }
     }
+    if (book && ((p0 - 0.7) / 0.3).clamp(0.0, 1.0) > 0) canvas.restore();
     canvas.restore();
   }
 
   @override
   bool shouldRepaint(PageCurlPainter old) =>
-      old.image != image || old.forward != forward;
+      old.image != image ||
+      old.forward != forward ||
+      old.leftBlank != leftBlank;
 }

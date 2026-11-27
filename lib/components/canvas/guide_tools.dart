@@ -137,6 +137,7 @@ class Guides {
       return null;
     }
     if (index == pageIndex) return 0;
+    if (spread && index == partnerOf(pageIndex)) return 0;
     if (!verticalPages) return null;
     if (index == pageIndex - 1 && index >= 0 && index < pageSizes.length) {
       return pageSizes[index].height;
@@ -147,6 +148,27 @@ class Guides {
       return -pageSizes[pageIndex].height;
     }
     return null;
+  }
+
+  /// Doppelblatt (Buch, Querformat): Seite 1 allein rechts, dann 2/3, 4/5 …
+  static bool spread = false;
+
+  /// Die andere Seite des Doppelblatts (null, wenn die Seite allein steht).
+  static int? partnerOf(int index) {
+    if (!spread || index <= 0) return null;
+    final p = index.isOdd ? index + 1 : index - 1;
+    return p >= 0 && p < pageSizes.length ? p : null;
+  }
+
+  /// Seitlicher Versatz, mit dem das Hilfsmittel auf der Partnerseite liegt.
+  static double offsetXFor(Object coreInfo, int index) {
+    if (owner == null || !identical(owner, coreInfo)) return 0;
+    if (index == pageIndex || index != partnerOf(pageIndex)) return 0;
+    if (pageIndex >= pageSizes.length) return 0;
+    // Besitzer links (ungerade): Partner rechts, Hilfsmittel liegt links davon.
+    return pageIndex.isOdd
+        ? -pageSizes[pageIndex].width
+        : pageSizes[index].width;
   }
 
   static bool get anyVisible => ruler != null || protractor != null;
@@ -223,12 +245,17 @@ class Guides {
   static double _overshoot(Size pageSize) => 8 * pxPerCm(pageSize);
 
   static void moveBy(GuideShape shape, Offset delta, Size pageSize) {
+    final partner = partnerOf(pageIndex);
+    final canRight = partner != null && pageIndex.isOdd;
+    final canLeft = partner != null && pageIndex.isEven;
     final canUp = verticalPages && pageIndex > 0;
     final canDown =
         verticalPages && pageIndex + 1 < pageSizes.length;
     final over = _overshoot(pageSize);
     shape.center = Offset(
-      (shape.center.dx + delta.dx).clamp(0, pageSize.width).toDouble(),
+      (shape.center.dx + delta.dx)
+          .clamp(canLeft ? -over : 0, pageSize.width + (canRight ? over : 0))
+          .toDouble(),
       (shape.center.dy + delta.dy)
           .clamp(canUp ? -over : 0, pageSize.height + (canDown ? over : 0))
           .toDouble(),
@@ -238,6 +265,33 @@ class Guides {
   /// Beim Loslassen: Liegt der Mittelpunkt außerhalb der Seite, wandert das
   /// Hilfsmittel (und sein Partner) auf die Nachbarseite.
   static void settle() {
+    if (spread && anyVisible) {
+      final partner = partnerOf(pageIndex);
+      if (partner != null && pageIndex < pageSizes.length) {
+        final lead = ruler ?? protractor!;
+        final size = pageSizes[pageIndex];
+        double? shift;
+        if (pageIndex.isOdd && lead.center.dx > size.width) {
+          shift = -size.width;
+        } else if (pageIndex.isEven && lead.center.dx < 0) {
+          shift = pageSizes[partner].width;
+        }
+        if (shift != null) {
+          final target = pageSizes[partner];
+          for (final shape in [ruler, protractor]) {
+            if (shape == null) continue;
+            shape.center = Offset(
+              (shape.center.dx + shift).clamp(0, target.width).toDouble(),
+              shape.center.dy.clamp(0, target.height).toDouble(),
+            );
+          }
+          pageIndex = partner;
+          grabbing = false;
+          notifier.ping();
+        }
+      }
+      return;
+    }
     if (!verticalPages || !anyVisible) return;
     if (pageIndex < 0 || pageIndex >= pageSizes.length) return;
     final lead = ruler ?? protractor!;
@@ -270,6 +324,8 @@ class Guides {
   /// Hilfsmittel auf die Seite verschieben, die gerade im Bild ist.
   static void moveToPage(int index) {
     if (!anyVisible || index == pageIndex) return;
+    // Doppelblatt: beide Seiten sind im Bild, das Hilfsmittel bleibt.
+    if (spread && index == partnerOf(pageIndex)) return;
     if (index < 0 || index >= pageSizes.length) return;
     if (pageIndex >= pageSizes.length) return;
     final old = pageSizes[pageIndex];

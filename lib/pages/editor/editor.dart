@@ -306,6 +306,11 @@ class EditorState extends State<Editor> {
   void _prepareGuides() {
     Guides.pageSizes = [for (final p in coreInfo.pages) p.size];
     Guides.verticalPages = !horizontalPaging;
+    final bounds = _canvasGestureDetectorKey.currentState?.containerBounds;
+    Guides.spread =
+        horizontalPaging &&
+        bounds != null &&
+        CanvasGestureDetector.isSpread(bounds.maxWidth, bounds.maxHeight);
   }
 
   void _toggleRuler() {
