@@ -94,7 +94,8 @@ class _NewNoteButtonState extends State<NewNoteButton> {
 
             if (filePath.toLowerCase().endsWith('.sbn') ||
                 filePath.toLowerCase().endsWith('.sbn2') ||
-                filePath.toLowerCase().endsWith('.sba')) {
+                filePath.toLowerCase().endsWith('.sba') ||
+                filePath.toLowerCase().endsWith('.fba')) {
               final path = await FileManager.importFile(
                 filePath,
                 '${widget.path ?? ''}/',

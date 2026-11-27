@@ -48,7 +48,7 @@ class _ExportNoteButtonState extends State<ExportNoteButton> {
       } else {
         final sba = await coreInfo.saveToSba(currentPageIndex: null);
         files.add(
-          ArchiveFile('$fileNameWithoutExtension.sba', sba.length, sba),
+          ArchiveFile('$fileNameWithoutExtension.fba', sba.length, sba),
         );
       }
     }
@@ -102,7 +102,7 @@ class _ExportNoteButtonState extends State<ExportNoteButton> {
         ),
         SpeedDialChild(
           child: const Icon(Icons.note),
-          label: 'SBA',
+          label: 'FBA',
           onTap: () => exportFile(widget.selectedFiles, false),
         ),
       ],

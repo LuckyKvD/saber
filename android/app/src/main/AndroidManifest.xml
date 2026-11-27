@@ -62,7 +62,7 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
 
-            <!-- Support opening sbn (json), sbn2 (binary), and sba (zip) files -->
+            <!-- Feder oeffnet per Doppeltipp nur .fba (damit Saber seine .sbn/.sbn2/.sba behaelt); Teilen/Importieren akzeptiert weiterhin alle -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -75,6 +75,7 @@
                 <data android:mimeType="application/octet-stream" />
 
                 <data android:mimeType="application/sba" />
+                <data android:mimeType="application/fba" />
                 <data android:mimeType="application/zip" />
             </intent-filter>
             <intent-filter>
@@ -84,7 +85,7 @@
                 <data android:scheme="content" />
                 <data android:scheme="file" />
                 <data android:host="*" />
-                <data android:pathAdvancedPattern=".*\.sb[n2a]+"/>
+                <data android:pathAdvancedPattern=".*\.fba"/>
 
                 <data android:mimeType="application/sbn" />
                 <data android:mimeType="application/json" />
@@ -94,6 +95,7 @@
                 <data android:mimeType="application/octet-stream" />
 
                 <data android:mimeType="application/sba" />
+                <data android:mimeType="application/fba" />
                 <data android:mimeType="application/zip" />
             </intent-filter>
 

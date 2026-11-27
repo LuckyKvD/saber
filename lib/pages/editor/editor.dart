@@ -2928,7 +2928,7 @@ class EditorState extends State<Editor> {
     final sba = await coreInfo.saveToSba(currentPageIndex: currentPageIndex);
     if (!context.mounted) return;
     await FileManager.exportFile(
-      '${coreInfo.fileName}.sba',
+      '${coreInfo.fileName}.fba',
       Uint8List.fromList(sba),
       context: context,
     );
