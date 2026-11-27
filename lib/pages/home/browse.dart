@@ -227,11 +227,16 @@ class _BrowsePageState extends State<BrowsePage> {
                 bottom: 8, // less than other pages for path components
               ),
             ),
-            actions: const [
-              SaberImportButton(),
-              BrowseSortButton(),
-              HomeLayoutButton(),
-              SyncingButton(),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.search),
+                tooltip: 'Handschrift durchsuchen',
+                onPressed: () => context.push(RoutePaths.search),
+              ),
+              const SaberImportButton(),
+              const BrowseSortButton(),
+              const HomeLayoutButton(),
+              const SyncingButton(),
             ],
           ),
           SliverToBoxAdapter(

@@ -11,11 +11,19 @@ abstract class RoutePaths {
   static const edit = '/edit';
   static const login = '/login';
   static const logs = '/logs';
+  static const search = '/search';
 
   static const prefixOfHome = '/home';
 
   static String editFilePath(String filePath) {
     return '$edit?path=${Uri.encodeQueryComponent(filePath)}';
+  }
+
+  /// Feder: Notiz öffnen und direkt zu Seite [pageIndex] (ab 0) springen.
+  static String editFilePathPage(String filePath, int pageIndex) {
+    return '$edit'
+        '?path=${Uri.encodeQueryComponent(filePath)}'
+        '&page=$pageIndex';
   }
 
   static String editImportPdf(String filePath, String pdfPath) {

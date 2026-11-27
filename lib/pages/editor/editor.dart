@@ -77,7 +77,13 @@ import 'package:super_clipboard/super_clipboard.dart';
 class const _PhotoInfo(final Uint8List bytes, final String extension);
 
 class Editor extends StatefulWidget {
-  new({super.key, String? path, this.customTitle, this.pdfPath})
+  new({
+    super.key,
+    String? path,
+    this.customTitle,
+    this.pdfPath,
+    this.initialPage,
+  })
     : initialPath = path != null
           ? Future.value(path)
           : FileManager.newFilePath('/'),
@@ -88,6 +94,9 @@ class Editor extends StatefulWidget {
 
   final String? customTitle;
   final String? pdfPath;
+
+  /// Feder: Seite (ab 0), bei der die Notiz geöffnet wird (z. B. aus der Suche).
+  final int? initialPage;
 
   /// The file extension used by the app.
   /// Files with this extension are
@@ -507,6 +516,11 @@ class EditorState extends State<Editor> {
           image.onMiscChange = autosaveAfterDelay;
         }
       }
+    }
+
+    final jump = widget.initialPage;
+    if (jump != null && jump >= 0 && jump < coreInfo.pages.length) {
+      coreInfo.initialPageIndex = jump;
     }
 
     if (currentTool == Tool.textEditing) {
