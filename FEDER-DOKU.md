@@ -242,4 +242,5 @@ Zusammengeführte Zweige: `feature/regal`, `feature/blaettern`, `feature/widget`
 
 - Klebeband-Muster 11–15 sind „Textband 1–5": farbiges Band (blau, schwarz, dunkelrot, grün, violett) mit weißer, wiederholter Schrift.
 - Die Texte werden in den Einstellungen („Texte für Textbänder") eingegeben und liegen nur lokal in den App-Einstellungen, nicht im Code und nicht im Repository. Leere Textbänder erscheinen im Stift-Menü nicht.
+- Die Bandfarbe jedes Textbands wählst du im selben Dialog aus 12 Farben (nur lokal gespeichert).
 - Der Text steht nicht im Strich: Ändert man ihn später, ändern sich alle bereits gezeichneten Bänder dieser Nummer. Alte Bänder mit festem Namen (frühere Muster 11/12) zeigen jetzt den Text von Textband 1 bzw. 2.

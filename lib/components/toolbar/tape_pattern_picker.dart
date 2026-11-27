@@ -11,7 +11,11 @@ class TapePatternPicker extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = ColorScheme.of(context);
     return ListenableBuilder(
-      listenable: Listenable.merge([stows.lastTapePattern, ...stows.tapeTexts]),
+      listenable: Listenable.merge([
+        stows.lastTapePattern,
+        ...stows.tapeTexts,
+        ...stows.tapeColors,
+      ]),
       builder: (context, _) {
         final selected = stows.lastTapePattern.value;
         Widget swatch(int pattern, Widget child, String tooltip) {
@@ -67,6 +71,9 @@ class TapePatternPicker extends StatelessWidget {
                       i >= tapeTextFirst && i < tapeTextFirst + tapeTextCount
                           ? tapeTextOf(i - tapeTextFirst)
                           : '',
+                      i >= tapeTextFirst && i < tapeTextFirst + tapeTextCount
+                          ? tapeColorOf(i - tapeTextFirst)
+                          : 0,
                     ),
                     size: Size.infinite,
                   ),
@@ -84,10 +91,11 @@ class TapePatternPicker extends StatelessWidget {
 }
 
 class _SwatchPainter extends CustomPainter {
-  const _SwatchPainter(this.pattern, this.text);
+  const _SwatchPainter(this.pattern, this.text, this.colorValue);
 
   final int pattern;
   final String text;
+  final int colorValue;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -99,5 +107,7 @@ class _SwatchPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_SwatchPainter oldDelegate) =>
-      oldDelegate.pattern != pattern || oldDelegate.text != text;
+      oldDelegate.pattern != pattern ||
+      oldDelegate.text != text ||
+      oldDelegate.colorValue != colorValue;
 }

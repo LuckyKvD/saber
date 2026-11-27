@@ -11,14 +11,24 @@ const tapePatternCount = 16;
 const tapeTextFirst = 11;
 const tapeTextCount = 5;
 
-/// Hintergrundfarben der Textbänder 1–5.
-const tapeTextColors = [
+/// Auswahl an Bandfarben für die Textbänder (Einstellungen).
+const tapeColorChoices = [
   0xFF1E5AA8,
   0xFF111111,
   0xFF8E1B2D,
   0xFF2E7D32,
   0xFF5E35B1,
+  0xFFC62828,
+  0xFFEF6C00,
+  0xFFF9A825,
+  0xFF00838F,
+  0xFFAD1457,
+  0xFF5D4037,
+  0xFF546E7A,
 ];
+
+/// Feder: Bandfarbe von Textband [slot] (0–4) aus den Einstellungen.
+int tapeColorOf(int slot) => stows.tapeColors[slot].value;
 
 /// Feder: Text von Textband [slot] (0–4) aus den Einstellungen.
 String tapeTextOf(int slot) => stows.tapeTexts[slot].value.trim();
@@ -302,7 +312,7 @@ void paintTapePattern(Canvas canvas, int pattern, double length, double width) {
     case 14:
     case 15:
       final slot = pattern - tapeTextFirst;
-      bg(tapeTextColors[slot]);
+      bg(tapeColorOf(slot));
       final text = tapeTextOf(slot);
       if (text.isEmpty) break;
       final tp = _namePainter(text, width);
