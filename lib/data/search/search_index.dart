@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
@@ -12,6 +13,7 @@ import 'package:saber/components/canvas/_stroke.dart';
 import 'package:saber/data/crypto/local_crypto.dart';
 import 'package:saber/data/editor/editor_core_info.dart';
 import 'package:saber/data/file_manager/file_manager.dart';
+import 'package:saber/data/prefs.dart';
 import 'package:saber/data/search/line_grouper.dart';
 import 'package:saber/data/search/search_text.dart';
 import 'package:saber/data/tasks/ink_recognition.dart';
@@ -82,6 +84,71 @@ abstract class SearchIndex {
   }
 
   static int get indexedNotes => _data?.length ?? 0;
+
+  // ---- Hintergrund-Indexierung -------------------------------------------
+
+  /// Alle Indexläufe laufen nacheinander (Suchseite, Hintergrund, Speichern).
+  static Future<void> _tail = Future<void>.value();
+
+  static Future<T> _exclusive<T>(Future<T> Function() job) {
+    final done = Completer<T>();
+    _tail = _tail.then((_) async {
+      try {
+        done.complete(await job());
+      } catch (e, st) {
+        done.completeError(e, st);
+      }
+    });
+    return done.future;
+  }
+
+  static final _noteTimers = <String, Timer>{};
+  static Timer? _startTimer;
+  static var _backgroundRunning = false;
+
+  /// Eine Notiz wurde gespeichert: nach kurzer Ruhe nur diese Notiz neu lesen.
+  static void noteSaved(String path) {
+    if (!stows.searchBackgroundIndex.value || !InkRecognition.supported) return;
+    _noteTimers[path]?.cancel();
+    _noteTimers[path] = Timer(const Duration(seconds: 30), () {
+      _noteTimers.remove(path);
+      unawaited(_updateNote(path));
+    });
+  }
+
+  static Future<void> _updateNote(String path) => _exclusive(() async {
+    try {
+      final data = await load();
+      final mtime = FileManager.lastModified(path + Editor.extension)
+          .millisecondsSinceEpoch;
+      final pages = await _readNote(path);
+      data[path] = {'m': mtime, 'pages': pages};
+      await _save();
+    } catch (e) {
+      log.fine('Hintergrund-Indexierung (Notiz) übersprungen: $e');
+    }
+  });
+
+  /// Beim Start und beim Zurückkehren in die App: nach einer Wartezeit neue
+  /// oder geänderte Notizen (z. B. von einem anderen Gerät) leise nachziehen.
+  static void scheduleBackgroundRefresh({
+    Duration delay = const Duration(seconds: 45),
+  }) {
+    if (!stows.searchBackgroundIndex.value || !InkRecognition.supported) return;
+    if (_backgroundRunning) return;
+    _startTimer?.cancel();
+    _startTimer = Timer(delay, () async {
+      if (_backgroundRunning || !stows.searchBackgroundIndex.value) return;
+      _backgroundRunning = true;
+      try {
+        await refresh(pause: const Duration(milliseconds: 250));
+      } catch (e) {
+        log.fine('Hintergrund-Indexierung abgebrochen: $e');
+      } finally {
+        _backgroundRunning = false;
+      }
+    });
+  }
 
   /// Striche, die wie Schrift aussehen (keine Linien, Tabellen, Formen, Bilder).
   static bool _looksLikeWriting(Stroke s, double cell) {
@@ -155,6 +222,19 @@ abstract class SearchIndex {
   static Future<int> refresh({
     void Function(int done, int total)? onProgress,
     bool Function()? isCancelled,
+    Duration pause = Duration.zero,
+  }) => _exclusive(
+    () => _refresh(
+      onProgress: onProgress,
+      isCancelled: isCancelled,
+      pause: pause,
+    ),
+  );
+
+  static Future<int> _refresh({
+    void Function(int done, int total)? onProgress,
+    bool Function()? isCancelled,
+    Duration pause = Duration.zero,
   }) async {
     final data = await load();
     final files = await FileManager.getAllFiles();
@@ -199,6 +279,7 @@ abstract class SearchIndex {
       done++;
       onProgress?.call(done, todo.length);
       if (done % 5 == 0) await _save();
+      if (pause > Duration.zero) await Future<void>.delayed(pause);
     }
     if (changed) await _save();
     return done;

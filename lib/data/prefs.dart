@@ -435,6 +435,14 @@ class Stows {
     volatile: !_isOnMainIsolate,
   );
 
+  /// Feder: Suchindex im Hintergrund aktuell halten (nach dem Speichern und
+  /// beim Start der App).
+  final searchBackgroundIndex = PlainStow(
+    'searchBackgroundIndex',
+    true,
+    volatile: !_isOnMainIsolate,
+  );
+
   /// Feder: Eigene Texte für die Textbänder 1–5 (nur lokal, nicht im Code).
   final tapeText1 = PlainStow('tapeText1', '', volatile: !_isOnMainIsolate);
   final tapeText2 = PlainStow('tapeText2', '', volatile: !_isOnMainIsolate);
