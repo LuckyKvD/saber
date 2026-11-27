@@ -3344,8 +3344,11 @@ class EditorState extends State<Editor> {
           redo: redo,
           isRedoPossible: history.canRedo,
           toggleFingerDrawing: () {
-            stows.editorFingerDrawing.value = !stows.editorFingerDrawing.value;
-            lastSeenPointerCount = 0;
+            setState(() {
+              stows.editorFingerDrawing.value =
+                  !stows.editorFingerDrawing.value;
+              lastSeenPointerCount = 0;
+            });
           },
           pickPhoto: _pickPhotos,
           toggleWritingPad: _toggleWritingPad,

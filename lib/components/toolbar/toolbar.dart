@@ -210,11 +210,11 @@ class _ToolbarState extends State<Toolbar> {
   }
 
   void toggleColorOptions() {
-    showColorOptions.value = !showColorOptions.value;
+    setState(() => showColorOptions.value = !showColorOptions.value);
   }
 
   void toggleExportBar() {
-    showExportOptions.value = !showExportOptions.value;
+    setState(() => showExportOptions.value = !showExportOptions.value);
   }
 
   void toggleFullscreen() async {
