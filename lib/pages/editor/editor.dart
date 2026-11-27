@@ -1795,6 +1795,51 @@ class EditorState extends State<Editor> {
     }
   }
 
+  /// Feder: Text aus einem Textfeld an Nextcloud senden. Ist Text markiert,
+  /// wird nur dieser gesendet, sonst der ganze Inhalt des aktiven Textfelds.
+  Future<void> _sendTextToNextcloud(NcKind kind) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final quill = quillFocus.value;
+    if (quill == null) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Bitte erst in ein Textfeld tippen.')),
+      );
+      return;
+    }
+    final notReady = NextcloudDav.notReadyReason();
+    if (notReady != null) {
+      messenger.showSnackBar(SnackBar(content: Text(notReady)));
+      return;
+    }
+    final controller = quill.controller;
+    final sel = controller.selection;
+    final plain = controller.document.toPlainText();
+    var text = sel.isValid && !sel.isCollapsed
+        ? plain.substring(
+            sel.start.clamp(0, plain.length).toInt(),
+            sel.end.clamp(0, plain.length).toInt(),
+          )
+        : plain;
+    text = text.trim();
+    if (text.isEmpty) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Das Textfeld ist leer.')),
+      );
+      return;
+    }
+    final created = await showSendToNextcloudDialog(
+      context,
+      kind: kind,
+      candidates: [text],
+      problem: null,
+    );
+    if (created == true && mounted) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('${kind.label} in Nextcloud angelegt.')),
+      );
+    }
+  }
+
   /// Feder: Handschrift der Lasso-Auswahl in ein Textfeld umwandeln
   /// (Erkennung auf dem Gerät, Zeile für Zeile).
   Future<void> _convertSelectionToText() async {
@@ -3380,6 +3425,7 @@ class EditorState extends State<Editor> {
           insertTemplate: _insertTemplate,
           addTextBox: _addTextBox,
           addLink: _addLinkBox,
+          sendTextToNextcloud: _sendTextToNextcloud,
           extendTable: _extendTable,
           adjustSelection: _adjustSelection,
           saveAsTemplate: _saveSelectionAsTemplate,

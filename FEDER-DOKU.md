@@ -321,3 +321,7 @@ Zusammengeführte Zweige: `feature/regal`, `feature/blaettern`, `feature/widget`
 - Zwei Notizen: Jede Seite hat ein X. Schließt man eine Seite, bleibt die andere Notiz allein im Vollbild.
 - Korrekturwörterbuch (`correction_dictionary.dart`): Beim Bestätigen von „Handschrift in Text" werden geänderte Wörter (erkannt → richtig) gemerkt, sofern der Text gleich viele Wörter hat. Beim nächsten Umwandeln und bei der Indexierung für die Suche wird das Wörterbuch angewandt. Die Einträge liegen nur lokal in den Einstellungen, nicht im Code.
 - Lasso-Link: Auswahl → „Link" → Ziel-Notiz und Seite wählen. Über der Auswahl liegt ein leicht getönter Link-Bereich (technisch ein Verknüpfungs-Textfeld ohne Text); Antippen öffnet das Ziel.
+
+## 35. Textfeld → Nextcloud
+
+Im Textmodus gibt es in der Leiste neben „Textfeld hinzufügen" ein Wolken-Symbol: markierter Text (sonst der ganze Inhalt des zuletzt benutzten Textfelds) kann als Aufgabe, Termin oder Kontakt an Nextcloud gesendet werden. Das Lasso wählt weiterhin nur Handschrift, keine Textfelder.
