@@ -215,6 +215,29 @@ Zusammengeführte Zweige: `feature/regal`, `feature/blaettern`, `feature/widget`
 - Lasso „Strichdicke und Größe" (Symbol Regler): markierte Striche dünner/dicker (±25 %) oder vergrößern/verkleinern (125 % / 80 %, Ankerpunkt oben links der Auswahl). Mit Rückgängig. Gilt für alle freien Striche, auch für Tabellen samt Inhalt; Bilder und Formstriche (Kreis, Rechteck) bleiben unverändert.
 - Smartphone: Rückgängig und Wiederholen bleiben in der Werkzeugleiste sichtbar; die Knopfbreite wird gemessen, damit der ⋮-Knopf nicht abgeschnitten wird.
 
+## 21. Notizvorlagen (Besprechung, Jour fixe)
+
+- Im Editor: ⋮-Menü → **Vorlage einfügen** → *Besprechung* oder *Jour fixe*. Die Vorlage wird in die **geöffnete Notiz** an die sichtbare Stelle der aktuellen Seite gesetzt. Vorhandener Inhalt bleibt unberührt, es entsteht keine neue Notiz.
+- Aufbau ohne neues Dateiformat: Beschriftungen als Handschrift-Bilder (Neucha), Schreiblinien und Tabellen als normale Striche (wie in Abschnitt 20). Alles ist danach frei bearbeitbar.
+- Einfügen ist **ein** Rückgängig-Schritt. Passt ein Abschnitt nicht mehr auf die Seite, wird er weggelassen und ein Hinweis gezeigt.
+- Layout in Kästchen-Einheiten (`lib/data/templates/note_templates.dart`), Tests: `test/note_templates_test.dart`.
+
+## 22. Tabelle erweitern verschiebt Inhalt darunter
+
+- Beim Erweitern um Zeilen (Lasso → Tabelle) wird alles, was unterhalb der Tabelle liegt, um die neue Höhe nach unten geschoben (eigener Rückgängig-Schritt).
+- Grenzen: es zählt die ganze Seitenbreite unterhalb der Tabelle; ragt Inhalt dadurch über das Seitenende, erscheint ein Hinweis (nichts geht verloren, liegt aber außerhalb).
+
+## 23. Freie Stelle beim Einfügen
+
+- Neue Tabellen und Vorlagen werden nicht mehr über vorhandenen Inhalt gesetzt: Der Editor sucht ab der gewünschten Stelle den nächsten freien Streifen auf der Seite (zuerst nach unten, dann nach oben). Gibt es keinen, bleibt es bei der gewünschten Stelle.
+- Grund: Beim Lasso um eine Tabelle würde sonst der Text darunter mit ausgewählt und am Lassorand zerschnitten.
+- Grenze: Prüfung nur nach Höhe (ganze Seitenbreite), nicht nach Fläche.
+
+## 24. Tabelle vergrößern/verkleinern schiebt Inhalt mit
+
+- Lasso → Regler → Verkleinern/Vergrößern: Enthält die Auswahl Tabellenlinien, wird der Inhalt unterhalb um die Höhenänderung nach unten bzw. oben mitgeschoben (eigener Rückgängig-Schritt).
+- Skaliert wird um die linke obere Ecke der Auswahl. Inhalt neben der Tabelle (gleiche Höhe) bleibt stehen, was darunter liegt wandert über die ganze Seitenbreite.
+
 ## 25. Textbänder mit eigenen Texten
 
 - Klebeband-Muster 11–15 sind „Textband 1–5": farbiges Band (blau, schwarz, dunkelrot, grün, violett) mit weißer, wiederholter Schrift.

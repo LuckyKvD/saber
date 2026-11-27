@@ -62,7 +62,7 @@ jobs:
         run: flutter analyze lib --no-fatal-infos --no-fatal-warnings
 
       - name: Krypto-Tests (Feder-Verschlüsselung)
-        run: flutter test test/fast_bson_test.dart test/feder_crypto_test.dart test/saber_legacy_crypto_test.dart test/local_crypto_test.dart test/shape_recognizer_test.dart test/due_date_parser_test.dart test/contact_parser_test.dart test/math_solver_test.dart test/table_builder_test.dart
+        run: flutter test test/fast_bson_test.dart test/feder_crypto_test.dart test/saber_legacy_crypto_test.dart test/local_crypto_test.dart test/shape_recognizer_test.dart test/due_date_parser_test.dart test/contact_parser_test.dart test/math_solver_test.dart test/table_builder_test.dart test/note_templates_test.dart
 
       - name: Build apk
         run: |
