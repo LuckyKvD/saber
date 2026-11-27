@@ -251,3 +251,12 @@ Zusammengeführte Zweige: `feature/regal`, `feature/blaettern`, `feature/widget`
 - Handschrift-Bilder (Vorlagen-Beschriftung, Mathe-Ergebnis) werden nach dem Rendern geprüft: Enthalten sie fremde Farben (Grafikspeicher-Reste), wird bis zu 4-mal neu gerendert. Test: `test/handwriting_pixels_test.dart`.
 - Gemeinsamer Renderer `lib/data/images/safe_render.dart` (`renderInkPng`): wird von Handschrift-Bildern **und Text-Stempeln** genutzt, gibt Zeichnung und Bild immer frei und rendert bei fremden Farben neu.
 - Beides ist eine Vermutung, die Ursache wurde nicht auf dem Gerät nachgestellt. Offen: Tritt der Fehler erst beim Anzeigen auf (Bytes sauber), hilft die Prüfung nicht.
+
+## 27. Eigene Vorlagen
+
+- Lasso-Auswahl → Lesezeichen-Symbol **„Als Vorlage speichern"** → Name vergeben (gleicher Name: Rückfrage zum Ersetzen). Gespeichert werden Striche (auch Tabellen, Linien, Formen) und PNG-Bilder (auch Handschrift-Beschriftungen) der Auswahl.
+- Einfügen: ⋮ → **Vorlage einfügen** → Abschnitt „Eigene Vorlagen". Sie landet horizontal zentriert an der sichtbaren, freien Stelle der Seite (wie Abschnitt 23), ein Rückgängig-Schritt. Löschen über das Papierkorb-Symbol in der Liste (löscht auch auf den anderen Geräten).
+- **Format:** Eine Vorlage ist eine normale Feder-Notiz (`.sbn2`) mit einer Seite im versteckten Ordner `/_Vorlagen` (`lib/data/templates/custom_templates.dart`). Daher gelten lokale Verschlüsselung und der Nextcloud-Abgleich (Ordner `Feder/_Vorlagen`) automatisch, ein Gerät sieht die Vorlagen der anderen nach dem nächsten Abgleich.
+- Der Ordner `_Vorlagen` ist in Dateilisten, Verschieben-Dialog und Zuletzt-Liste ausgeblendet. „Alles neu synchronisieren" nimmt ihn mit.
+- Erste Fassung (JSON-Datei, nur lokal) hat nicht funktioniert: Striche enthalten BSON-Binärdaten, die `jsonEncode` nicht schreiben kann.
+- Grenzen: gedrehte Bilder verlieren die Drehung; SVG-/PDF-Bilder und nicht lesbare Bilder werden übersprungen (Hinweis). Text-Felder (Quill) gehören nicht zur Lasso-Auswahl.

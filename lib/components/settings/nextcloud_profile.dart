@@ -72,6 +72,7 @@ class const NextcloudProfile({super.key}) extends HookWidget {
                     final allFiles = await FileManager.getAllFiles(
                       includeExtensions: true,
                       includeAssets: true,
+                      hideInternal: false,
                     );
                     for (final file in allFiles) {
                       syncer.uploader.enqueueRel(file);

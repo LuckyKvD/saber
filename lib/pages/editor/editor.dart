@@ -23,6 +23,7 @@ import 'package:saber/components/canvas/guide_tools.dart';
 import 'package:saber/components/toolbar/text_stamp.dart';
 import 'package:saber/components/math/math_solve_dialog.dart';
 import 'package:saber/components/tables/table_dialog.dart';
+import 'package:saber/data/templates/custom_templates.dart';
 import 'package:saber/data/templates/note_templates.dart';
 import 'package:saber/data/tables/table_builder.dart';
 import 'package:saber/data/math/handwriting_text.dart';
@@ -1978,6 +1979,149 @@ class EditorState extends State<Editor> {
     autosaveAfterDelay();
   }
 
+  /// Feder: Lasso-Auswahl als eigene Vorlage speichern (nur lokal auf dem Gerät).
+  Future<void> _saveSelectionAsTemplate() async {
+    final select = currentTool;
+    if (select is! Select || !select.doneSelecting) return;
+    final strokes = [...select.selectResult.strokes];
+    final images = [...select.selectResult.images];
+    if (strokes.isEmpty && images.isEmpty) return;
+
+    final controller = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Als Vorlage speichern'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 40,
+          decoration: const InputDecoration(
+            labelText: 'Name der Vorlage',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(controller.text.trim()),
+            child: const Text('Speichern'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (name == null || name.isEmpty || !mounted) return;
+
+    if (await CustomTemplates.exists(name)) {
+      if (!mounted) return;
+      final overwrite = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('„$name" gibt es schon'),
+          content: const Text('Die vorhandene Vorlage ersetzen?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Abbrechen'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Ersetzen'),
+            ),
+          ],
+        ),
+      );
+      if (overwrite != true) return;
+    }
+
+    try {
+      final skipped = await CustomTemplates.save(
+        name,
+        strokes: strokes,
+        images: images,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            skipped == 0
+                ? 'Vorlage „$name" gespeichert.'
+                : 'Vorlage „$name" gespeichert, $skipped Bild(er) konnten nicht übernommen werden.',
+          ),
+        ),
+      );
+    } catch (e, st) {
+      log.severe('Vorlage speichern fehlgeschlagen: $e', e, st);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Vorlage konnte nicht gespeichert werden: $e')),
+      );
+    }
+  }
+
+  /// Feder: Eigene Vorlage an der sichtbaren, freien Stelle der Seite einfügen.
+  Future<void> _applyCustomTemplate(String name) async {
+    if (coreInfo.readOnly || coreInfo.pages.isEmpty) return;
+    final template = await CustomTemplates.load(name);
+    if (template == null || !mounted) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Vorlage „$name" konnte nicht geladen werden.')),
+        );
+      }
+      return;
+    }
+    final (pageIndex, center) = _visibleTarget();
+    final page = coreInfo.pages[pageIndex];
+    final cell = coreInfo.lineHeight.toDouble();
+    var top = ((center.dy - 6 * cell) / cell).round() * cell;
+    top = top
+        .clamp(cell, math.max(cell, page.size.height - template.size.height - cell))
+        .toDouble();
+    top = _freeTop(pageIndex, top, template.size.height, cell) ?? top;
+    var left = (page.size.width - template.size.width) / 2;
+    if (page.size.isFinite) {
+      left = left.clamp(0, math.max(0, page.size.width - template.size.width)).toDouble();
+    }
+    final shift = Offset(left, top);
+
+    final strokes = [
+      for (final s in template.strokes)
+        s.copy()
+          ..shift(shift)
+          ..pageIndex = pageIndex
+          ..page = page,
+    ];
+    final images = <EditorImage>[
+      for (final (ext, bytes, rect) in template.images)
+        PngEditorImage(
+          id: coreInfo.nextImageId++,
+          extension: ext,
+          imageProvider: MemoryImage(bytes),
+          pageIndex: pageIndex,
+          pageSize: page.size,
+          onMoveImage: onMoveImage,
+          onDeleteImage: onDeleteImage,
+          onMiscChange: autosaveAfterDelay,
+          onLoad: () => setState(() {}),
+          assetCache: coreInfo.assetCache,
+          dstRect: rect.shift(shift),
+        ),
+    ];
+
+    setState(() {
+      createPage(pageIndex);
+      page.strokes.addAll(strokes);
+      page.images.addAll(images);
+    });
+    history.recordChange(HistoricAdd(strokes: strokes, images: images));
+    autosaveAfterDelay();
+  }
+
   /// Feder: Sucht auf der Seite einen waagerechten Streifen der Höhe [height],
   /// in dem noch nichts steht – zuerst ab [preferred] nach unten, dann nach oben.
   /// Gibt null zurück, wenn kein freier Streifen existiert.
@@ -2010,23 +2154,89 @@ class EditorState extends State<Editor> {
   /// einfügen (ein Rückgängig-Schritt). Vorhandener Inhalt bleibt unberührt.
   Future<void> _insertTemplate() async {
     if (coreInfo.readOnly || coreInfo.pages.isEmpty) return;
-    final template = await showModalBottomSheet<NoteTemplate>(
+    final custom = await CustomTemplates.list();  // Namen
+    if (!mounted) return;
+    final choice = await showModalBottomSheet<Object>(
       context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const ListTile(title: Text('Vorlage einfügen')),
-            for (final t in NoteTemplate.values)
-              ListTile(
-                leading: const Icon(Icons.assignment_outlined),
-                title: Text(t.label),
-                onTap: () => Navigator.of(context).pop(t),
+      isScrollControlled: true,
+      builder: (context) {
+        final mine = [...custom];
+        return StatefulBuilder(
+          builder: (context, setSheet) => SafeArea(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(context).height * 0.7,
               ),
-          ],
-        ),
-      ),
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  const ListTile(title: Text('Vorlage einfügen')),
+                  for (final t in NoteTemplate.values)
+                    ListTile(
+                      leading: const Icon(Icons.assignment_outlined),
+                      title: Text(t.label),
+                      onTap: () => Navigator.of(context).pop(t),
+                    ),
+                  if (mine.isNotEmpty)
+                    const ListTile(
+                      dense: true,
+                      title: Text('Eigene Vorlagen'),
+                    ),
+                  for (final t in mine)
+                    ListTile(
+                      leading: const Icon(Icons.bookmark_outline),
+                      title: Text(t),
+                      onTap: () => Navigator.of(context).pop(t),
+                      trailing: IconButton(
+                        tooltip: 'Vorlage löschen',
+                        icon: const Icon(Icons.delete_outline),
+                        onPressed: () async {
+                          final ok = await showDialog<bool>(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: Text('„$t" löschen?'),
+                              content: const Text(
+                                'Die Vorlage wird endgültig gelöscht, auch auf deinen '
+                                'anderen Geräten (Nextcloud). '
+                                'Bereits eingefügte Inhalte in Notizen bleiben.',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(context).pop(false),
+                                  child: const Text('Abbrechen'),
+                                ),
+                                FilledButton(
+                                  onPressed: () => Navigator.of(context).pop(true),
+                                  child: const Text('Löschen'),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (ok != true) return;
+                          await CustomTemplates.delete(t);
+                          setSheet(() => mine.remove(t));
+                        },
+                      ),
+                    ),
+                  if (mine.isEmpty)
+                    const ListTile(
+                      dense: true,
+                      title: Text(
+                        'Eigene Vorlagen: im Lasso-Menü „Als Vorlage speichern".',
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
+    if (choice is String) {
+      await _applyCustomTemplate(choice);
+      return;
+    }
+    final template = choice is NoteTemplate ? choice : null;
     if (template == null || !mounted) return;
 
     final (pageIndex, center) = _visibleTarget();
@@ -2827,6 +3037,7 @@ class EditorState extends State<Editor> {
           insertTemplate: _insertTemplate,
           extendTable: _extendTable,
           adjustSelection: _adjustSelection,
+          saveAsTemplate: _saveSelectionAsTemplate,
           duplicateSelection: () {
             final select = currentTool as Select;
             if (!select.doneSelecting) return;

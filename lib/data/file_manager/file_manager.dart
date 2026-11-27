@@ -627,6 +627,10 @@ class FileManager {
     bool includeExtensions = false,
     bool includeAssets = false,
     SortMetric sortMetric = .nameAToZ,
+
+    /// Feder: Den internen Ordner `_Vorlagen` in Listen ausblenden
+    /// (für den Abgleich mit Nextcloud auf false setzen).
+    bool hideInternal = true,
   }) async {
     assert(
       !includeAssets || includeExtensions,
@@ -685,6 +689,7 @@ class FileManager {
         .toList();
 
     for (final child in allChildren) {
+      if (hideInternal && directory == '/' && child == '_Vorlagen') continue;
       if (FileManager.isDirectory(directory + child) &&
           !directories.contains(child)) {
         directories.add(child);
@@ -724,6 +729,7 @@ class FileManager {
   static Future<List<String>> getAllFiles({
     bool includeExtensions = false,
     bool includeAssets = false,
+    bool hideInternal = true,
   }) async {
     final allFiles = <String>[];
     final directories = <String>['/'];
@@ -734,6 +740,7 @@ class FileManager {
         directory,
         includeExtensions: includeExtensions,
         includeAssets: includeAssets,
+        hideInternal: hideInternal,
       );
       if (children == null) continue;
 
@@ -1003,6 +1010,10 @@ class FileManager {
   static Future _saveFileAsRecentlyAccessed(String filePath) async {
     // don't add assets to recently accessed
     if (assetFileRegex.hasMatch(filePath)) return;
+    // Feder: Vorlagen-Notizen stehen nicht in der Zuletzt-Liste
+    if (filePath.startsWith('/_Vorlagen/') || filePath.startsWith('_Vorlagen/')) {
+      return;
+    }
 
     stows.recentFiles.value.remove(filePath);
     stows.recentFiles.value.insert(0, filePath);

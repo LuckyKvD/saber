@@ -7,6 +7,7 @@ import 'package:saber/i18n/strings.g.dart';
 class SelectionBar extends StatelessWidget {
   final VoidCallback duplicateSelection;
   final VoidCallback deleteSelection;
+  final VoidCallback saveAsTemplate;
 
   /// Feder: Handschrift der Auswahl als Aufgabe, Termin oder Kontakt an
   /// Nextcloud senden.
@@ -26,6 +27,7 @@ class SelectionBar extends StatelessWidget {
     super.key,
     required this.duplicateSelection,
     required this.deleteSelection,
+    required this.saveAsTemplate,
     required this.sendToNextcloud,
     required this.solveMath,
     required this.hasTable,
@@ -136,6 +138,16 @@ class SelectionBar extends StatelessWidget {
               ],
             ),
           ),
+        ),
+        IconButton(
+          onPressed: saveAsTemplate,
+          style: TextButton.styleFrom(
+            foregroundColor: ColorScheme.of(context).secondary,
+            backgroundColor: Colors.transparent,
+            shape: const CircleBorder(),
+          ),
+          tooltip: 'Als Vorlage speichern',
+          icon: const Icon(Icons.bookmark_add_outlined),
         ),
         IconButton(
           onPressed: duplicateSelection,
