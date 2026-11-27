@@ -23,6 +23,7 @@ import 'package:saber/components/canvas/guide_tools.dart';
 import 'package:saber/components/toolbar/text_stamp.dart';
 import 'package:saber/components/math/math_solve_dialog.dart';
 import 'package:saber/components/tables/table_dialog.dart';
+import 'package:saber/data/search/search_index.dart';
 import 'package:saber/data/templates/custom_templates.dart';
 import 'package:saber/data/templates/note_templates.dart';
 import 'package:saber/data/tables/table_builder.dart';
@@ -1515,6 +1516,10 @@ class EditorState extends State<Editor> {
       thumbnailPng!.buffer.asUint8List(),
       awaitWrite: true,
     );
+    // Feder: Suchindex dieser Notiz im Hintergrund nachziehen.
+    if (coreInfo.filePath != QuickNote.path) {
+      SearchIndex.noteSaved(coreInfo.filePath);
+    }
   }
 
   late final _filenameFormKey = GlobalKey<FormState>();

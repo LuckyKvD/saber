@@ -681,6 +681,14 @@ class _SettingsPageState extends State<SettingsPage> {
                   },
                 ),
                 SettingsSwitch(
+                  title: 'Suchindex im Hintergrund pflegen',
+                  subtitle:
+                      'Notizen werden nach dem Speichern und beim Start der App '
+                      'leise für die Handschrift-Suche gelesen.',
+                  icon: Icons.manage_search,
+                  pref: stows.searchBackgroundIndex,
+                ),
+                SettingsSwitch(
                   title: t.settings.prefLabels.autoStraightenLines,
                   subtitle: t.settings.prefDescriptions.autoStraightenLines,
                   icon: Icons.straighten,

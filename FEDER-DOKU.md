@@ -278,3 +278,10 @@ Zusammengeführte Zweige: `feature/regal`, `feature/blaettern`, `feature/widget`
 - **Unscharfe Suche** (`SearchText`): Umlaute/Akzente vereinfacht, Teilwörter und Wortanfänge, bei längeren Wörtern 1–2 Zeichen Abweichung (4 Zeichen und kürzer exakt). Alle Suchwörter müssen auf der Seite vorkommen.
 - **Datenschutz:** Der Index liegt nur lokal im App-Ordner (`feder_suche/index.bin`), wird bei aktiver lokaler Verschlüsselung verschlüsselt, **nicht** mit Nextcloud abgeglichen und nicht im Repo. Jedes Gerät baut seinen eigenen Index. Der Ordner `_Vorlagen` wird nicht indexiert.
 - **Grenzen (Vermutung/Unsicher):** Erkennungsqualität hängt an der Schrift; Fotos, PDF-Text und Handschrift-Beschriftungen als Bild (Vorlagen) werden nicht gelesen; erste Erkennung braucht einmalig Internet für das Sprachmodell.
+
+### 29a. Hintergrund-Indexierung
+
+- Nach dem Speichern einer Notiz wird nach 30 s Ruhe nur diese Notiz neu gelesen. Beim Start der App (nach 45 s) und beim Zurückkehren (nach 90 s) werden neue oder geänderte Notizen leise nachgezogen (eine Notiz nach der anderen, kurze Pausen).
+- Alle Indexläufe (Suchseite, Speichern, Hintergrund) laufen nacheinander, nie gleichzeitig.
+- Abschaltbar in den Einstellungen („Suchindex im Hintergrund pflegen"). Ohne Handschrift-Erkennung (nicht Android) bleibt es aus.
+- Schnellnotiz wird nicht im Hintergrund indexiert.

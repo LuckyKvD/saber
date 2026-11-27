@@ -27,6 +27,7 @@ import 'package:saber/data/routes.dart';
 import 'package:saber/data/sentry/sentry_init.dart';
 import 'package:saber/data/tools/stroke_properties.dart';
 import 'package:saber/i18n/strings.g.dart';
+import 'package:saber/data/search/search_index.dart';
 import 'package:saber/pages/editor/editor.dart';
 import 'package:saber/pages/search/handwriting_search_page.dart';
 import 'package:saber/pages/home/home.dart';
@@ -317,12 +318,22 @@ class const App({super.key}) extends StatefulWidget {
   State<App> createState() => _AppState();
 }
 
-class _AppState extends State<App> {
+class _AppState extends State<App> with WidgetsBindingObserver {
   StreamSubscription? _intentDataStreamSubscription;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Feder: beim Zurückkehren in die App den Suchindex leise aktualisieren.
+    if (state == AppLifecycleState.resumed) {
+      SearchIndex.scheduleBackgroundRefresh(delay: const Duration(seconds: 90));
+    }
+  }
 
   @override
   void initState() {
     setupSharingIntent();
+    WidgetsBinding.instance.addObserver(this);
+    SearchIndex.scheduleBackgroundRefresh();
     // Feder: Schnellnotiz-Widget startet die feste Notiz.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Future<void>.delayed(const Duration(milliseconds: 400), () {
@@ -362,6 +373,7 @@ class _AppState extends State<App> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _intentDataStreamSubscription?.cancel();
     super.dispose();
   }
