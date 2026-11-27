@@ -445,13 +445,6 @@ class _SettingsPageState extends State<SettingsPage> {
                   },
                   pref: stows.preferGreyscale,
                 ),
-                SettingsSwitch(
-                  title: t.settings.prefLabels.autoClearWhiteboardOnExit,
-                  subtitle:
-                      t.settings.prefDescriptions.autoClearWhiteboardOnExit,
-                  icon: Icons.cleaning_services,
-                  pref: stows.autoClearWhiteboardOnExit,
-                ),
                 SettingsSelection(
                   title: 'Druckkurve des Stifts',
                   icon: Icons.show_chart,

@@ -516,18 +516,7 @@ class EditorState extends State<Editor> {
         ..focusNode.requestFocus();
     }
 
-    if (coreInfo.filePath == Whiteboard.filePath &&
-        stows.autoClearWhiteboardOnExit.value &&
-        Whiteboard.needsToAutoClearWhiteboard) {
-      // clear whiteboard (and add to history)
-      clearAllPages();
-
-      // save cleared whiteboard
-      await saveToFile();
-      Whiteboard.needsToAutoClearWhiteboard = false;
-    } else {
-      setState(() {});
-    }
+    setState(() {});
   }
 
   void _setState() => setState(() {});
