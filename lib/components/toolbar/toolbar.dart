@@ -65,6 +65,7 @@ class Toolbar extends StatefulWidget {
     required this.sendToNextcloud,
     required this.solveMath,
     required this.insertTable,
+    required this.insertTemplate,
     required this.extendTable,
     required this.adjustSelection,
     required this.exportAsSba,
@@ -114,6 +115,9 @@ class Toolbar extends StatefulWidget {
 
   /// Feder: Tabelle einfügen bzw. ausgewählte Tabelle um Zeilen/Spalten erweitern.
   final VoidCallback insertTable;
+
+  /// Feder: Vorlage (Besprechung, Jour fixe) in die geöffnete Seite einfügen.
+  final VoidCallback insertTemplate;
   final void Function(int rows, int cols) extendTable;
 
   /// Feder: Strichdicke ([thickness]) oder Größe ([scale]) der Auswahl ändern.
@@ -519,6 +523,13 @@ class _ToolbarState extends State<Toolbar> {
         selected: false,
         enabled: !readOnly,
         onTap: widget.insertTable,
+      ),
+      _ToolItem(
+        tooltip: 'Vorlage einfügen',
+        icon: Icons.assignment_outlined,
+        selected: false,
+        enabled: !readOnly,
+        onTap: widget.insertTemplate,
       ),
       _ToolItem(
         tooltip: 'Farbleiste',

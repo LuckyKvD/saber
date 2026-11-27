@@ -434,6 +434,33 @@ class Stows {
     7,
     volatile: !_isOnMainIsolate,
   );
+
+  /// Feder: Eigene Texte für die Textbänder 1–5 (nur lokal, nicht im Code).
+  final tapeText1 = PlainStow('tapeText1', '', volatile: !_isOnMainIsolate);
+  final tapeText2 = PlainStow('tapeText2', '', volatile: !_isOnMainIsolate);
+  final tapeText3 = PlainStow('tapeText3', '', volatile: !_isOnMainIsolate);
+  final tapeText4 = PlainStow('tapeText4', '', volatile: !_isOnMainIsolate);
+  final tapeText5 = PlainStow('tapeText5', '', volatile: !_isOnMainIsolate);
+  /// Feder: Bandfarben der Textbänder 1–5 (ARGB als int).
+  final tapeColor1 = PlainStow('tapeColor1', 0xFF1E5AA8, volatile: !_isOnMainIsolate);
+  final tapeColor2 = PlainStow('tapeColor2', 0xFF111111, volatile: !_isOnMainIsolate);
+  final tapeColor3 = PlainStow('tapeColor3', 0xFF8E1B2D, volatile: !_isOnMainIsolate);
+  final tapeColor4 = PlainStow('tapeColor4', 0xFF2E7D32, volatile: !_isOnMainIsolate);
+  final tapeColor5 = PlainStow('tapeColor5', 0xFF5E35B1, volatile: !_isOnMainIsolate);
+  List<PlainStow<int>> get tapeColors => [
+    tapeColor1,
+    tapeColor2,
+    tapeColor3,
+    tapeColor4,
+    tapeColor5,
+  ];
+  List<PlainStow<String>> get tapeTexts => [
+    tapeText1,
+    tapeText2,
+    tapeText3,
+    tapeText4,
+    tapeText5,
+  ];
   final lastBackgroundPattern = PlainStow(
     'lastBackgroundPattern',
     CanvasBackgroundPattern.none,

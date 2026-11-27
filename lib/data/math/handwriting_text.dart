@@ -1,7 +1,7 @@
 import 'dart:typed_data';
-import 'dart:ui' as ui;
 
 import 'package:material_ui/material_ui.dart';
+import 'package:saber/data/images/safe_render.dart';
 
 /// Feder: Text in Handschrift-Optik als PNG (transparent), z. B. für das
 /// Ergebnis einer Matheaufgabe. Schrift: Neucha (liegt der App bei).
@@ -15,6 +15,10 @@ class HandwritingImage {
 }
 
 const _scale = 3.0;
+
+/// Siehe [inkPixelsMatch].
+bool handwritingPixelsMatch(Uint8List rgba, Color color) =>
+    inkPixelsMatch(rgba, color);
 
 Future<HandwritingImage> renderHandwriting(
   String text,
@@ -39,16 +43,11 @@ Future<HandwritingImage> renderHandwriting(
   final width = painter.width + pad * 2;
   final height = painter.height + pad * 2;
 
-  final recorder = ui.PictureRecorder();
-  final canvas = Canvas(recorder);
-  painter.paint(canvas, Offset(pad, pad));
-  final image = await recorder.endRecording().toImage(
+  final bytes = await renderInkPng(
+    (canvas) => painter.paint(canvas, Offset(pad, pad)),
     width.ceil(),
     height.ceil(),
+    color,
   );
-  final data = await image.toByteData(format: ui.ImageByteFormat.png);
-  return HandwritingImage(
-    data!.buffer.asUint8List(),
-    Size(width / _scale, height / _scale),
-  );
+  return HandwritingImage(bytes, Size(width / _scale, height / _scale));
 }
