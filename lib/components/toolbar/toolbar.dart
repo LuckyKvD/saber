@@ -64,6 +64,8 @@ class Toolbar extends StatefulWidget {
     required this.deleteSelection,
     required this.sendToNextcloud,
     required this.solveMath,
+    required this.insertTable,
+    required this.extendTable,
     required this.exportAsSba,
     required this.exportAsPdf,
     required this.exportAsPng,
@@ -108,6 +110,10 @@ class Toolbar extends StatefulWidget {
   /// Auswahl als Aufgabe an Nextcloud senden.
   final void Function(NcKind kind) sendToNextcloud;
   final VoidCallback solveMath;
+
+  /// Feder: Tabelle einfügen bzw. ausgewählte Tabelle um Zeilen/Spalten erweitern.
+  final VoidCallback insertTable;
+  final void Function(int rows, int cols) extendTable;
 
   final Future Function(BuildContext)? exportAsSba;
   final Future Function(BuildContext)? exportAsPdf;
@@ -489,6 +495,13 @@ class _ToolbarState extends State<Toolbar> {
           onTap: widget.toggleFingerDrawing,
         ),
       _ToolItem(
+        tooltip: 'Tabelle einfügen',
+        icon: Icons.table_chart_outlined,
+        selected: false,
+        enabled: !readOnly,
+        onTap: widget.insertTable,
+      ),
+      _ToolItem(
         tooltip: 'Farbleiste',
         icon: Icons.palette_outlined,
         selected: showColorOptions.value,
@@ -688,6 +701,9 @@ class _ToolbarState extends State<Toolbar> {
                 deleteSelection: widget.deleteSelection,
                 sendToNextcloud: widget.sendToNextcloud,
                 solveMath: widget.solveMath,
+                hasTable: (widget.currentTool as Select).selectResult.strokes
+                    .any((s) => s.tableAxis != null),
+                extendTable: widget.extendTable,
               ),
             },
           );

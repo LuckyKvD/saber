@@ -15,12 +15,18 @@ class SelectionBar extends StatelessWidget {
   /// Feder: Auswahl als Matheaufgabe lesen und lösen.
   final VoidCallback solveMath;
 
+  /// Feder: Auswahl enthält eine Tabelle → Zeilen/Spalten anfügen.
+  final bool hasTable;
+  final void Function(int rows, int cols) extendTable;
+
   const new({
     super.key,
     required this.duplicateSelection,
     required this.deleteSelection,
     required this.sendToNextcloud,
     required this.solveMath,
+    required this.hasTable,
+    required this.extendTable,
   });
 
   @override
@@ -28,6 +34,34 @@ class SelectionBar extends StatelessWidget {
     return Row(
       mainAxisAlignment: .center,
       children: [
+        if (hasTable)
+          PopupMenuButton<(int, int)>(
+            tooltip: 'Tabelle erweitern',
+            onSelected: (v) => extendTable(v.$1, v.$2),
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: (1, 0), child: Text('+ 1 Zeile unten')),
+              PopupMenuItem(value: (3, 0), child: Text('+ 3 Zeilen unten')),
+              PopupMenuItem(value: (0, 1), child: Text('+ 1 Spalte rechts')),
+              PopupMenuItem(value: (0, 2), child: Text('+ 2 Spalten rechts')),
+            ],
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.table_chart_outlined,
+                    color: ColorScheme.of(context).secondary,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Tabelle',
+                    style: TextStyle(color: ColorScheme.of(context).secondary),
+                  ),
+                ],
+              ),
+            ),
+          ),
         TextButton.icon(
           onPressed: solveMath,
           style: TextButton.styleFrom(

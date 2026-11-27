@@ -22,6 +22,8 @@ import 'package:saber/components/canvas/canvas.dart';
 import 'package:saber/components/canvas/guide_tools.dart';
 import 'package:saber/components/toolbar/text_stamp.dart';
 import 'package:saber/components/math/math_solve_dialog.dart';
+import 'package:saber/components/tables/table_dialog.dart';
+import 'package:saber/data/tables/table_builder.dart';
 import 'package:saber/data/math/handwriting_text.dart';
 import 'package:saber/components/tasks/create_task_dialog.dart';
 import 'package:saber/data/tasks/ink_recognition.dart';
@@ -1769,6 +1771,89 @@ class EditorState extends State<Editor> {
     autosaveAfterDelay();
   }
 
+  /// Feder: Tabelle mit handgemalt wirkenden Linien in die Bildmitte setzen.
+  Future<void> _insertTable() async {
+    if (coreInfo.readOnly) return;
+    final spec = await showTableDialog(context);
+    if (spec == null || !mounted) return;
+    final (pageIndex, center) = _visibleTarget();
+    final page = coreInfo.pages[pageIndex];
+    final cell = coreInfo.lineHeight.toDouble();
+    var cellW = spec.cellWidth * cell;
+    final cellH = spec.cellHeight * cell;
+    if (page.size.isFinite && spec.cols * cellW > page.size.width - 2 * cell) {
+      cellW = (page.size.width - 2 * cell) / spec.cols;
+    }
+    final w = spec.cols * cellW;
+    final h = spec.rows * cellH;
+    var left = ((center.dx - w / 2) / cell).round() * cell;
+    var top = ((center.dy - h / 2) / cell).round() * cell;
+    if (page.size.isFinite) {
+      left = left.clamp(cell, math.max(cell, page.size.width - w - cell)).toDouble();
+      top = top.clamp(cell, math.max(cell, page.size.height - h - cell)).toDouble();
+    }
+    final lines = TableBuilder.grid(
+      origin: Offset(left, top),
+      cols: spec.cols,
+      rows: spec.rows,
+      cellW: cellW,
+      cellH: cellH,
+      rng: math.Random(),
+    );
+    _addTableStrokes(pageIndex, lines);
+  }
+
+  /// Feder: ausgewählte Tabelle (Lasso) um Zeilen unten / Spalten rechts erweitern.
+  void _extendTable(int rows, int cols) {
+    final select = currentTool;
+    if (select is! Select || !select.doneSelecting || coreInfo.readOnly) return;
+    final existing = [
+      for (final s in select.selectResult.strokes)
+        if (s.tableAxis != null) TableLine(s.tableAxis!, s.pointsAsOffsets()),
+    ];
+    final extra = TableBuilder.extend(
+      existing,
+      addRows: rows,
+      addCols: cols,
+      rng: math.Random(),
+    );
+    if (extra.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Tabelle nicht erkannt. Lasso um die ganze Tabelle ziehen.'),
+        ),
+      );
+      return;
+    }
+    final added = _addTableStrokes(select.selectResult.pageIndex, extra);
+    select.selectResult = select.selectResult.copyWith(
+      strokes: [...select.selectResult.strokes, ...added],
+    );
+    setState(() {});
+  }
+
+  /// Wandelt Tabellenlinien in Striche mit dem aktuellen Stift um.
+  List<Stroke> _addTableStrokes(int pageIndex, List<TableLine> lines) {
+    final pen = Pen.currentPen;
+    final page = coreInfo.pages[pageIndex];
+    final strokes = [
+      for (final line in lines)
+        Stroke(
+          color: pen.color,
+          pressureEnabled: pen.pressureEnabled,
+          options: pen.options.copyWith(isComplete: true),
+          pageIndex: pageIndex,
+          page: page,
+          toolId: pen.toolId,
+          tableAxis: line.axis,
+        )..addPoints(line.points),
+    ];
+    setState(() => page.strokes.addAll(strokes));
+    history.recordChange(HistoricAdd(strokes: strokes, images: const []));
+    autosaveAfterDelay();
+    return strokes;
+  }
+
   /// Feder: Text-Stempel als Bild in die Bildmitte legen.
   Future<void> _placeTextStamp(String text, Color color) async {
     final bytes = await renderTextStamp(text, color);
@@ -2472,6 +2557,8 @@ class EditorState extends State<Editor> {
           currentTool: currentTool,
           sendToNextcloud: _sendSelectionToNextcloud,
           solveMath: _solveMathFromSelection,
+          insertTable: _insertTable,
+          extendTable: _extendTable,
           duplicateSelection: () {
             final select = currentTool as Select;
             if (!select.doneSelecting) return;

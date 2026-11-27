@@ -22,6 +22,9 @@ class Stroke {
   final List<PointVector> points = [];
 
   bool get isEmpty => points.isEmpty;
+
+  /// Feder: Punkte als einfache Positionen (Tabellen, Auswertungen).
+  List<Offset> pointsAsOffsets() => [for (final p in points) Offset(p.dx, p.dy)];
   int get length => points.length;
 
   int pageIndex;
@@ -48,6 +51,10 @@ class Stroke {
   /// Feder: Strichstil (null = normal, 1 = gestrichelt, 2 = Glitzer).
   /// Zusatzschlüssel `ps`; ältere Versionen zeigen eine normale Linie.
   int? penStyle;
+
+  /// Feder: Tabellenlinie (1 = waagerecht, 2 = senkrecht), sonst null.
+  /// Zusatzschlüssel `tb`; ältere Versionen zeigen eine normale Linie.
+  int? tableAxis;
 
   static const styleDashed = 1;
   static const styleGlitter = 2;
@@ -96,6 +103,7 @@ class Stroke {
     this.nibAngle,
     this.tapePattern,
     this.penStyle,
+    this.tableAxis,
   });
 
   factory fromJson(
@@ -178,6 +186,7 @@ class Stroke {
       nibAngle: (json['na'] as num?)?.toDouble(),
       tapePattern: (json['tp'] as num?)?.toInt(),
       penStyle: (json['ps'] as num?)?.toInt(),
+      tableAxis: (json['tb'] as num?)?.toInt(),
     )..points.addAll(points);
   }
   Map<String, dynamic> toJson() {
@@ -195,6 +204,7 @@ class Stroke {
       if (nibAngle != null) 'na': nibAngle,
       if (tapePattern != null) 'tp': tapePattern,
       if (penStyle != null) 'ps': penStyle,
+      if (tableAxis != null) 'tb': tableAxis,
     }..addAll(options.toJson());
   }
 
@@ -404,6 +414,7 @@ class Stroke {
             toolId: toolId,
             nibAngle: nibAngle,
             penStyle: penStyle,
+            tableAxis: tableAxis,
           )..points.addAll(run),
     ];
   }
@@ -418,6 +429,7 @@ class Stroke {
     toolId: toolId,
     nibAngle: nibAngle,
     penStyle: penStyle,
+    tableAxis: tableAxis,
   )..points.addAll(run);
 
   /// Returns a list with every Nth point in [points].
@@ -635,6 +647,7 @@ class Stroke {
     nibAngle: nibAngle,
     tapePattern: tapePattern,
     penStyle: penStyle,
+    tableAxis: tableAxis,
   )..points.addAll(points);
 }
 

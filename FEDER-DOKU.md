@@ -205,3 +205,10 @@ Zusammengeführte Zweige: `feature/regal`, `feature/blaettern`, `feature/widget`
 - Grenzen: Die Texterkennung liest keine Formelschrift (Brüche mit Strich, Hochzahlen oben, Integrale). Deshalb Schreibweise mit Zeichen: `3x+5=20`, `x^2-4=0`, `(12+8)*3/4`. Das erkannte Ergebnis lässt sich im Fenster korrigieren, das Ergebnis wird live neu gerechnet.
 - Tests: `test/math_solver_test.dart`.
 - Ergebnis schreiben: Im Fenster „In Notiz schreiben" setzt das Ergebnis in Handschrift-Optik (Schrift Neucha, Farbe der Aufgabe) rechts hinter die Aufgabe, bei Platzmangel darunter. Es ist ein verschiebbares Bild und mit Rückgängig entfernbar. Ein schlecht gelesenes Gleichheitszeichen am Ende der Aufgabe wird ignoriert.
+
+## 20. Tabellen (Branch `feature/tabelle`, Stand 27.11.2026)
+- Einfügen: ⋮-Menü → „Tabelle einfügen". Wahl von Spalten, Zeilen, Zellhöhe (1 / 1,5 / 2 / 3 Kästchen) und Zellbreite (2 / 3 / 4 / 6 Kästchen). Die Tabelle erscheint in der Bildmitte, am Kästchenraster ausgerichtet.
+- Aussehen: Jede Linie ist ein normaler Strich im aktuellen Stift (Farbe, Dicke), leicht wellig und schief mit kleinem Überstand, damit sie handgezogen wirkt. Gespeichert mit Zusatzschlüssel `tb` (1 waagerecht, 2 senkrecht); ältere Versionen zeigen normale Linien.
+- Schreiben: Zellen werden einfach mit dem Stift beschrieben (Handschrift), die Tabelle ist nur Rahmen.
+- Erweitern: Lasso um die ganze Tabelle → „Tabelle" → Zeilen unten / Spalten rechts anfügen. Die Tabelle wird aus den markierten Linien erkannt, es gibt kein eigenes Tabellenobjekt. Inhalte werden dabei nicht verschoben; unter der Tabelle muss Platz sein.
+- Grenzen: Sonderstifte (Glitzer, Muster, gestrichelt) werden für die Linien als normale Linie gezeichnet. Zeilen oder Spalten in der Mitte einfügen und einzelne Spaltenbreiten ziehen gibt es noch nicht.
