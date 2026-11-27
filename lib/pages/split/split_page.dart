@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:path/path.dart' as p;
 import 'package:saber/components/toolbar/pick_notebook_dialog.dart';
+import 'package:saber/data/routes.dart';
 import 'package:saber/pages/editor/editor.dart';
 
 /// Feder: Zwei Notizen nebeneinander (zum Abschreiben, Vergleichen, Ordnen).
@@ -44,6 +45,21 @@ class _SplitPageState extends State<SplitPage> {
     });
   }
 
+  /// Schließt eine Seite: Die andere Notiz bleibt allein und füllt den Platz.
+  /// Gibt es keine andere Notiz, geht es zurück.
+  void _closePane(bool left) {
+    final keep = left ? _right : _left;
+    if (keep == null) {
+      if (context.canPop()) {
+        context.pop();
+      } else {
+        context.go(RoutePaths.home.replaceFirst(':subpage', 'browse'));
+      }
+      return;
+    }
+    context.pushReplacement(RoutePaths.editFilePath(keep));
+  }
+
   Widget _pane(String? path, bool left, double width, double height) {
     final scheme = Theme.of(context).colorScheme;
     final mq = MediaQuery.of(context);
@@ -71,12 +87,13 @@ class _SplitPageState extends State<SplitPage> {
                   icon: const Icon(Icons.swap_horiz, size: 18),
                   label: const Text('Andere Notiz'),
                 ),
-                if (left)
-                  IconButton(
-                    tooltip: 'Zwei-Notizen-Ansicht schließen',
-                    icon: const Icon(Icons.close),
-                    onPressed: () => context.pop(),
-                  ),
+                IconButton(
+                  tooltip: left
+                      ? 'Linke Notiz schließen'
+                      : 'Rechte Notiz schließen',
+                  icon: const Icon(Icons.close),
+                  onPressed: () => _closePane(left),
+                ),
               ],
             ),
           ),
