@@ -87,23 +87,53 @@ class CanvasGestureDetector extends StatefulWidget {
     required int pageIndex,
     required List<EditorPage> pages,
     required double screenWidth,
+    bool twoUp = false,
   }) {
     if (pageIndex <= 0) return 0;
 
     double top = 0;
 
-    for (int i = 0; i < pageIndex && i < pages.length; i++) {
+    double heightOf(int i) {
       final pageSize = pages[i].size;
 
       /// Since we use a FittedBox, the actual width of the page
       /// is the minimum of the page width and the screen width.
       final pageWidthFitted = min(pageSize.width, screenWidth);
+      return pageSize.height * (pageWidthFitted / pageSize.width);
+    }
 
+    if (twoUp) {
+      // Feder: Zwei Seiten pro Zeile; eine Zeile ist so hoch wie die höhere Seite.
+      final rowOfPage = pageIndex ~/ 2;
+      for (int row = 0; row < rowOfPage; row++) {
+        final a = row * 2;
+        if (a >= pages.length) break;
+        var h = heightOf(a);
+        if (a + 1 < pages.length) h = max(h, heightOf(a + 1));
+        top += 16 + h;
+      }
+      return top;
+    }
+
+    for (int i = 0; i < pageIndex && i < pages.length; i++) {
       top += 16;
-      top += pageSize.height * (pageWidthFitted / pageSize.width);
+      top += heightOf(i);
     }
 
     return top;
+  }
+
+  /// Feder: Breite des Inhalts (breiteste Zeile) im Zwei-Seiten-Layout.
+  static double twoUpContentWidth(List<EditorPage> pages, double screenWidth) {
+    var w = 0.0;
+    for (var i = 0; i < pages.length; i += 2) {
+      var row = min(pages[i].size.width, screenWidth);
+      if (i + 1 < pages.length) {
+        row += 16 + min(pages[i + 1].size.width, screenWidth);
+      }
+      w = max(w, row);
+    }
+    return w;
   }
 
   static void scrollToPage({
@@ -232,6 +262,9 @@ class CanvasGestureDetector extends StatefulWidget {
 class CanvasGestureDetectorState extends State<CanvasGestureDetector>
     with TickerProviderStateMixin {
   late var containerBounds = const BoxConstraints();
+
+  /// Feder: Im Querformat und weit ausgezoomt stehen zwei Seiten nebeneinander.
+  bool twoUp = false;
 
   Timer? _pageSnapTimer;
   late final AnimationController _snapAnim = AnimationController(
@@ -788,6 +821,37 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
       return;
     }
 
+    // Feder: zwischen einer und zwei Seiten pro Zeile umschalten.
+    final wantTwoUp = _wantTwoUp(scale);
+    if (wantTwoUp != twoUp) {
+      final yTop = -translation.y / scale;
+      final cw = containerBounds.maxWidth;
+      int anchor = 0;
+      for (int i = 0; i < widget.pages.length; i++) {
+        final top =
+            CanvasGestureDetector.getTopOfPage(
+              pageIndex: i,
+              pages: widget.pages,
+              screenWidth: cw,
+              twoUp: twoUp,
+            ) +
+            Editor.gapBetweenPages * 2;
+        if (top <= yTop) anchor = i;
+      }
+      double topOf(bool up) =>
+          CanvasGestureDetector.getTopOfPage(
+            pageIndex: anchor,
+            pages: widget.pages,
+            screenWidth: cw,
+            twoUp: up,
+          ) +
+          Editor.gapBetweenPages * 2;
+      final newY = max(0.0, topOf(wantTwoUp) + (yTop - topOf(twoUp)));
+      adjustmentY = -newY * scale - translation.y;
+      twoUp = wantTwoUp;
+      if (mounted) setState(() {});
+    }
+
     // snap to 1.0x zoom
     _snapZoomTimer?.cancel();
     final diffFrom1 = (scale - 1).abs();
@@ -795,22 +859,27 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
     if (diffFrom1 < 0.05 && diffFrom1 > 0.001)
       _snapZoomTimer = Timer(const Duration(milliseconds: 200), resetZoom);
 
-    if (scale < 1) {
+    final contentWidth = twoUp
+        ? CanvasGestureDetector.twoUpContentWidth(
+            widget.pages,
+            containerBounds.maxWidth,
+          )
+        : containerBounds.maxWidth;
+    if (contentWidth * scale <= containerBounds.maxWidth) {
       // horizontally center pages if zoomed out
-      final center = containerBounds.maxWidth * (1 - scale) / 2;
+      final center = (containerBounds.maxWidth - contentWidth * scale) / 2;
       adjustmentX = center - translation.x;
     } else {
       // if zoomed in, don't allow scrolling past the edges
-      late final minX = containerBounds.maxWidth * (1 - scale);
+      final minX = containerBounds.maxWidth - contentWidth * scale;
       if (translation.x > 0) {
         adjustmentX = -translation.x;
       } else if (translation.x < minX) {
         adjustmentX = minX - translation.x;
       }
-
-      if (translation.y > 0) {
-        adjustmentY = -translation.y;
-      }
+    }
+    if (scale >= 1 && translation.y > 0) {
+      adjustmentY = -translation.y;
     }
 
     if (adjustmentX.abs() > 0.1 || adjustmentY.abs() > 0.1) {
@@ -821,6 +890,33 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
         1,
       );
     }
+  }
+
+  /// Zurück zu einer Seite pro Zeile, ohne die Ansicht umzurechnen
+  /// (vor einem Sprung zu einer Seite).
+  void forceSingleColumn() {
+    if (!twoUp) return;
+    twoUp = false;
+    if (mounted) setState(() {});
+  }
+
+  /// Zwei Seiten nebeneinander, sobald sie bei diesem Zoom beide ins Bild
+  /// passen (Querformat). Der Rückweg liegt etwas höher, damit es nicht flackert.
+  bool _wantTwoUp(double scale) {
+    final cw = containerBounds.maxWidth;
+    final ch = containerBounds.maxHeight;
+    if (widget.horizontal ||
+        widget.pages.length < 2 ||
+        !cw.isFinite ||
+        !ch.isFinite ||
+        cw <= ch) {
+      return false;
+    }
+    final needed =
+        CanvasGestureDetector.twoUpContentWidth(widget.pages, cw) + 24;
+    final enter = min(cw / needed, 0.95);
+    final exit = min(enter * 1.35, 1.05);
+    return twoUp ? scale < exit : scale <= enter;
   }
 
   /// Resets the zoom level to 1.0x
@@ -1003,7 +1099,7 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
                   transformationController: widget._transformationController,
 
                   isDrawGesture: widget.isDrawGesture,
-                  unboundedWidth: widget.horizontal,
+                  unboundedWidth: widget.horizontal || twoUp,
                   onInteractionEnd: (details) {
                     widget.onInteractionEnd?.call(details);
                     _scheduleSnap();
@@ -1021,6 +1117,7 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
                       containerWidth: containerBounds.maxWidth,
                       containerHeight: containerBounds.maxHeight,
                       horizontal: widget.horizontal,
+                      twoUp: twoUp,
                       pageKeyFor: _pageKeyFor,
                     );
                   },
@@ -1114,6 +1211,7 @@ class _PagesBuilder extends StatelessWidget {
     required this.containerWidth,
     this.containerHeight = double.infinity,
     this.horizontal = false,
+    this.twoUp = false,
     this.pageKeyFor,
   });
 
@@ -1126,6 +1224,61 @@ class _PagesBuilder extends StatelessWidget {
   final double containerWidth;
   final double containerHeight;
   final bool horizontal;
+  final bool twoUp;
+
+  Widget _buildTwoUp(BuildContext context) {
+    final rows = <Widget>[
+      const SizedBox.square(dimension: Editor.gapBetweenPages),
+      const SizedBox.square(dimension: Editor.gapBetweenPages),
+    ];
+    double topOfRow = Editor.gapBetweenPages * 2;
+    for (var first = 0; first < pages.length; first += 2) {
+      final indices = [first, if (first + 1 < pages.length) first + 1];
+      var rowHeight = 0.0;
+      final cells = <Widget>[];
+      final sizes = <(double, double)>[];
+      for (final i in indices) {
+        final w = min(pages[i].size.width, containerWidth);
+        final h = w / pages[i].size.width * pages[i].size.height;
+        sizes.add((w, h));
+        rowHeight = max(rowHeight, h);
+      }
+      final bottomOfRow = topOfRow + rowHeight;
+      for (var k = 0; k < indices.length; k++) {
+        final i = indices[k];
+        final page = pages[i];
+        final isInViewport =
+            boundingBox.bottom >= topOfRow && boundingBox.top <= bottomOfRow;
+        final shouldRender = page.hasTextFocus || isInViewport;
+        page.isRendered = shouldRender;
+        if (k > 0) cells.add(const SizedBox(width: Editor.gapBetweenPages));
+        cells.add(
+          SizedBox(
+            width: sizes[k].$1,
+            height: sizes[k].$2,
+            child: shouldRender
+                ? pageBuilder(context, i)
+                : placeholderPageBuilder(context, i),
+          ),
+        );
+      }
+      rows.add(
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: cells,
+        ),
+      );
+      rows.add(const SizedBox.square(dimension: Editor.gapBetweenPages));
+      topOfRow = bottomOfRow + Editor.gapBetweenPages;
+    }
+    rows.add(const SizedBox.square(dimension: Editor.gapBetweenPages));
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: rows,
+    );
+  }
 
   Widget _buildHorizontal(BuildContext context) {
     final children = <Widget>[];
@@ -1174,6 +1327,7 @@ class _PagesBuilder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (horizontal) return _buildHorizontal(context);
+    if (twoUp) return _buildTwoUp(context);
     final List<Widget> children = [
       const SizedBox.square(dimension: Editor.gapBetweenPages),
       const SizedBox.square(dimension: Editor.gapBetweenPages),

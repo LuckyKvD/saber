@@ -179,6 +179,8 @@ class EditorState extends State<Editor> {
         transformationController: _transformationController,
       );
     } else {
+      // Sprung zu einer Seite: Ansicht mit einer Seite pro Zeile (Zoom 1).
+      _canvasGestureDetectorKey.currentState?.forceSingleColumn();
       CanvasGestureDetector.scrollToPage(
         pageIndex: pageIndex,
         pages: coreInfo.pages,
@@ -612,15 +614,19 @@ class EditorState extends State<Editor> {
       // scroll to the last page (only if we're below the last page)
 
       final scrollY = this.scrollY;
+      _canvasGestureDetectorKey.currentState?.forceSingleColumn();
+      const twoUp = false;
       late final topOfLastPage = -CanvasGestureDetector.getTopOfPage(
         pageIndex: coreInfo.pages.length - 1,
         pages: coreInfo.pages,
         screenWidth: MediaQuery.sizeOf(context).width,
+        twoUp: twoUp,
       );
       final bottomOfLastPage = -CanvasGestureDetector.getTopOfPage(
         pageIndex: coreInfo.pages.length,
         pages: coreInfo.pages,
         screenWidth: MediaQuery.sizeOf(context).width,
+        twoUp: twoUp,
       );
 
       if (scrollY < bottomOfLastPage) {
@@ -4543,6 +4549,7 @@ class EditorState extends State<Editor> {
       scrollY: -scrollY,
       screenWidth: screenWidth,
       pages: coreInfo.pages,
+      twoUp: _canvasGestureDetectorKey.currentState?.twoUp ?? false,
     );
   }
 
@@ -4551,12 +4558,14 @@ class EditorState extends State<Editor> {
     required double scrollY,
     required double screenWidth,
     required List<EditorPage> pages,
+    bool twoUp = false,
   }) {
     for (int pageIndex = 0; pageIndex < pages.length; pageIndex++) {
       final bottomOfPage = CanvasGestureDetector.getTopOfPage(
         pageIndex: pageIndex + 1, // top of next page
         pages: pages,
         screenWidth: screenWidth,
+        twoUp: twoUp,
       );
 
       if (scrollY < bottomOfPage) {
