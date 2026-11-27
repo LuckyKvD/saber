@@ -71,6 +71,7 @@ class Toolbar extends StatefulWidget {
     required this.insertTemplate,
     required this.addTextBox,
     required this.addLink,
+    required this.sendTextToNextcloud,
     required this.extendTable,
     required this.adjustSelection,
     required this.exportAsSba,
@@ -132,6 +133,9 @@ class Toolbar extends StatefulWidget {
 
   /// Feder: Textfeld als Verknüpfung auf eine andere Notiz.
   final VoidCallback addLink;
+
+  /// Feder: markierten Text (sonst das ganze Textfeld) an Nextcloud senden.
+  final void Function(NcKind kind) sendTextToNextcloud;
   final void Function(int rows, int cols) extendTable;
 
   /// Feder: Strichdicke ([thickness]) oder Größe ([scale]) der Auswahl ändern.
@@ -901,6 +905,18 @@ class _ToolbarState extends State<Toolbar> {
                 icon: const Icon(Icons.add_link),
                 tooltip: 'Verknüpfung zu einer Notiz',
                 onPressed: widget.addLink,
+              ),
+              PopupMenuButton<NcKind>(
+                icon: const Icon(Icons.cloud_upload_outlined),
+                tooltip: 'Text an Nextcloud senden',
+                onSelected: widget.sendTextToNextcloud,
+                itemBuilder: (context) => [
+                  for (final kind in NcKind.values)
+                    PopupMenuItem(
+                      value: kind,
+                      child: Text('Als ${kind.label} senden'),
+                    ),
+                ],
               ),
             ],
           );
