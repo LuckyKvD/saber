@@ -251,3 +251,10 @@ Zusammengeführte Zweige: `feature/regal`, `feature/blaettern`, `feature/widget`
 - Handschrift-Bilder (Vorlagen-Beschriftung, Mathe-Ergebnis) werden nach dem Rendern geprüft: Enthalten sie fremde Farben (Grafikspeicher-Reste), wird bis zu 4-mal neu gerendert. Test: `test/handwriting_pixels_test.dart`.
 - Gemeinsamer Renderer `lib/data/images/safe_render.dart` (`renderInkPng`): wird von Handschrift-Bildern **und Text-Stempeln** genutzt, gibt Zeichnung und Bild immer frei und rendert bei fremden Farben neu.
 - Beides ist eine Vermutung, die Ursache wurde nicht auf dem Gerät nachgestellt. Offen: Tritt der Fehler erst beim Anzeigen auf (Bytes sauber), hilft die Prüfung nicht.
+
+## 27. Eigene Vorlagen
+
+- Lasso-Auswahl → Lesezeichen-Symbol **„Als Vorlage speichern"** → Name vergeben. Gespeichert werden Striche (auch Tabellen, Linien, Formen) und Bilder (auch Handschrift-Beschriftungen) der Auswahl.
+- Einfügen: ⋮ → **Vorlage einfügen** → Abschnitt „Eigene Vorlagen". Sie landet an der sichtbaren, freien Stelle der Seite (wie Abschnitt 23), ein Rückgängig-Schritt. Löschen über das Papierkorb-Symbol in der Liste.
+- Speicherort: `feder_vorlagen/*.json` im App-Support-Ordner des Geräts. **Nicht** in Notizen, nicht im Repo, nicht in Nextcloud (kein Abgleich zwischen Geräten).
+- Grenzen: gedrehte Bilder verlieren die Drehung; Bilder, die sich nicht lesen lassen, werden übersprungen (Hinweis). Text-Felder (Quill) sind nicht Teil der Auswahl und gehen nicht mit.

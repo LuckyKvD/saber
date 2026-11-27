@@ -61,6 +61,7 @@ class Toolbar extends StatefulWidget {
     required this.writingPadVisible,
     required this.paste,
     required this.duplicateSelection,
+    required this.saveAsTemplate,
     required this.deleteSelection,
     required this.sendToNextcloud,
     required this.solveMath,
@@ -107,6 +108,7 @@ class Toolbar extends StatefulWidget {
   final VoidCallback paste;
 
   final VoidCallback duplicateSelection;
+  final VoidCallback saveAsTemplate;
   final VoidCallback deleteSelection;
 
   /// Auswahl als Aufgabe an Nextcloud senden.
@@ -756,6 +758,7 @@ class _ToolbarState extends State<Toolbar> {
               .eraser => const EraserModal(),
               .select => SelectionBar(
                 duplicateSelection: widget.duplicateSelection,
+                saveAsTemplate: widget.saveAsTemplate,
                 deleteSelection: widget.deleteSelection,
                 sendToNextcloud: widget.sendToNextcloud,
                 solveMath: widget.solveMath,
