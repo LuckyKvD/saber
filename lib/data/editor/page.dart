@@ -403,10 +403,16 @@ class FreeTextBox {
   /// Weisser Hintergrund (besser lesbar) statt Seitenhintergrund.
   bool whiteBackground;
 
+  /// Verknuepfung auf eine andere Notiz (Pfad ohne Endung) und Seite (ab 0).
+  String? linkPath;
+  int linkPage;
+
   FreeTextBox({
     required this.rect,
     QuillStruct? quill,
     this.whiteBackground = false,
+    this.linkPath,
+    this.linkPage = 0,
   }) : quill =
           quill ??
           QuillStruct(
@@ -419,6 +425,8 @@ class FreeTextBox {
         (json[key] as num?)?.toDouble() ?? fallback;
     return FreeTextBox(
       whiteBackground: json['bg'] == 1,
+      linkPath: json['lp'] as String?,
+      linkPage: (json['lg'] as num?)?.toInt() ?? 0,
       rect: Rect.fromLTWH(n('x', 50), n('y', 50), n('w', 400), n('h', 200)),
       quill: QuillStruct(
         controller: json['q'] != null
@@ -438,6 +446,8 @@ class FreeTextBox {
     'w': rect.width,
     'h': rect.height,
     if (whiteBackground) 'bg': 1,
+    if (linkPath != null) 'lp': linkPath,
+    if (linkPath != null && linkPage != 0) 'lg': linkPage,
     if (!quill.controller.document.isEmpty())
       'q': quill.controller.document.toDelta().toJson(),
   };
@@ -446,6 +456,8 @@ class FreeTextBox {
   FreeTextBox copy() => FreeTextBox(
     rect: rect,
     whiteBackground: whiteBackground,
+    linkPath: linkPath,
+    linkPage: linkPage,
     quill: QuillStruct(
       controller: QuillController(
         document: Document.fromDelta(quill.controller.document.toDelta()),
@@ -458,6 +470,8 @@ class FreeTextBox {
   FreeTextBox cloneForScreenshot() => FreeTextBox(
     rect: rect,
     whiteBackground: whiteBackground,
+    linkPath: linkPath,
+    linkPage: linkPage,
     quill: quill.cloneForScreenshot(),
   );
 

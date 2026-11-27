@@ -69,6 +69,7 @@ class Toolbar extends StatefulWidget {
     required this.insertTable,
     required this.insertTemplate,
     required this.addTextBox,
+    required this.addLink,
     required this.extendTable,
     required this.adjustSelection,
     required this.exportAsSba,
@@ -126,6 +127,9 @@ class Toolbar extends StatefulWidget {
 
   /// Feder: neues freies Textfeld auf der aktuellen Seite.
   final VoidCallback addTextBox;
+
+  /// Feder: Textfeld als Verknüpfung auf eine andere Notiz.
+  final VoidCallback addLink;
   final void Function(int rows, int cols) extendTable;
 
   /// Feder: Strichdicke ([thickness]) oder Größe ([scale]) der Auswahl ändern.
@@ -882,10 +886,20 @@ class _ToolbarState extends State<Toolbar> {
                   ),
                 )
               : const SizedBox.shrink();
-          final addButton = IconButton(
-            icon: const Icon(Icons.add_box_outlined),
-            tooltip: 'Textfeld hinzufügen',
-            onPressed: widget.addTextBox,
+          final addButton = Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.add_box_outlined),
+                tooltip: 'Textfeld hinzufügen',
+                onPressed: widget.addTextBox,
+              ),
+              IconButton(
+                icon: const Icon(Icons.add_link),
+                tooltip: 'Verknüpfung zu einer Notiz',
+                onPressed: widget.addLink,
+              ),
+            ],
           );
           return Collapsible(
             axis: isToolbarVertical ? .horizontal : .vertical,

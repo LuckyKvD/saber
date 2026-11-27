@@ -12,6 +12,12 @@ abstract class RoutePaths {
   static const login = '/login';
   static const logs = '/logs';
   static const search = '/search';
+  static const split = '/split';
+
+  /// Feder: zwei Notizen nebeneinander.
+  static String splitPaths(String left, String right) =>
+      '$split?left=${Uri.encodeQueryComponent(left)}'
+      '&right=${Uri.encodeQueryComponent(right)}';
 
   /// Feder: Suche nur in einer Notiz oder einem Ordner.
   static String searchIn(String scope) =>
