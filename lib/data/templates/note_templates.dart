@@ -32,6 +32,28 @@ class TemplateContent {
   final texts = <TemplateText>[];
   final underlines = <List<Offset>>[];
   final tableLines = <TableLine>[];
+
+  /// Abschnitte, die nicht mehr auf die Seite gepasst haben.
+  var skipped = 0;
+
+  /// Unterkante des gesamten Inhalts (für die Suche nach freiem Platz).
+  double get maxY {
+    var m = 0.0;
+    for (final t in texts) {
+      m = math.max(m, t.topLeft.dy + t.fontSize * 1.5);
+    }
+    for (final l in underlines) {
+      for (final p in l) {
+        m = math.max(m, p.dy);
+      }
+    }
+    for (final l in tableLines) {
+      for (final p in l.points) {
+        m = math.max(m, p.dy);
+      }
+    }
+    return m;
+  }
 }
 
 abstract class NoteTemplates {
@@ -49,6 +71,7 @@ abstract class NoteTemplates {
     required double cell,
     required DateTime date,
     required math.Random rng,
+    double? top,
   }) {
     final c = cell;
     final m = 2 * c;
@@ -56,7 +79,7 @@ abstract class NoteTemplates {
     final right = page.width - m;
     final bottom = page.height - 2 * c;
     final out = TemplateContent();
-    var y = m;
+    var y = top ?? m;
 
     double textWidth(String s, double fs) => s.length * fs * _charWidth;
 
@@ -78,7 +101,10 @@ abstract class NoteTemplates {
     }
 
     void field(String label, {int extraLines = 0}) {
-      if (y + 1.5 * c > bottom) return;
+      if (y + 1.5 * c > bottom) {
+        out.skipped++;
+        return;
+      }
       final fs = 0.9 * c;
       out.texts.add(TemplateText(label, Offset(left, y), fs));
       final start = left + textWidth(label, fs) + 0.4 * c;
@@ -90,7 +116,10 @@ abstract class NoteTemplates {
     }
 
     void section(String label, int lines) {
-      if (y + (1.8 + lines * 1.5) * c > bottom) return;
+      if (y + (1.8 + lines * 1.5) * c > bottom) {
+        out.skipped++;
+        return;
+      }
       out.texts.add(TemplateText(label, Offset(left, y), 1.1 * c));
       y += 1.9 * c;
       for (var i = 0; i < lines; i++) {
@@ -103,7 +132,10 @@ abstract class NoteTemplates {
     void tableSection(String label, List<String> headers, List<double> shares, int rows) {
       final rowH = 1.5 * c;
       final needed = 1.8 * c + (rows + 1) * rowH;
-      if (y + needed > bottom) return;
+      if (y + needed > bottom) {
+        out.skipped++;
+        return;
+      }
       out.texts.add(TemplateText(label, Offset(left, y), 1.1 * c));
       y += 1.9 * c;
       final width = right - left;

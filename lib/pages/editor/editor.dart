@@ -75,7 +75,7 @@ import 'package:super_clipboard/super_clipboard.dart';
 class const _PhotoInfo(final Uint8List bytes, final String extension);
 
 class Editor extends StatefulWidget {
-  new({super.key, String? path, this.customTitle, this.pdfPath, this.template})
+  new({super.key, String? path, this.customTitle, this.pdfPath})
     : initialPath = path != null
           ? Future.value(path)
           : FileManager.newFilePath('/'),
@@ -86,9 +86,6 @@ class Editor extends StatefulWidget {
 
   final String? customTitle;
   final String? pdfPath;
-
-  /// Feder: Vorlage, mit der eine neue, leere Notiz gefüllt wird.
-  final String? template;
 
   /// The file extension used by the app.
   /// Files with this extension are
@@ -482,13 +479,6 @@ class EditorState extends State<Editor> {
 
     if (widget.pdfPath != null) {
       await importPdfFromFilePath(widget.pdfPath!);
-    }
-
-    final template = NoteTemplate.parse(widget.template);
-    if (template != null &&
-        mounted &&
-        coreInfo.pages.every((p) => p.strokes.isEmpty && p.images.isEmpty)) {
-      await _applyTemplate(template);
     }
   }
 
@@ -1803,6 +1793,7 @@ class EditorState extends State<Editor> {
       left = left.clamp(cell, math.max(cell, page.size.width - w - cell)).toDouble();
       top = top.clamp(cell, math.max(cell, page.size.height - h - cell)).toDouble();
     }
+    top = _freeTop(pageIndex, top, h, cell) ?? top;
     final lines = TableBuilder.grid(
       origin: Offset(left, top),
       cols: spec.cols,
@@ -1836,11 +1827,81 @@ class EditorState extends State<Editor> {
       );
       return;
     }
+    if (rows > 0) _shiftContentBelowTable(select, existing, extra);
     final added = _addTableStrokes(select.selectResult.pageIndex, extra);
     select.selectResult = select.selectResult.copyWith(
       strokes: [...select.selectResult.strokes, ...added],
     );
     setState(() {});
+  }
+
+  /// Feder: Beim Erweitern um Zeilen alles unterhalb der Tabelle nach unten
+  /// schieben (ein eigener Rückgängig-Schritt), damit Platz entsteht.
+  void _shiftContentBelowTable(
+    Select select,
+    List<TableLine> existing,
+    List<TableLine> extra,
+  ) {
+    double maxY(Iterable<TableLine> lines) => lines
+        .expand((l) => l.points)
+        .map((p) => p.dy)
+        .fold<double>(-double.infinity, math.max);
+    final oldBottom = maxY(existing);
+    final delta = maxY(extra) - oldBottom;
+    if (delta <= 1) return;
+    final pageIndex = select.selectResult.pageIndex;
+    final page = coreInfo.pages[pageIndex];
+    final selected = {...select.selectResult.strokes};
+    final selectedImages = {...select.selectResult.images};
+    const tolerance = 4.0;
+
+    final strokes = [
+      for (final s in page.strokes)
+        if (!selected.contains(s) &&
+            s.pointsAsOffsets().isNotEmpty &&
+            s.pointsAsOffsets().map((p) => p.dy).reduce(math.min) >
+                oldBottom + tolerance)
+          s,
+    ];
+    final images = [
+      for (final i in page.images)
+        if (!selectedImages.contains(i) &&
+            i.dstRect.top > oldBottom + tolerance)
+          i,
+    ];
+    if (strokes.isEmpty && images.isEmpty) return;
+
+    final pageBottom = page.size.height;
+    for (final s in strokes) {
+      if (s.pointsAsOffsets().map((p) => p.dy).reduce(math.max) + delta >
+          pageBottom) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Unterhalb ragt Inhalt über das Seitenende hinaus. '
+              'Neue Seite anlegen und dort weiterschreiben.',
+            ),
+          ),
+        );
+        break;
+      }
+    }
+
+    for (final s in strokes) {
+      s.shift(Offset(0, delta));
+    }
+    for (final i in images) {
+      i.dstRect = i.dstRect.shift(Offset(0, delta));
+    }
+    history.recordChange(
+      HistoricMove(
+        pageIndex: pageIndex,
+        prevPageIndex: pageIndex,
+        strokes: strokes,
+        images: images,
+        offset: Rect.fromLTRB(0, delta, 0, delta),
+      ),
+    );
   }
 
   /// Wandelt Tabellenlinien in Striche mit dem aktuellen Stift um.
@@ -1903,18 +1964,93 @@ class EditorState extends State<Editor> {
     autosaveAfterDelay();
   }
 
-  /// Feder: Besprechungs-/Jour-fixe-Vorlage auf Seite 1 setzen (ein Rückgängig-Schritt).
-  Future<void> _applyTemplate(NoteTemplate template) async {
-    if (coreInfo.readOnly || coreInfo.pages.isEmpty) return;
-    const pageIndex = 0;
+  /// Feder: Sucht auf der Seite einen waagerechten Streifen der Höhe [height],
+  /// in dem noch nichts steht – zuerst ab [preferred] nach unten, dann nach oben.
+  /// Gibt null zurück, wenn kein freier Streifen existiert.
+  double? _freeTop(int pageIndex, double preferred, double height, double cell) {
     final page = coreInfo.pages[pageIndex];
-    final content = NoteTemplates.build(
+    final spans = <(double, double)>[];
+    for (final s in page.strokes) {
+      final ys = s.pointsAsOffsets().map((p) => p.dy);
+      if (ys.isEmpty) continue;
+      spans.add((ys.reduce(math.min), ys.reduce(math.max)));
+    }
+    for (final i in page.images) {
+      spans.add((i.dstRect.top, i.dstRect.bottom));
+    }
+    final pad = cell * 0.5;
+    bool free(double top) => !spans.any(
+      (s) => s.$1 < top + height + pad && s.$2 > top - pad,
+    );
+    final maxTop = page.size.height - height - cell;
+    for (var t = preferred; t <= maxTop; t += cell) {
+      if (free(t)) return t;
+    }
+    for (var t = preferred - cell; t >= cell; t -= cell) {
+      if (free(t)) return t;
+    }
+    return null;
+  }
+
+  /// Feder: Vorlage wählen und an der sichtbaren Stelle der geöffneten Seite
+  /// einfügen (ein Rückgängig-Schritt). Vorhandener Inhalt bleibt unberührt.
+  Future<void> _insertTemplate() async {
+    if (coreInfo.readOnly || coreInfo.pages.isEmpty) return;
+    final template = await showModalBottomSheet<NoteTemplate>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ListTile(title: Text('Vorlage einfügen')),
+            for (final t in NoteTemplate.values)
+              ListTile(
+                leading: const Icon(Icons.assignment_outlined),
+                title: Text(t.label),
+                onTap: () => Navigator.of(context).pop(t),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (template == null || !mounted) return;
+
+    final (pageIndex, center) = _visibleTarget();
+    final page = coreInfo.pages[pageIndex];
+    final cell = coreInfo.lineHeight.toDouble();
+    // Oberkante: etwas oberhalb der Bildschirmmitte, auf Kästchen gerastert.
+    var top = ((center.dy - 6 * cell) / cell).round() * cell;
+    top = top.clamp(2 * cell, math.max(2 * cell, page.size.height - 8 * cell)).toDouble();
+    var content = NoteTemplates.build(
       template,
       page: page.size,
-      cell: coreInfo.lineHeight.toDouble(),
+      cell: cell,
       date: DateTime.now(),
       rng: math.Random(),
+      top: top,
     );
+    final height = content.maxY - top;
+    final freeTop = _freeTop(pageIndex, top, height, cell);
+    if (freeTop != null && (freeTop - top).abs() > 1) {
+      content = NoteTemplates.build(
+        template,
+        page: page.size,
+        cell: cell,
+        date: DateTime.now(),
+        rng: math.Random(),
+        top: freeTop,
+      );
+    }
+    if (content.skipped > 0 && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${content.skipped} Abschnitt(e) passten nicht mehr auf die Seite '
+            'und wurden weggelassen. Tipp: weiter oben einfügen oder neue Seite.',
+          ),
+        ),
+      );
+    }
 
     final pen = Pen.currentPen;
     const ink = Color(0xFF263238);
@@ -2672,6 +2808,7 @@ class EditorState extends State<Editor> {
           sendToNextcloud: _sendSelectionToNextcloud,
           solveMath: _solveMathFromSelection,
           insertTable: _insertTable,
+          insertTemplate: _insertTemplate,
           extendTable: _extendTable,
           adjustSelection: _adjustSelection,
           duplicateSelection: () {
