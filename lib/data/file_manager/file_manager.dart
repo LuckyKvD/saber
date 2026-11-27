@@ -897,7 +897,8 @@ class FileManager {
 
     final writeFutures = <Future>[];
 
-    if (extension.toLowerCase() == '.sba') {
+    if (extension.toLowerCase() == '.sba' ||
+        extension.toLowerCase() == '.fba') {
       final inputStream = InputFileStream(path);
       final archive = ZipDecoder().decodeStream(inputStream);
 

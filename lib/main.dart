@@ -291,7 +291,9 @@ class const App({super.key}) extends StatefulWidget {
       extension = '.sbn2';
     }
 
-    if (extension == '.sbn' || extension == '.sbn2' || extension == '.sba') {
+    if (extension == '.sbn' || extension == '.sbn2' ||
+        extension == '.sba' ||
+        extension == '.fba') {
       final path = await FileManager.importFile(
         filePath,
         null,

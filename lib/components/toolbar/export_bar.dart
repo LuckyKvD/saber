@@ -65,7 +65,7 @@ class _ExportBarState extends State<ExportBar> {
         builder: (context) {
           return TextButton(
             onPressed: _onPressed(widget.exportAsSba, context),
-            child: _buttonChild(widget.exportAsSba, 'SBA'),
+            child: _buttonChild(widget.exportAsSba, 'FBA'),
           );
         },
       ),

@@ -285,3 +285,8 @@ Zusammengeführte Zweige: `feature/regal`, `feature/blaettern`, `feature/widget`
 - Alle Indexläufe (Suchseite, Speichern, Hintergrund) laufen nacheinander, nie gleichzeitig.
 - Abschaltbar in den Einstellungen („Suchindex im Hintergrund pflegen"). Ohne Handschrift-Erkennung (nicht Android) bleibt es aus.
 - Schnellnotiz wird nicht im Hintergrund indexiert.
+
+## 30. Dateiformat .fba (Branch `feature/fba-format`)
+- Export (Teilen, Export-Leiste, Startseite) erzeugt jetzt `.fba` statt `.sba`. Inhalt und Aufbau sind unverändert (Zip mit `main.sbn2` und Anhängen).
+- Import liest `.fba`, `.sba`, `.sbn`, `.sbn2` (alte Saber-Dateien bleiben importierbar, nur als Kopie).
+- Android-Doppeltipp („Öffnen mit“) ist nur noch für `.fba` auf Feder eingetragen, damit Saber seine eigenen Dateien behält, wenn beide Apps installiert sind. Teilen-an-Feder (SEND) akzeptiert weiterhin alle Typen.
