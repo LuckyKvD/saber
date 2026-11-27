@@ -212,3 +212,5 @@ Zusammengeführte Zweige: `feature/regal`, `feature/blaettern`, `feature/widget`
 - Schreiben: Zellen werden einfach mit dem Stift beschrieben (Handschrift), die Tabelle ist nur Rahmen.
 - Erweitern: Lasso um die ganze Tabelle → „Tabelle" → Zeilen unten / Spalten rechts anfügen. Die Tabelle wird aus den markierten Linien erkannt, es gibt kein eigenes Tabellenobjekt. Inhalte werden dabei nicht verschoben; unter der Tabelle muss Platz sein.
 - Grenzen: Sonderstifte (Glitzer, Muster, gestrichelt) werden für die Linien als normale Linie gezeichnet. Zeilen oder Spalten in der Mitte einfügen und einzelne Spaltenbreiten ziehen gibt es noch nicht.
+- Lasso „Strichdicke und Größe" (Symbol Regler): markierte Striche dünner/dicker (±25 %) oder vergrößern/verkleinern (125 % / 80 %, Ankerpunkt oben links der Auswahl). Mit Rückgängig. Gilt für alle freien Striche, auch für Tabellen samt Inhalt; Bilder und Formstriche (Kreis, Rechteck) bleiben unverändert.
+- Smartphone: Rückgängig und Wiederholen bleiben in der Werkzeugleiste sichtbar; die Knopfbreite wird gemessen, damit der ⋮-Knopf nicht abgeschnitten wird.

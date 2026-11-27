@@ -66,6 +66,7 @@ class Toolbar extends StatefulWidget {
     required this.solveMath,
     required this.insertTable,
     required this.extendTable,
+    required this.adjustSelection,
     required this.exportAsSba,
     required this.exportAsPdf,
     required this.exportAsPng,
@@ -114,6 +115,9 @@ class Toolbar extends StatefulWidget {
   /// Feder: Tabelle einfügen bzw. ausgewählte Tabelle um Zeilen/Spalten erweitern.
   final VoidCallback insertTable;
   final void Function(int rows, int cols) extendTable;
+
+  /// Feder: Strichdicke ([thickness]) oder Größe ([scale]) der Auswahl ändern.
+  final void Function({double thickness, double scale}) adjustSelection;
 
   final Future Function(BuildContext)? exportAsSba;
   final Future Function(BuildContext)? exportAsPdf;
@@ -277,6 +281,21 @@ class _ToolbarState extends State<Toolbar> {
 
   /// Breite (bzw. Höhe) eines Knopfes samt Abstand in der Werkzeugleiste.
   static const double _slot = 32;
+
+  /// Tatsächlich gemessene Breite eines Knopfes (Geräte unterscheiden sich).
+  double _slotMeasured = _slot;
+  final _slotKey = GlobalKey();
+
+  void _measureSlot(bool vertical) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final box = _slotKey.currentContext?.findRenderObject();
+      if (!mounted || box is! RenderBox || !box.hasSize) return;
+      final w = vertical ? box.size.height : box.size.width;
+      if (w > 10 && (w - _slotMeasured).abs() > 0.5) {
+        setState(() => _slotMeasured = w);
+      }
+    });
+  }
 
   Color _tint(Color color, bool invert) =>
       color.withInversion(invert).withValues(alpha: 1);
@@ -586,7 +605,7 @@ class _ToolbarState extends State<Toolbar> {
 
   /// Eine Reihe mit den wichtigsten Werkzeugen; der Rest steckt hinter ⋮.
   Widget _toolRow(BuildContext context, bool vertical, bool invert) {
-    final items = _toolItems(context, invert);
+    final allItems = _toolItems(context, invert);
     final extras = _extraItems();
     final padding = vertical
         ? const EdgeInsets.symmetric(vertical: 1)
@@ -594,9 +613,32 @@ class _ToolbarState extends State<Toolbar> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final extent = vertical ? constraints.maxHeight : constraints.maxWidth;
-        final capacity = extent.isFinite ? ((extent - 16) / _slot).floor() : 99;
-        final visibleCount = math.max(0, math.min(items.length, capacity - 1));
+        // Smartphone (schmale Leiste): Rückgängig/Wiederholen bleiben immer sichtbar.
+        final phone = !vertical && extent.isFinite && extent < 600;
+        final undoTip = t.editor.toolbar.undo;
+        final redoTip = t.editor.toolbar.redo;
+        final pinned = phone
+            ? [
+                for (final i in allItems)
+                  if (i.tooltip == undoTip || i.tooltip == redoTip) i,
+              ]
+            : <_ToolItem>[];
+        final items = phone
+            ? [
+                for (final i in allItems)
+                  if (!pinned.contains(i)) i,
+              ]
+            : allItems;
+        final capacity = extent.isFinite
+            ? ((extent - 16) / _slotMeasured).floor()
+            : 99;
+        final visibleCount = math.max(
+          0,
+          math.min(items.length, capacity - 1 - pinned.length),
+        );
         final overflow = [...items.skip(visibleCount), ...extras];
+        final shown = [...pinned, ...items.take(visibleCount)];
+        _measureSlot(vertical);
         return Center(
           child: Padding(
             padding: const .all(8),
@@ -604,8 +646,13 @@ class _ToolbarState extends State<Toolbar> {
               direction: vertical ? .vertical : .horizontal,
               mainAxisSize: .min,
               children: [
-                for (final item in items.take(visibleCount))
-                  _itemButton(item, padding),
+                for (var i = 0; i < shown.length; i++)
+                  i == 0
+                      ? KeyedSubtree(
+                          key: _slotKey,
+                          child: _itemButton(shown[i], padding),
+                        )
+                      : _itemButton(shown[i], padding),
                 _menuButton(
                   context,
                   padding,
@@ -704,6 +751,7 @@ class _ToolbarState extends State<Toolbar> {
                 hasTable: (widget.currentTool as Select).selectResult.strokes
                     .any((s) => s.tableAxis != null),
                 extendTable: widget.extendTable,
+                adjustSelection: widget.adjustSelection,
               ),
             },
           );

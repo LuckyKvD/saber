@@ -19,6 +19,9 @@ class SelectionBar extends StatelessWidget {
   final bool hasTable;
   final void Function(int rows, int cols) extendTable;
 
+  /// Strichdicke bzw. Größe der Auswahl ändern (Faktoren, 1 = unverändert).
+  final void Function({double thickness, double scale}) adjustSelection;
+
   const new({
     super.key,
     required this.duplicateSelection,
@@ -27,12 +30,15 @@ class SelectionBar extends StatelessWidget {
     required this.solveMath,
     required this.hasTable,
     required this.extendTable,
+    required this.adjustSelection,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: .center,
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Row(
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
         if (hasTable)
           PopupMenuButton<(int, int)>(
@@ -62,6 +68,23 @@ class SelectionBar extends StatelessWidget {
               ),
             ),
           ),
+        PopupMenuButton<(double, double)>(
+          tooltip: 'Strichdicke und Größe',
+          onSelected: (v) => adjustSelection(thickness: v.$1, scale: v.$2),
+          itemBuilder: (context) => const [
+            PopupMenuItem(value: (0.8, 1.0), child: Text('Striche dünner')),
+            PopupMenuItem(value: (1.25, 1.0), child: Text('Striche dicker')),
+            PopupMenuItem(value: (1.0, 0.8), child: Text('Verkleinern (80 %)')),
+            PopupMenuItem(value: (1.0, 1.25), child: Text('Vergrößern (125 %)')),
+          ],
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Icon(
+              Icons.tune,
+              color: ColorScheme.of(context).secondary,
+            ),
+          ),
+        ),
         TextButton.icon(
           onPressed: solveMath,
           style: TextButton.styleFrom(
@@ -141,6 +164,7 @@ class SelectionBar extends StatelessWidget {
           ),
         ),
       ],
+    ),
     );
   }
 }

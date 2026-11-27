@@ -1854,6 +1854,44 @@ class EditorState extends State<Editor> {
     return strokes;
   }
 
+  /// Feder: Strichdicke und/oder Größe der Lasso-Auswahl ändern (mit Rückgängig).
+  void _adjustSelection({double thickness = 1, double scale = 1}) {
+    final select = currentTool;
+    if (select is! Select || !select.doneSelecting || coreInfo.readOnly) return;
+    final old = [...select.selectResult.strokes];
+    if (old.isEmpty) return;
+    final pageIndex = select.selectResult.pageIndex;
+    final page = coreInfo.pages[pageIndex];
+
+    var minX = double.infinity, minY = double.infinity;
+    for (final s in old) {
+      for (final p in s.pointsAsOffsets()) {
+        minX = math.min(minX, p.dx);
+        minY = math.min(minY, p.dy);
+      }
+    }
+    final origin = Offset(minX, minY);
+    final updated = <Stroke>[];
+    for (final s in old) {
+      var n = s;
+      if (thickness != 1) n = n.withSizeFactor(thickness);
+      if (scale != 1) n = n.scaledAbout(origin, scale);
+      updated.add(n);
+    }
+
+    setState(() {
+      for (final s in old) {
+        page.strokes.remove(s);
+      }
+      for (final s in updated) {
+        page.insertStroke(s);
+      }
+      select.selectResult = select.selectResult.copyWith(strokes: updated);
+    });
+    history.recordChange(HistoricReplace(removed: old, added: updated));
+    autosaveAfterDelay();
+  }
+
   /// Feder: Text-Stempel als Bild in die Bildmitte legen.
   Future<void> _placeTextStamp(String text, Color color) async {
     final bytes = await renderTextStamp(text, color);
@@ -2559,6 +2597,7 @@ class EditorState extends State<Editor> {
           solveMath: _solveMathFromSelection,
           insertTable: _insertTable,
           extendTable: _extendTable,
+          adjustSelection: _adjustSelection,
           duplicateSelection: () {
             final select = currentTool as Select;
             if (!select.doneSelecting) return;

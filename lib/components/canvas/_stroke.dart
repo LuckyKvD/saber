@@ -419,6 +419,31 @@ class Stroke {
     ];
   }
 
+  /// Feder: Kopie mit anderer Strichdicke (Formstriche bleiben unverändert).
+  Stroke withSizeFactor(double factor) {
+    if (runtimeType != Stroke) return this;
+    final s = copy();
+    s.options.size = (options.size * factor).clamp(0.5, 80.0).toDouble();
+    s.markPolygonNeedsUpdating();
+    return s;
+  }
+
+  /// Feder: Kopie, um [origin] vergrößert/verkleinert (Formstriche bleiben).
+  Stroke scaledAbout(Offset origin, double factor) {
+    if (runtimeType != Stroke) return this;
+    final s = copy();
+    for (var i = 0; i < s.points.length; i++) {
+      final p = s.points[i];
+      s.points[i] = PointVector(
+        origin.dx + (p.dx - origin.dx) * factor,
+        origin.dy + (p.dy - origin.dy) * factor,
+        p.pressure,
+      );
+    }
+    s.markPolygonNeedsUpdating();
+    return s;
+  }
+
   /// Neuer Strich mit denselben Eigenschaften, aber nur den Punkten [run].
   Stroke piece(List<PointVector> run) => Stroke(
     color: color,
