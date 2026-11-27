@@ -193,12 +193,6 @@ class Stows {
     volatile: !_isOnMainIsolate,
   );
 
-  final autoClearWhiteboardOnExit = PlainStow(
-    'autoClearWhiteboardOnExit',
-    false,
-    volatile: !_isOnMainIsolate,
-  );
-
   final disableEraserAfterUse = PlainStow(
     'disableEraserAfterUse',
     false,

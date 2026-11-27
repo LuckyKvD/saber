@@ -195,3 +195,6 @@ Zusammengeführte Zweige: `feature/regal`, `feature/blaettern`, `feature/widget`
 - Termin: Kalender wird jedes Mal gewählt (letzte Wahl vorbelegt), Datum und Uhrzeit aus dem Text vorgeschlagen, Ende standardmäßig +1 Stunde, optional ganztägig. Speicherung per CalDAV (VEVENT, Zeiten als UTC).
 - Kontakt: Name, Telefon und E-Mail werden aus dem Text vorbelegt (zum Korrigieren), Adressbuch wird gewählt. Speicherung per CardDAV (vCard 3.0).
 - Automatisch erzeugte Sammlungen (Geburtstage, Papierkorb) werden nicht angeboten.
+
+### 18b. Whiteboard entfernt (27.11.2026)
+- Die Whiteboard-Seite, ihre Einstellung ("automatisch löschen") und die zugehörige Logik sind entfernt. Der Dateipfad `/_whiteboard` bleibt nur als reservierter Name, damit eine alte Whiteboard-Datei nicht im Regal auftaucht.

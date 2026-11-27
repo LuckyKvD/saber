@@ -64,7 +64,6 @@ import 'package:saber/data/tools/pencil.dart';
 import 'package:saber/data/tools/select.dart';
 import 'package:saber/data/tools/shape_pen.dart';
 import 'package:saber/i18n/strings.g.dart';
-import 'package:saber/pages/home/whiteboard.dart';
 import 'package:sbn/change.dart';
 import 'package:super_clipboard/super_clipboard.dart';
 
@@ -102,7 +101,7 @@ class Editor extends StatefulWidget {
   }
 
   static final _reservedFilePaths = <RegExp>[
-    RegExp(RegExp.escape(Whiteboard.filePath)),
+    RegExp(RegExp.escape('/_whiteboard')),
   ];
 
   /// Whether the platform can rasterize a pdf

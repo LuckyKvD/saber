@@ -6,7 +6,6 @@ import 'package:saber/components/settings/update_manager.dart';
 import 'package:saber/components/theming/dynamic_material_app.dart';
 import 'package:saber/pages/home/browse.dart';
 import 'package:saber/pages/home/settings.dart';
-import 'package:saber/pages/home/whiteboard.dart';
 
 class HomePage extends StatefulWidget {
   const new({super.key, required this.subpage, required this.path});
@@ -19,7 +18,6 @@ class HomePage extends StatefulWidget {
 
   static const recentSubpage = 'recent';
   static const browseSubpage = 'browse';
-  static const whiteboardSubpage = 'whiteboard';
   static const settingsSubpage = 'settings';
   static const List<String> subpages = [
     browseSubpage,
@@ -54,7 +52,6 @@ class _HomePageState extends State<HomePage> {
         child: switch (widget.subpage) {
           HomePage.browseSubpage ||
           HomePage.recentSubpage => BrowsePage(path: widget.path),
-          HomePage.whiteboardSubpage => const Whiteboard(),
           HomePage.settingsSubpage => const SettingsPage(),
           _ => BrowsePage(path: widget.path),
         },
@@ -64,12 +61,6 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    // hide navbar in fullscreen whiteboard
-    if (widget.subpage == HomePage.whiteboardSubpage &&
-        DynamicMaterialApp.isFullscreen) {
-      return body;
-    }
-
     return ResponsiveNavbar(
       selectedIndex: widget.subpage == HomePage.recentSubpage
           ? 0
