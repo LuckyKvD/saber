@@ -1,7 +1,5 @@
 import 'dart:math';
 
-import 'package:flutter/services.dart';
-import 'package:flutter/widgets.dart' show SpellCheckConfiguration;
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:saber/data/editor/page.dart';
@@ -162,9 +160,6 @@ class _TextBoxWidgetState extends State<TextBoxWidget> {
           bottom: lh * 0.4,
         ),
         showCodeBlockLineNumbers: false,
-        spellCheckConfiguration: SpellCheckConfiguration(
-          spellCheckService: DefaultSpellCheckService(),
-        ),
       ),
       scrollController: _scroll,
       focusNode: box.quill.focusNode,
