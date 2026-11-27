@@ -11,12 +11,14 @@ class TextBoxActions {
     required this.onRectChanged,
     required this.onDelete,
     required this.onBackgroundChanged,
+    required this.onOpenLink,
   });
 
   final void Function(FreeTextBox box, Rect before, Rect after) onRectChanged;
   final void Function(FreeTextBox box) onDelete;
   final void Function(FreeTextBox box, bool before, bool after)
   onBackgroundChanged;
+  final void Function(FreeTextBox box) onOpenLink;
 }
 
 /// Feder: Ein frei platzierbares Textfeld auf einer Seite.
@@ -179,7 +181,11 @@ class _TextBoxWidgetState extends State<TextBoxWidget> {
             bottom: m,
             child: DecoratedBox(
               decoration: BoxDecoration(
-                color: box.whiteBackground ? Colors.white : null,
+                color: box.whiteBackground
+                    ? Colors.white
+                    : (box.linkPath != null
+                          ? colorScheme.primary.withValues(alpha: 0.10)
+                          : null),
                 border: editing
                     ? Border.all(
                         color: colorScheme.primary.withValues(alpha: 0.7),
@@ -187,7 +193,13 @@ class _TextBoxWidgetState extends State<TextBoxWidget> {
                       )
                     : null,
               ),
-              child: IgnorePointer(ignoring: !editing, child: editor),
+              child: box.linkPath != null && !editing
+                  ? GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => widget.actions?.onOpenLink(box),
+                      child: IgnorePointer(child: editor),
+                    )
+                  : IgnorePointer(ignoring: !editing, child: editor),
             ),
           ),
           if (editing) ...[

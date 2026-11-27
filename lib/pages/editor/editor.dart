@@ -88,6 +88,7 @@ class Editor extends StatefulWidget {
     this.customTitle,
     this.pdfPath,
     this.initialPage,
+    this.inSplit = false,
   })
     : initialPath = path != null
           ? Future.value(path)
@@ -102,6 +103,9 @@ class Editor extends StatefulWidget {
 
   /// Feder: Seite (ab 0), bei der die Notiz geöffnet wird (z. B. aus der Suche).
   final int? initialPage;
+
+  /// Feder: Der Editor sitzt in der Zwei-Notizen-Ansicht.
+  final bool inSplit;
 
   /// The file extension used by the app.
   /// Files with this extension are
@@ -1917,6 +1921,12 @@ class EditorState extends State<Editor> {
 
     final box = FreeTextBox(rect: rect);
     box.quill.controller.document.insert(0, text);
+    // etwas größer als der Standardtext, damit es zur Handschrift passt
+    box.quill.controller.formatText(
+      0,
+      text.length,
+      flutter_quill.SizeAttribute('${(coreInfo.lineHeight * 1.0).round()}'),
+    );
     box.quill.controller.updateSelection(
       const TextSelection.collapsed(offset: 0),
       flutter_quill.ChangeSource.local,
@@ -3350,6 +3360,7 @@ class EditorState extends State<Editor> {
           insertTable: _insertTable,
           insertTemplate: _insertTemplate,
           addTextBox: _addTextBox,
+          addLink: _addLinkBox,
           extendTable: _extendTable,
           adjustSelection: _adjustSelection,
           saveAsTemplate: _saveSelectionAsTemplate,
@@ -3661,6 +3672,12 @@ class EditorState extends State<Editor> {
                         : 'Seiten nebeneinander (wie ein Buch blättern)',
                     onPressed: toggleHorizontalPaging,
                   ),
+                  if (!widget.inSplit)
+                    IconButton(
+                      icon: const Icon(Icons.vertical_split),
+                      tooltip: 'Zwei Notizen nebeneinander',
+                      onPressed: coreInfo.filePath.isEmpty ? null : _openSplit,
+                    ),
                   IconButton(
                     icon: const Icon(Icons.search),
                     tooltip: 'In dieser Notiz suchen',
@@ -3955,6 +3972,7 @@ class EditorState extends State<Editor> {
       autosaveAfterDelay();
     },
     onDelete: _removeTextBox,
+    onOpenLink: _openLink,
     onBackgroundChanged: (box, before, after) {
       history.recordChange(
         HistoricTextBoxBackground(box: box, before: before, after: after),
@@ -4165,6 +4183,103 @@ class EditorState extends State<Editor> {
         },
       ),
     );
+  }
+
+  /// Feder: Verknüpfung (Textfeld mit Ziel-Notiz) anlegen.
+  Future<void> _addLinkBox() async {
+    if (coreInfo.readOnly || coreInfo.pages.isEmpty) return;
+    final target = await pickNotebook(
+      context,
+      title: 'Verknüpfen mit Notiz',
+      excludePath: coreInfo.filePath,
+    );
+    if (target == null || !mounted) return;
+    final pageController = TextEditingController(text: '1');
+    final pageText = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Ziel-Seite'),
+        content: TextField(
+          controller: pageController,
+          keyboardType: TextInputType.number,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'Seitennummer'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(pageController.text),
+            child: const Text('Verknüpfen'),
+          ),
+        ],
+      ),
+    );
+    pageController.dispose();
+    if (pageText == null || !mounted) return;
+    final targetPage = ((int.tryParse(pageText.trim()) ?? 1) - 1).clamp(0, 9999).toInt();
+
+    final pageIndex = currentPageIndex
+        .clamp(0, coreInfo.pages.length - 1)
+        .toInt();
+    final page = coreInfo.pages[pageIndex];
+    final n = page.textBoxes.length;
+    final w = math.min(420.0, page.size.width * 0.5);
+    const h = 90.0;
+    final left = (page.size.width * 0.12 + 40.0 * (n % 5))
+        .clamp(0.0, page.size.width - w)
+        .toDouble();
+    final top = (page.size.height * 0.12 + 60.0 * (n % 8))
+        .clamp(0.0, page.size.height - h)
+        .toDouble();
+    final name = target.split('/').where((e) => e.isNotEmpty).lastOrNull ?? target;
+    final box = FreeTextBox(
+      rect: Rect.fromLTWH(left, top, w, h),
+      linkPath: target,
+      linkPage: targetPage,
+    );
+    box.quill.controller.document.insert(
+      0,
+      targetPage == 0 ? '→ $name' : '→ $name (Seite ${targetPage + 1})',
+    );
+    setState(() {
+      page.textBoxes.add(box);
+      listenToQuillChanges(box.quill, pageIndex, isTextBox: true);
+      history.recordChange(HistoricTextBoxAdd(pageIndex: pageIndex, box: box));
+    });
+    autosaveAfterDelay();
+  }
+
+  /// Feder: Verknüpfung antippen = Ziel-Notiz öffnen.
+  Future<void> _openLink(FreeTextBox box) async {
+    final target = box.linkPath;
+    if (target == null || !mounted) return;
+    if (!FileManager.doesFileExist(target + Editor.extension)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Die verknüpfte Notiz gibt es nicht mehr.')),
+      );
+      return;
+    }
+    await saveToFile();
+    if (!mounted) return;
+    context.push(RoutePaths.editFilePathPage(target, box.linkPage));
+  }
+
+  /// Feder: Diese Notiz und eine zweite nebeneinander anzeigen.
+  Future<void> _openSplit() async {
+    if (coreInfo.filePath.isEmpty) return;
+    final other = await pickNotebook(
+      context,
+      title: 'Zweite Notiz daneben öffnen',
+      excludePath: coreInfo.filePath,
+    );
+    if (other == null || !mounted) return;
+    await saveToFile();
+    if (!mounted) return;
+    context.pushReplacement(RoutePaths.splitPaths(coreInfo.filePath, other));
   }
 
   void _duplicatePage(int pageIndex) => setState(() {

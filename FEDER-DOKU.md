@@ -308,3 +308,9 @@ Zusammengeführte Zweige: `feature/regal`, `feature/blaettern`, `feature/widget`
 - Lasso um die Handschrift ziehen, in der Auswahlleiste „In Text“. Die Erkennung läuft auf dem Gerät, Zeile für Zeile (gleiche Technik wie bei der Suche). Ein Fenster zeigt den erkannten Text zum Korrigieren; optional „Handschrift danach löschen“.
 - Ergebnis ist ein normales Textfeld an der Stelle der Handschrift (verschiebbar, formatierbar). Rückgängig: erst das Textfeld, dann (falls gelöscht) die Handschrift.
 - Voraussetzung: einmalig Internet für das Sprachmodell; die Qualität hängt von der Handschrift ab.
+
+## 33. Notizen verlinken, zwei Notizen nebeneinander, Rechtschreibung (Branch `feature/verlinken-fenster`)
+- **Verknüpfung:** In der Textfunktion links in der Leiste „Verknüpfung zu einer Notiz“. Notiz wählen, Zielseite eingeben; es entsteht ein Textfeld mit hellem Hintergrund. Außerhalb der Textfunktion öffnet ein Tipp darauf die Ziel-Notiz an der Seite. Speicher: pro Textfeld `lp` (Pfad) und `lg` (Seite). Gelöschte Zielnotiz → Hinweis. Wird die Ziel-Notiz später verschoben oder umbenannt, bricht der Link (Pfad ist fest).
+- **Zwei Notizen nebeneinander:** Symbol „geteilter Bildschirm“ in der Editor-Leiste. Beide Seiten sind volle Editoren; Trenner in der Mitte ist verschiebbar; „Andere Notiz“ pro Seite. Beide Notizen müssen verschieden sein. Innerhalb von Feder, nicht über Android-Mehrfenster.
+- **Rechtschreibung:** Nicht umgesetzt. Die verwendete Editor-Bibliothek bietet keine Anbindung an die Android-Rechtschreibprüfung (Compiler-Test: Parameter existiert nicht). Offen: eigene Prüfung mit Wörterbuch.
+- Handschrift → Text: Text jetzt in Zeilenhöhe-Größe.
