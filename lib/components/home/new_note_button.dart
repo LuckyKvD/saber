@@ -7,7 +7,6 @@ import 'package:saber/components/shelf/cover_dialogs.dart';
 import 'package:saber/components/theming/saber_theme.dart';
 import 'package:saber/data/file_manager/file_manager.dart';
 import 'package:saber/data/routes.dart';
-import 'package:saber/data/templates/note_templates.dart';
 import 'package:saber/i18n/strings.g.dart';
 import 'package:saber/pages/editor/editor.dart';
 
@@ -66,40 +65,6 @@ class _NewNoteButtonState extends State<NewNoteButton> {
           child: const Icon(Icons.menu_book),
           label: 'Neues Notizbuch',
           onTap: () => startNewNotebook(context, widget.path),
-        ),
-        SpeedDialChild(
-          child: const Icon(Icons.assignment),
-          label: 'Notiz aus Vorlage',
-          onTap: () async {
-            final template = await showModalBottomSheet<NoteTemplate>(
-              context: context,
-              builder: (context) => SafeArea(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const ListTile(
-                      title: Text('Vorlage wählen'),
-                    ),
-                    for (final t in NoteTemplate.values)
-                      ListTile(
-                        leading: const Icon(Icons.assignment_outlined),
-                        title: Text(t.label),
-                        onTap: () => Navigator.of(context).pop(t),
-                      ),
-                  ],
-                ),
-              ),
-            );
-            if (template == null || !context.mounted) return;
-            final d = DateTime.now();
-            final stamp =
-                '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-            final filePath = await FileManager.suffixFilePathToMakeItUnique(
-              '${widget.path ?? ''}/${template.label} $stamp',
-            );
-            if (!context.mounted) return;
-            context.push(RoutePaths.editFromTemplate(filePath, template.name));
-          },
         ),
         SpeedDialChild(
           child: const Icon(Icons.create),

@@ -18,13 +18,6 @@ abstract class RoutePaths {
     return '$edit?path=${Uri.encodeQueryComponent(filePath)}';
   }
 
-  /// Feder: neue Notiz aus einer Vorlage (`meeting`, `jourFixe`).
-  static String editFromTemplate(String filePath, String template) {
-    return '$edit'
-        '?path=${Uri.encodeQueryComponent(filePath)}'
-        '&template=${Uri.encodeQueryComponent(template)}';
-  }
-
   static String editImportPdf(String filePath, String pdfPath) {
     return '$edit'
         '?path=${Uri.encodeQueryComponent(filePath)}'
