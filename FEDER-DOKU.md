@@ -303,3 +303,8 @@ Zusammengeführte Zweige: `feature/regal`, `feature/blaettern`, `feature/widget`
 - **Nachbesserung (Runde 2):** Schriftgrößen funktionierten nicht, weil die Stufen Klein/Groß/Riesig in der App alle auf dieselbe Größe gesetzt waren. Jetzt echte Größen und eine Zahlenliste (14–96). Schriftarten: Handschrift, Dekko, Lesbar, Schreibmaschine, Serif, Sans. Die Textfarbe kommt aus der normalen Farbleiste (im Textmodus färbt sie den markierten Text); die eigene Farbwahl der Textleiste ist entfernt.
 - **PDF aus der Seitenübersicht:** „Auswählen“, Seiten markieren, „Als PDF“. Das PDF enthält nur die markierten Seiten in ihrer Reihenfolge. Die Seitenübersicht hat auch das Inhaltsverzeichnis (Symbol oben) und zeigt Lesezeichen-Namen unter den Seiten.
 - **Suche in einer Notiz oder einem Ordner:** Lupe im Editor sucht nur in dieser Notiz, Lupe in der Dateiliste nur im aktuellen Ordner. In der Suche lässt sich „Nur in …“ ein- und ausschalten.
+
+## 32. Handschrift in Text umwandeln (Branch `feature/handschrift-zu-text`)
+- Lasso um die Handschrift ziehen, in der Auswahlleiste „In Text“. Die Erkennung läuft auf dem Gerät, Zeile für Zeile (gleiche Technik wie bei der Suche). Ein Fenster zeigt den erkannten Text zum Korrigieren; optional „Handschrift danach löschen“.
+- Ergebnis ist ein normales Textfeld an der Stelle der Handschrift (verschiebbar, formatierbar). Rückgängig: erst das Textfeld, dann (falls gelöscht) die Handschrift.
+- Voraussetzung: einmalig Internet für das Sprachmodell; die Qualität hängt von der Handschrift ab.

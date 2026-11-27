@@ -58,6 +58,7 @@ import 'package:saber/data/editor/editor_exporter.dart';
 import 'package:saber/data/editor/editor_history.dart';
 import 'package:saber/data/routes.dart';
 import 'package:saber/data/editor/page.dart';
+import 'package:saber/data/search/line_grouper.dart';
 import 'package:saber/data/extensions/change_notifier_extensions.dart';
 import 'package:saber/data/extensions/matrix4_extensions.dart';
 import 'package:saber/data/file_manager/file_manager.dart';
@@ -1789,6 +1790,162 @@ class EditorState extends State<Editor> {
     }
   }
 
+  /// Feder: Handschrift der Lasso-Auswahl in ein Textfeld umwandeln
+  /// (Erkennung auf dem Gerät, Zeile für Zeile).
+  Future<void> _convertSelectionToText() async {
+    final select = currentTool;
+    if (select is! Select || !select.doneSelecting || coreInfo.readOnly) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final strokes = [...select.selectResult.strokes];
+    if (strokes.isEmpty) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Im Lasso ist keine Handschrift.')),
+      );
+      return;
+    }
+    final pageIndex = select.selectResult.pageIndex;
+    final page = coreInfo.pages[pageIndex];
+
+    Rect boundsOf(Stroke s) {
+      var l = double.infinity, t = double.infinity;
+      var r = -double.infinity, b = -double.infinity;
+      for (final p in s.pointsAsOffsets()) {
+        l = math.min(l, p.dx);
+        t = math.min(t, p.dy);
+        r = math.max(r, p.dx);
+        b = math.max(b, p.dy);
+      }
+      return Rect.fromLTRB(l, t, r, b);
+    }
+
+    final boxes = [for (final s in strokes) boundsOf(s)];
+    var area = boxes.first;
+    for (final b in boxes) {
+      area = area.expandToInclude(b);
+    }
+
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text('Handschrift wird gelesen …'),
+        duration: Duration(seconds: 30),
+      ),
+    );
+    final lines = <String>[];
+    String? problem;
+    try {
+      final groups = LineGrouper.group(
+        boxes,
+        cell: coreInfo.lineHeight.toDouble(),
+      );
+      for (final g in groups) {
+        final candidates = await InkRecognition.recognize([
+          for (final i in g) strokes[i],
+        ]);
+        lines.add(candidates.isEmpty ? '' : candidates.first);
+      }
+      if (lines.every((l) => l.isEmpty)) {
+        problem = 'Es wurde kein Text erkannt.';
+      }
+    } catch (e) {
+      problem = 'Erkennung nicht möglich: $e';
+    }
+    messenger.hideCurrentSnackBar();
+    if (!mounted) return;
+
+    final controller = TextEditingController(text: lines.join('\n'));
+    var deleteInk = true;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: const Text('Handschrift in Text'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (problem != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(problem),
+                  ),
+                const Text('Erkannter Text (zum Korrigieren antippen):'),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: controller,
+                  minLines: 3,
+                  maxLines: 12,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: deleteInk,
+                  onChanged: (v) =>
+                      setDialogState(() => deleteInk = v ?? true),
+                  title: const Text('Handschrift danach löschen'),
+                  controlAffinity: ListTileControlAffinity.leading,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Abbrechen'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Als Text einfügen'),
+            ),
+          ],
+        ),
+      ),
+    );
+    final text = controller.text.trim();
+    controller.dispose();
+    if (ok != true || text.isEmpty || !mounted) return;
+
+    final margin = coreInfo.lineHeight * 0.4;
+    var rect = area.inflate(margin);
+    final w = math.max(rect.width, 220.0).clamp(140.0, page.size.width).toDouble();
+    final h = math.max(rect.height, 90.0).clamp(70.0, page.size.height).toDouble();
+    final left = rect.left.clamp(0.0, page.size.width - w).toDouble();
+    final top = rect.top.clamp(0.0, page.size.height - h).toDouble();
+    rect = Rect.fromLTWH(left, top, w, h);
+
+    final box = FreeTextBox(rect: rect);
+    box.quill.controller.document.insert(0, text);
+    box.quill.controller.updateSelection(
+      const TextSelection.collapsed(offset: 0),
+      flutter_quill.ChangeSource.local,
+    );
+
+    setState(() {
+      if (deleteInk) {
+        for (final stroke in strokes) {
+          page.strokes.remove(stroke);
+        }
+        history.recordChange(HistoricDelete(strokes: strokes, images: const []));
+      }
+      select.unselect();
+      page.textBoxes.add(box);
+      listenToQuillChanges(box.quill, pageIndex, isTextBox: true);
+      history.recordChange(HistoricTextBoxAdd(pageIndex: pageIndex, box: box));
+    });
+    autosaveAfterDelay();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          deleteInk
+              ? 'Als Textfeld eingefügt. Rückgängig macht erst das Textfeld, dann die Löschung der Handschrift rückgängig.'
+              : 'Als Textfeld eingefügt.',
+        ),
+      ),
+    );
+  }
+
   /// Feder: Handschrift der Lasso-Auswahl als Matheaufgabe lesen und lösen
   /// (Erkennung und Rechnen auf dem Gerät).
   Future<void> _solveMathFromSelection() async {
@@ -3189,6 +3346,7 @@ class EditorState extends State<Editor> {
           currentTool: currentTool,
           sendToNextcloud: _sendSelectionToNextcloud,
           solveMath: _solveMathFromSelection,
+          convertToText: _convertSelectionToText,
           insertTable: _insertTable,
           insertTemplate: _insertTemplate,
           addTextBox: _addTextBox,
