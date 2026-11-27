@@ -16,6 +16,7 @@ import 'package:logging/logging.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:path/path.dart' as p;
 import 'package:pdfrx/pdfrx.dart';
+import 'package:go_router/go_router.dart';
 import 'package:saber/components/canvas/_asset_cache.dart';
 import 'package:saber/components/canvas/_stroke.dart';
 import 'package:saber/components/canvas/canvas.dart';
@@ -55,6 +56,7 @@ import 'package:saber/components/toolbar/toolbar.dart';
 import 'package:saber/data/editor/editor_core_info.dart';
 import 'package:saber/data/editor/editor_exporter.dart';
 import 'package:saber/data/editor/editor_history.dart';
+import 'package:saber/data/routes.dart';
 import 'package:saber/data/editor/page.dart';
 import 'package:saber/data/extensions/change_notifier_extensions.dart';
 import 'package:saber/data/extensions/matrix4_extensions.dart';
@@ -3020,6 +3022,36 @@ class EditorState extends State<Editor> {
     );
   }
 
+  /// Feder: Nur die markierten Seiten als PDF exportieren.
+  Future<void> _exportPagesAsPdf(List<int> pageIndexes) async {
+    if (pageIndexes.isEmpty) return;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    try {
+      final subset = coreInfo.copyWith(
+        pages: [
+          for (final i in pageIndexes)
+            if (i >= 0 && i < coreInfo.pages.length) coreInfo.pages[i],
+        ],
+      );
+      final pdf = await EditorExporter.generatePdf(
+        subset,
+        context,
+        dropEmptyLastPage: false,
+      );
+      final bytes = await pdf.save();
+      if (!mounted) return;
+      await FileManager.exportFile(
+        '${coreInfo.fileName}.pdf',
+        bytes,
+        context: context,
+      );
+    } catch (e) {
+      messenger?.showSnackBar(
+        SnackBar(content: Text('PDF-Export fehlgeschlagen: $e')),
+      );
+    }
+  }
+
   /// Exports the current note as an SBA (Saber Archive) file.
   Future exportAsSba(BuildContext context) async {
     final sba = await coreInfo.saveToSba(currentPageIndex: currentPageIndex);
@@ -3226,6 +3258,16 @@ class EditorState extends State<Editor> {
             });
           },
           setColor: (color) {
+            // Feder: Im Textmodus färbt die Farbleiste den markierten Text.
+            final textQuill = quillFocus.value;
+            if (currentTool == Tool.textEditing && textQuill != null) {
+              updateColorBar(color);
+              final hex =
+                  '#${(color.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}';
+              textQuill.controller.formatSelection(flutter_quill.ColorAttribute(hex));
+              setState(() {});
+              return;
+            }
             setState(() {
               updateColorBar(color);
 
@@ -3456,6 +3498,15 @@ class EditorState extends State<Editor> {
                     onPressed: toggleHorizontalPaging,
                   ),
                   IconButton(
+                    icon: const Icon(Icons.search),
+                    tooltip: 'In dieser Notiz suchen',
+                    onPressed: coreInfo.filePath.isEmpty
+                        ? null
+                        : () => context.push(
+                            RoutePaths.searchIn(coreInfo.filePath),
+                          ),
+                  ),
+                  IconButton(
                     icon: const Icon(Icons.bookmarks_outlined),
                     tooltip: 'Inhaltsverzeichnis',
                     onPressed: _showToc,
@@ -3484,6 +3535,8 @@ class EditorState extends State<Editor> {
                             }),
                             onTransfer: (pages, move) =>
                                 transferPages(context, pages, move),
+                            exportPdf: _exportPagesAsPdf,
+                            showToc: _showToc,
                           ),
                         ),
                       );

@@ -267,7 +267,9 @@ class const App({super.key}) extends StatefulWidget {
       ),
       GoRoute(
         path: RoutePaths.search,
-        builder: (context, state) => const HandwritingSearchPage(),
+        builder: (context, state) => HandwritingSearchPage(
+          scope: state.uri.queryParameters['scope'],
+        ),
       ),
       GoRoute(
         path: RoutePaths.login,

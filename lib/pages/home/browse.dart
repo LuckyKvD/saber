@@ -231,7 +231,11 @@ class _BrowsePageState extends State<BrowsePage> {
               IconButton(
                 icon: const Icon(Icons.search),
                 tooltip: 'Handschrift durchsuchen',
-                onPressed: () => context.push(RoutePaths.search),
+                onPressed: () => context.push(
+                  path == null || path == '/'
+                      ? RoutePaths.search
+                      : RoutePaths.searchIn(path!),
+                ),
               ),
               const SaberImportButton(),
               const BrowseSortButton(),

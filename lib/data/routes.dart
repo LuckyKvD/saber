@@ -13,6 +13,10 @@ abstract class RoutePaths {
   static const logs = '/logs';
   static const search = '/search';
 
+  /// Feder: Suche nur in einer Notiz oder einem Ordner.
+  static String searchIn(String scope) =>
+      '$search?scope=${Uri.encodeQueryComponent(scope)}';
+
   static const prefixOfHome = '/home';
 
   static String editFilePath(String filePath) {

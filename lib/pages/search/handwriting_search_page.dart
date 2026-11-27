@@ -10,7 +10,10 @@ import 'package:saber/data/tasks/ink_recognition.dart';
 /// Feder: Suche in Handschrift und getipptem Text aller Notizen.
 /// Beim Öffnen wird der Index aktualisiert (nur neue/geänderte Notizen).
 class HandwritingSearchPage extends StatefulWidget {
-  const HandwritingSearchPage({super.key});
+  const HandwritingSearchPage({super.key, this.scope});
+
+  /// Notiz oder Ordner, auf den die Suche beschränkt werden kann.
+  final String? scope;
 
   @override
   State<HandwritingSearchPage> createState() => _HandwritingSearchPageState();
@@ -24,6 +27,7 @@ class _HandwritingSearchPageState extends State<HandwritingSearchPage> {
   var _cancelled = false;
   String? _error;
   var _searched = false;
+  late var _onlyHere = widget.scope != null && widget.scope != '/';
   Timer? _debounce;
 
   @override
@@ -80,7 +84,10 @@ class _HandwritingSearchPageState extends State<HandwritingSearchPage> {
       });
       return;
     }
-    final hits = await SearchIndex.search(q);
+    final hits = await SearchIndex.search(
+      q,
+      scope: _onlyHere ? widget.scope : null,
+    );
     if (!mounted) return;
     setState(() {
       _hits = hits;
@@ -135,6 +142,21 @@ class _HandwritingSearchPageState extends State<HandwritingSearchPage> {
       ),
       body: Column(
         children: [
+          if (widget.scope != null && widget.scope != '/')
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: FilterChip(
+                  label: Text('Nur in „${p.basename(widget.scope!)}“'),
+                  selected: _onlyHere,
+                  onSelected: (v) {
+                    setState(() => _onlyHere = v);
+                    _search();
+                  },
+                ),
+              ),
+            ),
           if (!InkRecognition.supported)
             const ListTile(
               leading: Icon(Icons.info_outline),

@@ -517,7 +517,7 @@ class _ToolbarState extends State<Toolbar> {
     return [
       if (!stows.hideFingerDrawingToggle.value)
         _ToolItem(
-          tooltip: t.editor.toolbar.toggleFingerDrawing,
+          tooltip: 'Fingerzeichnen an/aus (Strg + F)',
           icon: CupertinoIcons.hand_draw,
           selected: stows.editorFingerDrawing.value,
           enabled: !readOnly,
@@ -821,6 +821,28 @@ class _ToolbarState extends State<Toolbar> {
                       base: QuillToolbarBaseButtonOptions(
                         iconTheme: iconTheme,
                       ),
+                      fontSize: const QuillToolbarFontSizeButtonOptions(
+                        items: {
+                          '14': '14',
+                          '18': '18',
+                          '22': '22',
+                          '28': '28',
+                          '36': '36',
+                          '48': '48',
+                          '64': '64',
+                          '96': '96',
+                        },
+                      ),
+                      fontFamily: const QuillToolbarFontFamilyButtonOptions(
+                        items: {
+                          'Handschrift': 'Neucha',
+                          'Dekko': 'Dekko',
+                          'Lesbar': 'AtkinsonHyperlegibleNext',
+                          'Schreibmaschine': 'FiraMono',
+                          'Serif': 'serif',
+                          'Sans': 'sans-serif',
+                        },
+                      ),
                     ),
                     // scrollable on Android and iOS
                     multiRowsDisplay: !Platform.isAndroid && !Platform.isIOS,
@@ -829,8 +851,8 @@ class _ToolbarState extends State<Toolbar> {
                     showFontSize: true,
                     showFontFamily: true,
                     showClearFormat: true,
-                    showColorButton: true,
-                    showBackgroundColorButton: true,
+                    showColorButton: false,
+                    showBackgroundColorButton: false,
                     showAlignmentButtons: true,
                     showHeaderStyle: true,
                     showListNumbers: true,
