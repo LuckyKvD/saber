@@ -23,6 +23,7 @@ import 'package:saber/components/canvas/guide_tools.dart';
 import 'package:saber/components/toolbar/text_stamp.dart';
 import 'package:saber/components/math/math_solve_dialog.dart';
 import 'package:saber/components/tables/table_dialog.dart';
+import 'package:saber/data/templates/note_templates.dart';
 import 'package:saber/data/tables/table_builder.dart';
 import 'package:saber/data/math/handwriting_text.dart';
 import 'package:saber/components/tasks/create_task_dialog.dart';
@@ -74,7 +75,7 @@ import 'package:super_clipboard/super_clipboard.dart';
 class const _PhotoInfo(final Uint8List bytes, final String extension);
 
 class Editor extends StatefulWidget {
-  new({super.key, String? path, this.customTitle, this.pdfPath})
+  new({super.key, String? path, this.customTitle, this.pdfPath, this.template})
     : initialPath = path != null
           ? Future.value(path)
           : FileManager.newFilePath('/'),
@@ -85,6 +86,9 @@ class Editor extends StatefulWidget {
 
   final String? customTitle;
   final String? pdfPath;
+
+  /// Feder: Vorlage, mit der eine neue, leere Notiz gefüllt wird.
+  final String? template;
 
   /// The file extension used by the app.
   /// Files with this extension are
@@ -478,6 +482,13 @@ class EditorState extends State<Editor> {
 
     if (widget.pdfPath != null) {
       await importPdfFromFilePath(widget.pdfPath!);
+    }
+
+    final template = NoteTemplate.parse(widget.template);
+    if (template != null &&
+        mounted &&
+        coreInfo.pages.every((p) => p.strokes.isEmpty && p.images.isEmpty)) {
+      await _applyTemplate(template);
     }
   }
 
@@ -1889,6 +1900,71 @@ class EditorState extends State<Editor> {
       select.selectResult = select.selectResult.copyWith(strokes: updated);
     });
     history.recordChange(HistoricReplace(removed: old, added: updated));
+    autosaveAfterDelay();
+  }
+
+  /// Feder: Besprechungs-/Jour-fixe-Vorlage auf Seite 1 setzen (ein Rückgängig-Schritt).
+  Future<void> _applyTemplate(NoteTemplate template) async {
+    if (coreInfo.readOnly || coreInfo.pages.isEmpty) return;
+    const pageIndex = 0;
+    final page = coreInfo.pages[pageIndex];
+    final content = NoteTemplates.build(
+      template,
+      page: page.size,
+      cell: coreInfo.lineHeight.toDouble(),
+      date: DateTime.now(),
+      rng: math.Random(),
+    );
+
+    final pen = Pen.currentPen;
+    const ink = Color(0xFF263238);
+    Stroke makeStroke(List<Offset> points, int? axis) => Stroke(
+      color: ink,
+      pressureEnabled: pen.pressureEnabled,
+      options: pen.options.copyWith(isComplete: true),
+      pageIndex: pageIndex,
+      page: page,
+      toolId: pen.toolId,
+      tableAxis: axis,
+    )..addPoints(points);
+
+    final strokes = [
+      for (final u in content.underlines) makeStroke(u, null),
+      for (final l in content.tableLines) makeStroke(l.points, l.axis),
+    ];
+
+    final images = <EditorImage>[];
+    for (final text in content.texts) {
+      final img = await renderHandwriting(text.text, ink, text.fontSize);
+      if (!mounted) return;
+      images.add(
+        PngEditorImage(
+          id: coreInfo.nextImageId++,
+          extension: '.png',
+          imageProvider: MemoryImage(img.bytes),
+          pageIndex: pageIndex,
+          pageSize: page.size,
+          onMoveImage: onMoveImage,
+          onDeleteImage: onDeleteImage,
+          onMiscChange: autosaveAfterDelay,
+          onLoad: () => setState(() {}),
+          assetCache: coreInfo.assetCache,
+          dstRect: Rect.fromLTWH(
+            text.topLeft.dx,
+            text.topLeft.dy,
+            img.size.width,
+            img.size.height,
+          ),
+        ),
+      );
+    }
+
+    setState(() {
+      createPage(pageIndex);
+      page.strokes.addAll(strokes);
+      page.images.addAll(images);
+    });
+    history.recordChange(HistoricAdd(strokes: strokes, images: images));
     autosaveAfterDelay();
   }
 

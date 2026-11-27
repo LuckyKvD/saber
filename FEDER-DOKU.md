@@ -214,3 +214,11 @@ Zusammengeführte Zweige: `feature/regal`, `feature/blaettern`, `feature/widget`
 - Grenzen: Sonderstifte (Glitzer, Muster, gestrichelt) werden für die Linien als normale Linie gezeichnet. Zeilen oder Spalten in der Mitte einfügen und einzelne Spaltenbreiten ziehen gibt es noch nicht.
 - Lasso „Strichdicke und Größe" (Symbol Regler): markierte Striche dünner/dicker (±25 %) oder vergrößern/verkleinern (125 % / 80 %, Ankerpunkt oben links der Auswahl). Mit Rückgängig. Gilt für alle freien Striche, auch für Tabellen samt Inhalt; Bilder und Formstriche (Kreis, Rechteck) bleiben unverändert.
 - Smartphone: Rückgängig und Wiederholen bleiben in der Werkzeugleiste sichtbar; die Knopfbreite wird gemessen, damit der ⋮-Knopf nicht abgeschnitten wird.
+
+## 21. Notizvorlagen (Besprechung, Jour fixe)
+
+- Im „Neu"-Menü: **Notiz aus Vorlage** → Auswahl *Besprechung* oder *Jour fixe*. Es entsteht eine neue Notiz mit Datum im Dateinamen.
+- Aufbau ohne neues Dateiformat: Beschriftungen als Handschrift-Bilder (Neucha), Schreiblinien und Tabellen als normale Striche (wie bei Tabellen, Abschnitt 20). Alles ist danach frei bearbeitbar.
+- Das Ausfüllen der Vorlage ist **ein** Rückgängig-Schritt.
+- Layout wird in Kästchen-Einheiten der Seite berechnet (`lib/data/templates/note_templates.dart`); Abschnitte, die nicht auf die Seite passen, werden weggelassen.
+- Tests: `test/note_templates_test.dart`.

@@ -260,6 +260,7 @@ class const App({super.key}) extends StatefulWidget {
         builder: (context, state) => Editor(
           path: state.uri.queryParameters['path'],
           pdfPath: state.uri.queryParameters['pdfPath'],
+          template: state.uri.queryParameters['template'],
         ),
       ),
       GoRoute(
