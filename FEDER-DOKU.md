@@ -249,4 +249,5 @@ Zusammengeführte Zweige: `feature/regal`, `feature/blaettern`, `feature/widget`
 
 - Vorlagen-Linien nutzen jetzt immer einen festen Kugelschreiber-Strich, nicht mehr den aktuell gewählten Stift (Spezialstifte konnten Linien doppeln).
 - Handschrift-Bilder (Vorlagen-Beschriftung, Mathe-Ergebnis) werden nach dem Rendern geprüft: Enthalten sie fremde Farben (Grafikspeicher-Reste), wird bis zu 4-mal neu gerendert. Test: `test/handwriting_pixels_test.dart`.
-- Beides ist eine Vermutung, die Ursache wurde nicht auf dem Gerät nachgestellt.
+- Gemeinsamer Renderer `lib/data/images/safe_render.dart` (`renderInkPng`): wird von Handschrift-Bildern **und Text-Stempeln** genutzt, gibt Zeichnung und Bild immer frei und rendert bei fremden Farben neu.
+- Beides ist eine Vermutung, die Ursache wurde nicht auf dem Gerät nachgestellt. Offen: Tritt der Fehler erst beim Anzeigen auf (Bytes sauber), hilft die Prüfung nicht.

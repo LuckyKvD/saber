@@ -1,7 +1,6 @@
 import 'dart:typed_data';
-import 'dart:ui' as ui;
-
 import 'package:material_ui/material_ui.dart';
+import 'package:saber/data/images/safe_render.dart';
 
 /// Vorlagen für Text-Stempel.
 const textStampPresets = [
@@ -46,32 +45,30 @@ Future<Uint8List> renderTextStamp(String text, Color color) async {
   final width = painter.width + pad * 2 + border * 2;
   final height = painter.height + pad * 1.2 + border * 2;
 
-  final recorder = ui.PictureRecorder();
-  final canvas = Canvas(recorder);
-  final stroke = Paint()
-    ..color = color
-    ..style = PaintingStyle.stroke
-    ..strokeWidth = border;
-  final outer = RRect.fromRectAndRadius(
-    Rect.fromLTWH(border / 2, border / 2, width - border, height - border),
-    const Radius.circular(24),
-  );
-  canvas.drawRRect(outer, stroke);
-  canvas.drawRRect(
-    outer.deflate(border * 1.8),
-    stroke..strokeWidth = border * 0.35,
-  );
-  painter.paint(
-    canvas,
-    Offset(border + pad, (height - painter.height) / 2),
-  );
-
-  final image = await recorder.endRecording().toImage(
+  return renderInkPng(
+    (canvas) {
+      final stroke = Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = border;
+      final outer = RRect.fromRectAndRadius(
+        Rect.fromLTWH(border / 2, border / 2, width - border, height - border),
+        const Radius.circular(24),
+      );
+      canvas.drawRRect(outer, stroke);
+      canvas.drawRRect(
+        outer.deflate(border * 1.8),
+        stroke..strokeWidth = border * 0.35,
+      );
+      painter.paint(
+        canvas,
+        Offset(border + pad, (height - painter.height) / 2),
+      );
+    },
     width.ceil(),
     height.ceil(),
+    color,
   );
-  final data = await image.toByteData(format: ui.ImageByteFormat.png);
-  return data!.buffer.asUint8List();
 }
 
 /// Fragt Text und Farbe ab. Gibt null zurück, wenn abgebrochen wurde.
