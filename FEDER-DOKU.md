@@ -244,3 +244,9 @@ Zusammengeführte Zweige: `feature/regal`, `feature/blaettern`, `feature/widget`
 - Die Texte werden in den Einstellungen („Texte für Textbänder") eingegeben und liegen nur lokal in den App-Einstellungen, nicht im Code und nicht im Repository. Leere Textbänder erscheinen im Stift-Menü nicht.
 - Die Bandfarbe jedes Textbands wählst du im selben Dialog aus 12 Farben (nur lokal gespeichert).
 - Der Text steht nicht im Strich: Ändert man ihn später, ändern sich alle bereits gezeichneten Bänder dieser Nummer. Alte Bänder mit festem Namen (frühere Muster 11/12) zeigen jetzt den Text von Textband 1 bzw. 2.
+
+## 26. Fehlersuche Vorlagen (Doppellinien, verfälschtes Titelbild)
+
+- Vorlagen-Linien nutzen jetzt immer einen festen Kugelschreiber-Strich, nicht mehr den aktuell gewählten Stift (Spezialstifte konnten Linien doppeln).
+- Handschrift-Bilder (Vorlagen-Beschriftung, Mathe-Ergebnis) werden nach dem Rendern geprüft: Enthalten sie fremde Farben (Grafikspeicher-Reste), wird bis zu 4-mal neu gerendert. Test: `test/handwriting_pixels_test.dart`.
+- Beides ist eine Vermutung, die Ursache wurde nicht auf dem Gerät nachgestellt.

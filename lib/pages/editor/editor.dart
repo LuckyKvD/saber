@@ -2066,7 +2066,9 @@ class EditorState extends State<Editor> {
       );
     }
 
-    final pen = Pen.currentPen;
+    // Fester, einfacher Strich: Spezialstifte (Feder, Glitzer …) würden Linien
+    // doppeln oder verfälschen.
+    final pen = Pen.ballpointPen();
     const ink = Color(0xFF263238);
     Stroke makeStroke(List<Offset> points, int? axis) => Stroke(
       color: ink,
