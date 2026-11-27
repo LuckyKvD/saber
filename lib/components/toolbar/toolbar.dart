@@ -65,6 +65,7 @@ class Toolbar extends StatefulWidget {
     required this.deleteSelection,
     required this.sendToNextcloud,
     required this.solveMath,
+    required this.convertToText,
     required this.insertTable,
     required this.insertTemplate,
     required this.addTextBox,
@@ -115,6 +116,7 @@ class Toolbar extends StatefulWidget {
   /// Auswahl als Aufgabe an Nextcloud senden.
   final void Function(NcKind kind) sendToNextcloud;
   final VoidCallback solveMath;
+  final VoidCallback convertToText;
 
   /// Feder: Tabelle einfügen bzw. ausgewählte Tabelle um Zeilen/Spalten erweitern.
   final VoidCallback insertTable;
@@ -783,6 +785,7 @@ class _ToolbarState extends State<Toolbar> {
                 deleteSelection: widget.deleteSelection,
                 sendToNextcloud: widget.sendToNextcloud,
                 solveMath: widget.solveMath,
+                convertToText: widget.convertToText,
                 hasTable: (widget.currentTool as Select).selectResult.strokes
                     .any((s) => s.tableAxis != null),
                 extendTable: widget.extendTable,

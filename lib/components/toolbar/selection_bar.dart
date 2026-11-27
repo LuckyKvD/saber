@@ -15,6 +15,7 @@ class SelectionBar extends StatelessWidget {
 
   /// Feder: Auswahl als Matheaufgabe lesen und lösen.
   final VoidCallback solveMath;
+  final VoidCallback convertToText;
 
   /// Feder: Auswahl enthält eine Tabelle → Zeilen/Spalten anfügen.
   final bool hasTable;
@@ -30,6 +31,7 @@ class SelectionBar extends StatelessWidget {
     required this.saveAsTemplate,
     required this.sendToNextcloud,
     required this.solveMath,
+    required this.convertToText,
     required this.hasTable,
     required this.extendTable,
     required this.adjustSelection,
@@ -86,6 +88,14 @@ class SelectionBar extends StatelessWidget {
               color: ColorScheme.of(context).secondary,
             ),
           ),
+        ),
+        TextButton.icon(
+          onPressed: convertToText,
+          style: TextButton.styleFrom(
+            foregroundColor: ColorScheme.of(context).secondary,
+          ),
+          icon: const Icon(Icons.text_fields),
+          label: const Text('In Text'),
         ),
         TextButton.icon(
           onPressed: solveMath,
