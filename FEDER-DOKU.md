@@ -265,7 +265,7 @@ Zusammengeführte Zweige: `feature/regal`, `feature/blaettern`, `feature/widget`
 
 - Raster-Symbol in der Notiz-Leiste öffnet jetzt einen Vollbild-Bildschirm (`lib/components/toolbar/page_overview.dart`) statt des schmalen Dialogs.
 - Miniaturen in 2–6 Spalten je nach Breite, Seitenzahl unter jeder Miniatur, aktuelle Seite farbig umrandet.
-- Tippen springt zur Seite und schließt die Übersicht. Lang drücken und auf eine andere Miniatur ziehen sortiert um (wie vorher ohne Rückgängig-Schritt).
+- Tippen springt zur Seite und schließt die Übersicht. Lang drücken und auf eine andere Miniatur ziehen sortiert um. Das Umsortieren ist ein Rückgängig-Schritt im Editor (`HistoricPageReorder`).
 - „Auswählen": mehrere Seiten markieren, dann Kopieren/Verschieben in ein anderes Notizbuch, Duplizieren oder Löschen (Löschen mit Rückfrage, per Rückgängig im Editor wiederholbar). „+" fügt am Ende eine Seite ein.
 - Der alte Dialog (`EditorPageManager`) bleibt im Code, wird aber nicht mehr geöffnet.
 - Offen: Ob Fotos in Miniaturen von nicht sichtbaren Seiten sofort erscheinen, ist ungeprüft (Unsicher).

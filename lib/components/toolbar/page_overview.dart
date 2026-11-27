@@ -15,6 +15,7 @@ class PageOverview extends StatefulWidget {
     required this.insertPageAfter,
     required this.duplicatePage,
     required this.deletePage,
+    required this.reorderPage,
     required this.redrawAndSave,
     required this.onTransfer,
   });
@@ -25,6 +26,9 @@ class PageOverview extends StatefulWidget {
   final void Function(int) insertPageAfter;
   final void Function(int) duplicatePage;
   final void Function(int) deletePage;
+
+  /// Verschiebt eine Seite (Editor kümmert sich um Rückgängig und Speichern).
+  final void Function(int from, int to) reorderPage;
   final VoidCallback redrawAndSave;
   final Future<bool> Function(List<int> pageIndexes, bool move) onTransfer;
 
@@ -40,15 +44,9 @@ class _PageOverviewState extends State<PageOverview> {
 
   void _reorder(int from, int to) {
     if (from == to) return;
-    final pages = widget.coreInfo.pages;
-    setState(() {
-      _selected.clear();
-      pages.insert(to, pages.removeAt(from));
-      for (var i = 0; i < pages.length; i++) {
-        pages[i].updatePageIndex(i);
-      }
-    });
-    widget.redrawAndSave();
+    setState(() => _selected.clear());
+    widget.reorderPage(from, to);
+    setState(() {});
   }
 
   Future<void> _transfer(bool move) async {

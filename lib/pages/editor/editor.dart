@@ -682,6 +682,10 @@ class EditorState extends State<Editor> {
           page.updatePageIndex(i);
         }
 
+      case (final HistoricPageReorder historic):
+        // rückgängig: Seite von [to] zurück nach [from]
+        _movePage(historic.to, historic.from);
+
       case (final HistoricMove historic):
         for (final stroke in historic.strokes) {
           stroke.shift(Offset(-historic.offset.left, -historic.offset.top));
@@ -3342,6 +3346,7 @@ class EditorState extends State<Editor> {
                             insertPageAfter: insertPageAfter,
                             duplicatePage: _duplicatePage,
                             deletePage: _deletePage,
+                            reorderPage: _reorderPage,
                             redrawAndSave: () => setState(() {
                               if (coreInfo.readOnly) return;
                               autosaveAfterDelay();
@@ -3626,6 +3631,26 @@ class EditorState extends State<Editor> {
     );
     autosaveAfterDelay();
   });
+
+  /// Feder: Seite verschieben und Seitennummern der Inhalte neu setzen.
+  void _movePage(int from, int to) {
+    final pages = coreInfo.pages;
+    if (from == to || from < 0 || to < 0 || from >= pages.length || to >= pages.length) {
+      return;
+    }
+    pages.insert(to, pages.removeAt(from));
+    for (var i = 0; i < pages.length; i++) {
+      pages[i].updatePageIndex(i);
+    }
+  }
+
+  /// Feder: Seite in der Übersicht umsortieren (mit Rückgängig).
+  void _reorderPage(int from, int to) {
+    if (coreInfo.readOnly || from == to) return;
+    setState(() => _movePage(from, to));
+    history.recordChange(HistoricPageReorder(from: from, to: to));
+    autosaveAfterDelay();
+  }
 
   void insertPageAfter(int pageIndex) => setState(() {
     if (coreInfo.readOnly) return;
