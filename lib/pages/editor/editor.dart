@@ -765,6 +765,9 @@ class EditorState extends State<Editor> {
       case (final HistoricTextBoxRect historic):
         historic.box.rect = historic.before;
 
+      case (final HistoricTextBoxBackground historic):
+        historic.box.whiteBackground = historic.before;
+
       case (final HistoricBookmark historic):
         coreInfo.pages[historic.pageIndex].bookmark = historic.before;
 
@@ -3791,6 +3794,13 @@ class EditorState extends State<Editor> {
       autosaveAfterDelay();
     },
     onDelete: _removeTextBox,
+    onBackgroundChanged: (box, before, after) {
+      history.recordChange(
+        HistoricTextBoxBackground(box: box, before: before, after: after),
+      );
+      setState(() {});
+      autosaveAfterDelay();
+    },
   );
 
   /// Neues Textfeld auf der aktuellen Seite.

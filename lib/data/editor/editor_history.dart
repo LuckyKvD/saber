@@ -321,3 +321,14 @@ class const HistoricBookmark({
   HistoricBookmark reverse() =>
       .new(pageIndex: pageIndex, before: after, after: before);
 }
+
+/// Feder: Hintergrund eines Textfelds (weiss oder Seitenhintergrund) geaendert.
+class const HistoricTextBoxBackground({
+  required final FreeTextBox box,
+  required final bool before,
+  required final bool after,
+}) extends Historic {
+  @override
+  HistoricTextBoxBackground reverse() =>
+      .new(box: box, before: after, after: before);
+}

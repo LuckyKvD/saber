@@ -400,8 +400,14 @@ class FreeTextBox {
   Rect rect;
   final QuillStruct quill;
 
-  FreeTextBox({required this.rect, QuillStruct? quill})
-    : quill =
+  /// Weisser Hintergrund (besser lesbar) statt Seitenhintergrund.
+  bool whiteBackground;
+
+  FreeTextBox({
+    required this.rect,
+    QuillStruct? quill,
+    this.whiteBackground = false,
+  }) : quill =
           quill ??
           QuillStruct(
             controller: QuillController.basic(),
@@ -412,6 +418,7 @@ class FreeTextBox {
     double n(String key, double fallback) =>
         (json[key] as num?)?.toDouble() ?? fallback;
     return FreeTextBox(
+      whiteBackground: json['bg'] == 1,
       rect: Rect.fromLTWH(n('x', 50), n('y', 50), n('w', 400), n('h', 200)),
       quill: QuillStruct(
         controller: json['q'] != null
@@ -430,6 +437,7 @@ class FreeTextBox {
     'y': rect.top,
     'w': rect.width,
     'h': rect.height,
+    if (whiteBackground) 'bg': 1,
     if (!quill.controller.document.isEmpty())
       'q': quill.controller.document.toDelta().toJson(),
   };
@@ -437,6 +445,7 @@ class FreeTextBox {
   /// Kopie mit eigenem Editor (z. B. fuer Seite duplizieren).
   FreeTextBox copy() => FreeTextBox(
     rect: rect,
+    whiteBackground: whiteBackground,
     quill: QuillStruct(
       controller: QuillController(
         document: Document.fromDelta(quill.controller.document.toDelta()),
@@ -446,7 +455,11 @@ class FreeTextBox {
     ),
   );
 
-  FreeTextBox cloneForScreenshot() => FreeTextBox(rect: rect, quill: quill.cloneForScreenshot());
+  FreeTextBox cloneForScreenshot() => FreeTextBox(
+    rect: rect,
+    whiteBackground: whiteBackground,
+    quill: quill.cloneForScreenshot(),
+  );
 
   void dispose() => quill.dispose();
 }

@@ -7,10 +7,16 @@ import 'package:sbn/quill_styles.dart';
 
 /// Rückmeldungen eines Textfelds an den Editor (Rückgängig, Speichern).
 class TextBoxActions {
-  const TextBoxActions({required this.onRectChanged, required this.onDelete});
+  const TextBoxActions({
+    required this.onRectChanged,
+    required this.onDelete,
+    required this.onBackgroundChanged,
+  });
 
   final void Function(FreeTextBox box, Rect before, Rect after) onRectChanged;
   final void Function(FreeTextBox box) onDelete;
+  final void Function(FreeTextBox box, bool before, bool after)
+  onBackgroundChanged;
 }
 
 /// Feder: Ein frei platzierbares Textfeld auf einer Seite.
@@ -135,7 +141,7 @@ class _TextBoxWidgetState extends State<TextBoxWidget> {
       controller: box.quill.controller,
       config: QuillEditorConfig(
         customStyles: SaberQuillStyles.get(
-          invert: widget.invert,
+          invert: widget.invert && !box.whiteBackground,
           secondary: widget.secondary,
           lineHeight: widget.lineHeight,
         ),
@@ -144,7 +150,7 @@ class _TextBoxWidgetState extends State<TextBoxWidget> {
         expands: true,
         placeholder: editing ? 'Text …' : null,
         showCursor: true,
-        keyboardAppearance: widget.invert ? .dark : .light,
+        keyboardAppearance: widget.invert && !box.whiteBackground ? .dark : .light,
         padding: EdgeInsets.only(
           top: lh * 0.4,
           left: lh * 0.4,
@@ -173,6 +179,7 @@ class _TextBoxWidgetState extends State<TextBoxWidget> {
             bottom: m,
             child: DecoratedBox(
               decoration: BoxDecoration(
+                color: box.whiteBackground ? Colors.white : null,
                 border: editing
                     ? Border.all(
                         color: colorScheme.primary.withValues(alpha: 0.7),
@@ -202,6 +209,21 @@ class _TextBoxWidgetState extends State<TextBoxWidget> {
                 icon: Icons.close,
                 color: colorScheme.error,
                 onTap: () => widget.actions?.onDelete(box),
+              ),
+            ),
+            Positioned(
+              left: 0,
+              bottom: 0,
+              child: _handleButton(
+                icon: box.whiteBackground
+                    ? Icons.format_color_reset
+                    : Icons.format_color_fill,
+                color: colorScheme.secondary,
+                onTap: () {
+                  final before = box.whiteBackground;
+                  setState(() => box.whiteBackground = !before);
+                  widget.actions?.onBackgroundChanged(box, before, !before);
+                },
               ),
             ),
             Positioned(
