@@ -221,16 +221,16 @@ abstract class SaberQuillStyles {
         null,
       ),
       sizeSmall: TextStyle(
-        fontSize: textTheme.bodyLarge.fontSize!,
-        height: textTheme.bodyLarge.height!,
+        fontSize: lineHeight * 0.45,
+        height: 1 / 0.45,
       ),
       sizeLarge: TextStyle(
-        fontSize: textTheme.bodyLarge.fontSize!,
-        height: textTheme.bodyLarge.height!,
+        fontSize: lineHeight * 1.0,
+        height: 1 / 1.0,
       ),
       sizeHuge: TextStyle(
-        fontSize: textTheme.bodyLarge.fontSize!,
-        height: textTheme.bodyLarge.height!,
+        fontSize: lineHeight * 1.6,
+        height: 1 / 1.6,
       ),
     );
   }

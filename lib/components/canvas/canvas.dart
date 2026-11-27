@@ -4,6 +4,7 @@ import 'package:onyxsdk_pen/onyxsdk_pen.dart';
 import 'package:saber/components/canvas/_stroke.dart';
 import 'package:saber/components/canvas/image/editor_image.dart';
 import 'package:saber/components/canvas/inner_canvas.dart';
+import 'package:saber/components/canvas/text_box_widget.dart';
 import 'package:saber/data/editor/editor_core_info.dart';
 import 'package:saber/data/editor/page.dart';
 import 'package:saber/data/tools/_tool.dart';
@@ -26,6 +27,7 @@ class Canvas extends StatelessWidget {
     required this.currentTool,
     required this.currentScale,
     this.placeholder = false,
+    this.textBoxActions,
   });
 
   final String path;
@@ -43,6 +45,7 @@ class Canvas extends StatelessWidget {
   final Tool currentTool;
   final double currentScale;
   final bool placeholder;
+  final TextBoxActions? textBoxActions;
 
   OnyxStrokeStyle _getOnyxTool(Tool currentTool) {
     if (placeholder) return OnyxStrokeStyle.pen;
@@ -128,6 +131,7 @@ class Canvas extends StatelessWidget {
                       setAsBackground: setAsBackground,
                       currentToolIsSelect: currentTool.toolId == ToolId.select,
                       currentScale: currentScale,
+                      textBoxActions: textBoxActions,
                     ),
                   ),
                 )

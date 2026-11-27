@@ -67,6 +67,7 @@ class Toolbar extends StatefulWidget {
     required this.solveMath,
     required this.insertTable,
     required this.insertTemplate,
+    required this.addTextBox,
     required this.extendTable,
     required this.adjustSelection,
     required this.exportAsSba,
@@ -120,6 +121,9 @@ class Toolbar extends StatefulWidget {
 
   /// Feder: Vorlage (Besprechung, Jour fixe) in die geöffnete Seite einfügen.
   final VoidCallback insertTemplate;
+
+  /// Feder: neues freies Textfeld auf der aktuellen Seite.
+  final VoidCallback addTextBox;
   final void Function(int rows, int cols) extendTable;
 
   /// Feder: Strichdicke ([thickness]) oder Größe ([scale]) der Auswahl ändern.
@@ -206,11 +210,11 @@ class _ToolbarState extends State<Toolbar> {
   }
 
   void toggleColorOptions() {
-    showColorOptions.value = !showColorOptions.value;
+    setState(() => showColorOptions.value = !showColorOptions.value);
   }
 
   void toggleExportBar() {
-    showExportOptions.value = !showExportOptions.value;
+    setState(() => showExportOptions.value = !showExportOptions.value);
   }
 
   void toggleFullscreen() async {
@@ -513,7 +517,7 @@ class _ToolbarState extends State<Toolbar> {
     return [
       if (!stows.hideFingerDrawingToggle.value)
         _ToolItem(
-          tooltip: t.editor.toolbar.toggleFingerDrawing,
+          tooltip: 'Fingerzeichnen an/aus (Strg + F)',
           icon: CupertinoIcons.hand_draw,
           selected: stows.editorFingerDrawing.value,
           enabled: !readOnly,
@@ -685,6 +689,23 @@ class _ToolbarState extends State<Toolbar> {
     );
   }
 
+  /// Feder: Farbe des markierten Textes (für den Haken in der Farbleiste).
+  static Color _textColor(QuillStruct? quill) {
+    final value = quill?.controller
+        .getSelectionStyle()
+        .attributes[Attribute.color.key]
+        ?.value;
+    if (value is String && value.startsWith('#')) {
+      final hex = value.substring(1);
+      final parsed = int.tryParse(
+        hex.length == 6 ? 'FF$hex' : hex,
+        radix: 16,
+      );
+      if (parsed != null) return Color(parsed);
+    }
+    return Colors.black;
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = ColorScheme.of(context);
@@ -699,7 +720,7 @@ class _ToolbarState extends State<Toolbar> {
     final currentColor = switch (widget.currentTool) {
       final Pen pen => pen.color,
       final Select select => select.getDominantStrokeColor(),
-      _ => null,
+      _ => widget.textEditing ? _textColor(widget.quillFocus.value) : null,
     };
 
     if (widget.currentTool == Select.currentSelect) {
@@ -808,30 +829,74 @@ class _ToolbarState extends State<Toolbar> {
               ),
             ),
           );
+          final quillToolbar = quill != null
+              ? QuillSimpleToolbar(
+                  controller: quill.controller,
+                  config: QuillSimpleToolbarConfig(
+                    axis: isToolbarVertical ? .vertical : .horizontal,
+                    buttonOptions: QuillSimpleToolbarButtonOptions(
+                      base: QuillToolbarBaseButtonOptions(
+                        iconTheme: iconTheme,
+                      ),
+                      fontSize: const QuillToolbarFontSizeButtonOptions(
+                        items: {
+                          '14': '14',
+                          '18': '18',
+                          '22': '22',
+                          '28': '28',
+                          '36': '36',
+                          '48': '48',
+                          '64': '64',
+                          '96': '96',
+                        },
+                      ),
+                      fontFamily: const QuillToolbarFontFamilyButtonOptions(
+                        items: {
+                          'Handschrift': 'Neucha',
+                          'Dekko': 'Dekko',
+                          'Lesbar': 'AtkinsonHyperlegibleNext',
+                          'Schreibmaschine': 'FiraMono',
+                          'Serif': 'serif',
+                          'Sans': 'sans-serif',
+                        },
+                      ),
+                    ),
+                    // scrollable on Android and iOS
+                    multiRowsDisplay: !Platform.isAndroid && !Platform.isIOS,
+                    showUndo: false,
+                    showRedo: false,
+                    showFontSize: true,
+                    showFontFamily: true,
+                    showClearFormat: true,
+                    showColorButton: false,
+                    showBackgroundColorButton: false,
+                    showAlignmentButtons: true,
+                    showHeaderStyle: true,
+                    showListNumbers: true,
+                    showListBullets: true,
+                    showStrikeThrough: true,
+                    showSearchButton: true,
+                  ),
+                )
+              : const SizedBox.shrink();
+          final addButton = IconButton(
+            icon: const Icon(Icons.add_box_outlined),
+            tooltip: 'Textfeld hinzufügen',
+            onPressed: widget.addTextBox,
+          );
           return Collapsible(
             axis: isToolbarVertical ? .horizontal : .vertical,
             maintainState: false,
-            collapsed: !widget.textEditing || quill == null,
-            child: quill != null
-                ? QuillSimpleToolbar(
-                    controller: quill.controller,
-                    config: QuillSimpleToolbarConfig(
-                      axis: isToolbarVertical ? .vertical : .horizontal,
-                      buttonOptions: QuillSimpleToolbarButtonOptions(
-                        base: QuillToolbarBaseButtonOptions(
-                          iconTheme: iconTheme,
-                        ),
-                      ),
-                      // scrollable on Android and iOS
-                      multiRowsDisplay: !Platform.isAndroid && !Platform.isIOS,
-                      showUndo: false,
-                      showRedo: false,
-                      showFontSize: false,
-                      showFontFamily: false,
-                      showClearFormat: false,
-                    ),
-                  )
-                : const SizedBox.shrink(),
+            collapsed: !widget.textEditing,
+            child: isToolbarVertical
+                ? Column(mainAxisSize: MainAxisSize.min, children: [
+                    addButton,
+                    Flexible(child: quillToolbar),
+                  ])
+                : Row(children: [
+                    addButton,
+                    Expanded(child: quillToolbar),
+                  ]),
           );
         },
       ),

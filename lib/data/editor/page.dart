@@ -49,12 +49,25 @@ class EditorPage extends ChangeNotifier implements HasSize {
   final List<EditorImage> images;
   final QuillStruct quill;
 
+  /// Feder: frei platzierbare Textfelder (zusaetzlich zum Seitentext [quill]).
+  final List<FreeTextBox> textBoxes;
+
+  /// Feder: Lesezeichen (Name fuer das Inhaltsverzeichnis), null = keins.
+  String? bookmark;
+
   EditorImage? backgroundImage;
+
+  /// True, wenn der Seitentext oder ein Textfeld den Fokus hat.
+  bool get hasTextFocus =>
+      quill.focusNode.hasFocus ||
+      textBoxes.any((b) => b.quill.focusNode.hasFocus);
 
   bool get isEmpty =>
       strokes.isEmpty &&
       images.isEmpty &&
       quill.controller.document.isEmpty() &&
+      textBoxes.every((b) => b.quill.controller.document.isEmpty()) &&
+      bookmark == null &&
       backgroundImage == null;
   bool get isNotEmpty => !isEmpty;
 
@@ -79,6 +92,9 @@ class EditorPage extends ChangeNotifier implements HasSize {
     }
     for (final image in images) {
       maxY = max(maxY, image.dstRect.bottom);
+    }
+    for (final box in textBoxes) {
+      maxY = max(maxY, box.rect.bottom);
     }
     if (!quill.controller.document.isEmpty()) {
       // this does not account for text that wraps to the next line
@@ -107,6 +123,8 @@ class EditorPage extends ChangeNotifier implements HasSize {
     List<Stroke>? strokes,
     List<EditorImage>? images,
     QuillStruct? quill,
+    List<FreeTextBox>? textBoxes,
+    this.bookmark,
     this.backgroundImage,
   }) : assert(
          (size == null) || (width == null && height == null),
@@ -116,6 +134,7 @@ class EditorPage extends ChangeNotifier implements HasSize {
        strokes = strokes ?? [],
        laserStrokes = [],
        images = images ?? [],
+       textBoxes = textBoxes ?? [],
        quill =
            quill ??
            QuillStruct(
@@ -157,6 +176,11 @@ class EditorPage extends ChangeNotifier implements HasSize {
             : QuillController.basic(),
         focusNode: FocusNode(debugLabel: 'Quill Focus Node'),
       ),
+      textBoxes: [
+        for (final b in (json['tb'] as List? ?? const []))
+          FreeTextBox.fromJson(Map<String, dynamic>.from(b as Map)),
+      ],
+      bookmark: json['bm'] as String?,
       backgroundImage: json['b'] != null
           ? parseImageJson(
               json['b'],
@@ -178,6 +202,8 @@ class EditorPage extends ChangeNotifier implements HasSize {
       'i': images.map((image) => image.toJson(assets)).toList(),
     if (!quill.controller.document.isEmpty())
       'q': quill.controller.document.toDelta().toJson(),
+    if (textBoxes.isNotEmpty) 'tb': textBoxes.map((b) => b.toJson()).toList(),
+    if (bookmark != null) 'bm': bookmark,
     if (backgroundImage != null) 'b': backgroundImage?.toJson(assets),
   };
 
@@ -282,6 +308,9 @@ class EditorPage extends ChangeNotifier implements HasSize {
   @override
   void dispose() {
     quill.dispose();
+    for (final b in textBoxes) {
+      b.dispose();
+    }
     _pencilShader?.dispose();
     isRendered = false;
     for (final image in images) {
@@ -299,6 +328,9 @@ class EditorPage extends ChangeNotifier implements HasSize {
   /// exclusive to the cloned page.
   void disposeClonedData() {
     quill.dispose();
+    for (final b in textBoxes) {
+      b.dispose();
+    }
     _pencilShader?.dispose();
     isRendered = false;
     super.dispose();
@@ -309,12 +341,16 @@ class EditorPage extends ChangeNotifier implements HasSize {
     List<Stroke>? strokes,
     List<EditorImage>? images,
     QuillStruct? quill,
+    List<FreeTextBox>? textBoxes,
+    String? bookmark,
     EditorImage? backgroundImage,
   }) => EditorPage(
     size: size ?? this.size,
     strokes: strokes ?? this.strokes,
     images: images ?? this.images,
     quill: quill ?? this.quill,
+    textBoxes: textBoxes ?? this.textBoxes,
+    bookmark: bookmark ?? this.bookmark,
     backgroundImage: backgroundImage ?? this.backgroundImage,
   );
 
@@ -331,6 +367,7 @@ class EditorPage extends ChangeNotifier implements HasSize {
           ? strokes
           : strokes.where(EditorExporter.shouldRasterizeStroke).toList(),
       quill: quill.cloneForScreenshot(),
+      textBoxes: textBoxes.map((b) => b.cloneForScreenshot()).toList(),
     );
   }
 }
@@ -355,4 +392,74 @@ class QuillStruct {
     ),
     focusNode: FocusNode(debugLabel: 'Screenshot Quill Focus Node'),
   );
+}
+
+/// Feder: Ein frei platzierbares Textfeld auf einer Seite.
+class FreeTextBox {
+  /// Position und Groesse in Seitenkoordinaten.
+  Rect rect;
+  final QuillStruct quill;
+
+  /// Weisser Hintergrund (besser lesbar) statt Seitenhintergrund.
+  bool whiteBackground;
+
+  FreeTextBox({
+    required this.rect,
+    QuillStruct? quill,
+    this.whiteBackground = false,
+  }) : quill =
+          quill ??
+          QuillStruct(
+            controller: QuillController.basic(),
+            focusNode: FocusNode(debugLabel: 'Textfeld Focus Node'),
+          );
+
+  factory FreeTextBox.fromJson(Map<String, dynamic> json) {
+    double n(String key, double fallback) =>
+        (json[key] as num?)?.toDouble() ?? fallback;
+    return FreeTextBox(
+      whiteBackground: json['bg'] == 1,
+      rect: Rect.fromLTWH(n('x', 50), n('y', 50), n('w', 400), n('h', 200)),
+      quill: QuillStruct(
+        controller: json['q'] != null
+            ? QuillController(
+                document: Document.fromJson(json['q'] as List),
+                selection: const TextSelection.collapsed(offset: 0),
+              )
+            : QuillController.basic(),
+        focusNode: FocusNode(debugLabel: 'Textfeld Focus Node'),
+      ),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'x': rect.left,
+    'y': rect.top,
+    'w': rect.width,
+    'h': rect.height,
+    if (whiteBackground) 'bg': 1,
+    if (!quill.controller.document.isEmpty())
+      'q': quill.controller.document.toDelta().toJson(),
+  };
+
+  /// Kopie mit eigenem Editor (z. B. fuer Seite duplizieren).
+  FreeTextBox copy() => FreeTextBox(
+    rect: rect,
+    whiteBackground: whiteBackground,
+    quill: QuillStruct(
+      controller: QuillController(
+        document: Document.fromDelta(quill.controller.document.toDelta()),
+        selection: const TextSelection.collapsed(offset: 0),
+      ),
+      focusNode: FocusNode(debugLabel: 'Textfeld Focus Node'),
+    ),
+  );
+
+  FreeTextBox cloneForScreenshot() => FreeTextBox(
+    rect: rect,
+    whiteBackground: whiteBackground,
+    quill: quill.cloneForScreenshot(),
+  );
+
+  void dispose() => quill.dispose();
 }

@@ -18,6 +18,8 @@ class PageOverview extends StatefulWidget {
     required this.reorderPage,
     required this.redrawAndSave,
     required this.onTransfer,
+    required this.exportPdf,
+    required this.showToc,
   });
 
   final EditorCoreInfo coreInfo;
@@ -31,6 +33,12 @@ class PageOverview extends StatefulWidget {
   final void Function(int from, int to) reorderPage;
   final VoidCallback redrawAndSave;
   final Future<bool> Function(List<int> pageIndexes, bool move) onTransfer;
+
+  /// Feder: markierte Seiten als PDF exportieren.
+  final Future<void> Function(List<int> pageIndexes) exportPdf;
+
+  /// Feder: Inhaltsverzeichnis öffnen.
+  final VoidCallback showToc;
 
   @override
   State<PageOverview> createState() => _PageOverviewState();
@@ -59,6 +67,12 @@ class _PageOverviewState extends State<PageOverview> {
         _selecting = false;
       });
     }
+  }
+
+  Future<void> _exportPdf() async {
+    final pages = _selected.toList()..sort();
+    if (pages.isEmpty) return;
+    await widget.exportPdf(pages);
   }
 
   void _duplicateSelected() {
@@ -162,7 +176,9 @@ class _PageOverviewState extends State<PageOverview> {
           ),
           const SizedBox(height: 4),
           Text(
-            '${index + 1}',
+            page.bookmark == null ? '${index + 1}' : '${index + 1} · ${page.bookmark}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
               color: isCurrent ? scheme.primary : null,
@@ -188,6 +204,12 @@ class _PageOverviewState extends State<PageOverview> {
               : 'Seiten ($_count)',
         ),
         actions: [
+          if (!_selecting)
+            IconButton(
+              tooltip: 'Inhaltsverzeichnis',
+              icon: const Icon(Icons.bookmarks_outlined),
+              onPressed: widget.showToc,
+            ),
           if (!_selecting)
             IconButton(
               tooltip: 'Seite am Ende einfügen',
@@ -268,6 +290,11 @@ class _PageOverviewState extends State<PageOverview> {
                       icon: const Icon(Icons.drive_file_move),
                       label: const Text('Verschieben nach …'),
                       onPressed: _selected.isEmpty ? null : () => _transfer(true),
+                    ),
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.picture_as_pdf_outlined),
+                      label: const Text('Als PDF'),
+                      onPressed: _selected.isEmpty ? null : _exportPdf,
                     ),
                     OutlinedButton.icon(
                       icon: const Icon(Icons.copy_all),

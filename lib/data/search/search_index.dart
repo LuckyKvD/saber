@@ -182,7 +182,12 @@ abstract class SearchIndex {
 
       // Getippter Text: direkt, ohne Erkennung.
       try {
-        final typed = page.quill.controller.document.toPlainText();
+        final typed = [
+          page.quill.controller.document.toPlainText(),
+          for (final b in page.textBoxes)
+            b.quill.controller.document.toPlainText(),
+          if (page.bookmark != null) page.bookmark!,
+        ].join('\n');
         for (final line in typed.split('\n')) {
           if (line.trim().isNotEmpty) lines.add(line.trim());
         }
@@ -286,10 +291,19 @@ abstract class SearchIndex {
   }
 
   /// Sucht in allen indexierten Notizen. Beste Treffer zuerst.
-  static Future<List<SearchHit>> search(String query) async {
+  static Future<List<SearchHit>> search(String query, {String? scope}) async {
     final data = await load();
     final hits = <SearchHit>[];
+    final folderPrefix = scope == null
+        ? null
+        : (scope.endsWith('/') ? scope : '$scope/');
     for (final entry in data.entries) {
+      if (scope != null &&
+          scope != '/' &&
+          entry.key != scope &&
+          !entry.key.startsWith(folderPrefix!)) {
+        continue;
+      }
       final pages = (entry.value as Map<String, dynamic>)['pages'] as List;
       for (var i = 0; i < pages.length; i++) {
         final lines = (pages[i] as List).cast<String>();

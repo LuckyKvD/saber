@@ -32,9 +32,12 @@ abstract class EditorExporter {
 
   static Future<pw.Document> generatePdf(
     EditorCoreInfo coreInfo,
-    BuildContext context,
-  ) async {
-    if (coreInfo.pages.isNotEmpty && coreInfo.pages.last.isEmpty) {
+    BuildContext context, {
+    bool dropEmptyLastPage = true,
+  }) async {
+    if (dropEmptyLastPage &&
+        coreInfo.pages.isNotEmpty &&
+        coreInfo.pages.last.isEmpty) {
       // don't export the empty last page
       coreInfo = coreInfo.copyWith(
         pages: coreInfo.pages.toList()..removeLast(),

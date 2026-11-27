@@ -1139,7 +1139,7 @@ class _PagesBuilder extends StatelessWidget {
       final pageHeight = pageWidth / page.size.width * page.size.height;
       final leftOfSlot = pageIndex * containerWidth;
 
-      final isFocused = page.quill.focusNode.hasFocus;
+      final isFocused = page.hasTextFocus;
       final isInViewport =
           boundingBox.right >= leftOfSlot - containerWidth * 0.2 &&
           boundingBox.left <= leftOfSlot + containerWidth * 1.2;
@@ -1189,7 +1189,7 @@ class _PagesBuilder extends StatelessWidget {
       final pageHeight = pageWidth / page.size.width * page.size.height;
       final bottomOfPage = topOfPage + pageHeight;
 
-      final isFocused = page.quill.focusNode.hasFocus;
+      final isFocused = page.hasTextFocus;
       final isInViewport =
           boundingBox.bottom >= topOfPage && boundingBox.top <= bottomOfPage;
       final shouldRender = isFocused || isInViewport;
