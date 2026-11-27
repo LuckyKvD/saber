@@ -49,7 +49,7 @@ class TextBoxWidget extends StatefulWidget {
 class _TextBoxWidgetState extends State<TextBoxWidget> {
   static const double _minWidth = 140;
   static const double _minHeight = 70;
-  static const double _handle = 34;
+  static const double _handle = 48;
 
   late final ScrollController _scroll = ScrollController();
   Rect? _before;
@@ -117,13 +117,13 @@ class _TextBoxWidgetState extends State<TextBoxWidget> {
         dimension: _handle,
         child: Center(
           child: Container(
-            width: 26,
-            height: 26,
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
               color: color,
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, size: 16, color: Colors.white),
+            child: Icon(icon, size: 21, color: Colors.white),
           ),
         ),
       ),

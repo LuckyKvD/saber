@@ -689,6 +689,23 @@ class _ToolbarState extends State<Toolbar> {
     );
   }
 
+  /// Feder: Farbe des markierten Textes (für den Haken in der Farbleiste).
+  static Color _textColor(QuillStruct? quill) {
+    final value = quill?.controller
+        .getSelectionStyle()
+        .attributes[Attribute.color.key]
+        ?.value;
+    if (value is String && value.startsWith('#')) {
+      final hex = value.substring(1);
+      final parsed = int.tryParse(
+        hex.length == 6 ? 'FF$hex' : hex,
+        radix: 16,
+      );
+      if (parsed != null) return Color(parsed);
+    }
+    return Colors.black;
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = ColorScheme.of(context);
@@ -703,7 +720,7 @@ class _ToolbarState extends State<Toolbar> {
     final currentColor = switch (widget.currentTool) {
       final Pen pen => pen.color,
       final Select select => select.getDominantStrokeColor(),
-      _ => null,
+      _ => widget.textEditing ? _textColor(widget.quillFocus.value) : null,
     };
 
     if (widget.currentTool == Select.currentSelect) {
