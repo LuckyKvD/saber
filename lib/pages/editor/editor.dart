@@ -2044,6 +2044,10 @@ class EditorState extends State<Editor> {
     var skipped = 0;
     for (final i in images) {
       try {
+        if (i is! PngEditorImage) {
+          skipped++;
+          continue;
+        }
         final provider = i.imageProvider;
         final Uint8List bytes;
         if (provider is MemoryImage) {

@@ -257,4 +257,4 @@ Zusammengeführte Zweige: `feature/regal`, `feature/blaettern`, `feature/widget`
 - Lasso-Auswahl → Lesezeichen-Symbol **„Als Vorlage speichern"** → Name vergeben. Gespeichert werden Striche (auch Tabellen, Linien, Formen) und Bilder (auch Handschrift-Beschriftungen) der Auswahl.
 - Einfügen: ⋮ → **Vorlage einfügen** → Abschnitt „Eigene Vorlagen". Sie landet an der sichtbaren, freien Stelle der Seite (wie Abschnitt 23), ein Rückgängig-Schritt. Löschen über das Papierkorb-Symbol in der Liste.
 - Speicherort: `feder_vorlagen/*.json` im App-Support-Ordner des Geräts. **Nicht** in Notizen, nicht im Repo, nicht in Nextcloud (kein Abgleich zwischen Geräten).
-- Grenzen: gedrehte Bilder verlieren die Drehung; Bilder, die sich nicht lesen lassen, werden übersprungen (Hinweis). Text-Felder (Quill) sind nicht Teil der Auswahl und gehen nicht mit.
+- Grenzen: gedrehte Bilder verlieren die Drehung; SVG-/PDF-Bilder und nicht lesbare Bilder werden übersprungen (Hinweis). Text-Felder (Quill) sind nicht Teil der Auswahl und gehen nicht mit.
