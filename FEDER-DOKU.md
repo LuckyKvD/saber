@@ -214,3 +214,9 @@ Zusammengeführte Zweige: `feature/regal`, `feature/blaettern`, `feature/widget`
 - Grenzen: Sonderstifte (Glitzer, Muster, gestrichelt) werden für die Linien als normale Linie gezeichnet. Zeilen oder Spalten in der Mitte einfügen und einzelne Spaltenbreiten ziehen gibt es noch nicht.
 - Lasso „Strichdicke und Größe" (Symbol Regler): markierte Striche dünner/dicker (±25 %) oder vergrößern/verkleinern (125 % / 80 %, Ankerpunkt oben links der Auswahl). Mit Rückgängig. Gilt für alle freien Striche, auch für Tabellen samt Inhalt; Bilder und Formstriche (Kreis, Rechteck) bleiben unverändert.
 - Smartphone: Rückgängig und Wiederholen bleiben in der Werkzeugleiste sichtbar; die Knopfbreite wird gemessen, damit der ⋮-Knopf nicht abgeschnitten wird.
+
+## 25. Textbänder mit eigenen Texten
+
+- Klebeband-Muster 11–15 sind „Textband 1–5": farbiges Band (blau, schwarz, dunkelrot, grün, violett) mit weißer, wiederholter Schrift.
+- Die Texte werden in den Einstellungen („Texte für Textbänder") eingegeben und liegen nur lokal in den App-Einstellungen, nicht im Code und nicht im Repository. Leere Textbänder erscheinen im Stift-Menü nicht.
+- Der Text steht nicht im Strich: Ändert man ihn später, ändern sich alle bereits gezeichneten Bänder dieser Nummer. Alte Bänder mit festem Namen (frühere Muster 11/12) zeigen jetzt den Text von Textband 1 bzw. 2.

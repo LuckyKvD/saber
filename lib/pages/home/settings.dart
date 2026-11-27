@@ -14,6 +14,7 @@ import 'package:saber/components/security/app_lock.dart';
 import 'package:saber/components/settings/nextcloud_profile.dart';
 import 'package:saber/components/settings/server_cleanup_tile.dart';
 import 'package:saber/components/settings/settings_button.dart';
+import 'package:saber/components/settings/tape_text_dialog.dart';
 import 'package:saber/components/settings/settings_color.dart';
 import 'package:saber/components/settings/settings_directory_selector.dart';
 import 'package:saber/components/settings/settings_dropdown.dart';
@@ -684,6 +685,12 @@ class _SettingsPageState extends State<SettingsPage> {
                   subtitle: t.settings.prefDescriptions.autoStraightenLines,
                   icon: Icons.straighten,
                   pref: stows.autoStraightenLines,
+                ),
+                SettingsButton(
+                  title: 'Texte für Textbänder',
+                  subtitle: 'Bis zu 5 eigene Texte für Klebebänder',
+                  icon: Icons.label_outline,
+                  onPressed: () => showTapeTextDialog(context),
                 ),
                 SettingsSubtitle(subtitle: t.settings.prefCategories.advanced),
                 if (isSentryAvailable) const SettingsSentryConsent(),

@@ -11,7 +11,7 @@ class TapePatternPicker extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = ColorScheme.of(context);
     return ListenableBuilder(
-      listenable: stows.lastTapePattern,
+      listenable: Listenable.merge([stows.lastTapePattern, ...stows.tapeTexts]),
       builder: (context, _) {
         final selected = stows.lastTapePattern.value;
         Widget swatch(int pattern, Widget child, String tooltip) {
@@ -55,11 +55,27 @@ class TapePatternPicker extends StatelessWidget {
               'Einfarbig (Farbe aus der Leiste)',
             ),
             for (final i in tapePatternOrder)
-              swatch(
-                i,
-                CustomPaint(painter: _SwatchPainter(i), size: Size.infinite),
-                tapePatternNames[i],
-              ),
+              if (i < tapeTextFirst ||
+                  i >= tapeTextFirst + tapeTextCount ||
+                  tapeTextOf(i - tapeTextFirst).isNotEmpty ||
+                  selected == i)
+                swatch(
+                  i,
+                  CustomPaint(
+                    painter: _SwatchPainter(
+                      i,
+                      i >= tapeTextFirst && i < tapeTextFirst + tapeTextCount
+                          ? tapeTextOf(i - tapeTextFirst)
+                          : '',
+                    ),
+                    size: Size.infinite,
+                  ),
+                  i >= tapeTextFirst && i < tapeTextFirst + tapeTextCount
+                      ? (tapeTextOf(i - tapeTextFirst).isEmpty
+                            ? tapePatternNames[i]
+                            : tapeTextOf(i - tapeTextFirst))
+                      : tapePatternNames[i],
+                ),
           ],
         );
       },
@@ -68,9 +84,10 @@ class TapePatternPicker extends StatelessWidget {
 }
 
 class _SwatchPainter extends CustomPainter {
-  const _SwatchPainter(this.pattern);
+  const _SwatchPainter(this.pattern, this.text);
 
   final int pattern;
+  final String text;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -82,5 +99,5 @@ class _SwatchPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_SwatchPainter oldDelegate) =>
-      oldDelegate.pattern != pattern;
+      oldDelegate.pattern != pattern || oldDelegate.text != text;
 }

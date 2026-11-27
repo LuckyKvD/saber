@@ -2,13 +2,32 @@ import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
 import 'package:perfect_freehand/perfect_freehand.dart';
+import 'package:saber/data/prefs.dart';
 
 /// Anzahl der Klebeband-Muster.
-const tapePatternCount = 13;
+const tapePatternCount = 16;
+
+/// Erste Musternummer der Textbänder (Nummern 11–15 = Textband 1–5).
+const tapeTextFirst = 11;
+const tapeTextCount = 5;
+
+/// Hintergrundfarben der Textbänder 1–5.
+const tapeTextColors = [
+  0xFF1E5AA8,
+  0xFF111111,
+  0xFF8E1B2D,
+  0xFF2E7D32,
+  0xFF5E35B1,
+];
+
+/// Feder: Text von Textband [slot] (0–4) aus den Einstellungen.
+String tapeTextOf(int slot) => stows.tapeTexts[slot].value.trim();
 
 /// Reihenfolge in der Auswahl. Die Nummern bleiben unverändert (sie stehen
 /// in den Notizen), nur die Anzeige ist umsortiert: neue Muster zuerst.
-const tapePatternOrder = [9, 10, 11, 12, 0, 1, 2, 3, 4, 5, 6, 7, 8];
+const tapePatternOrder = [
+  9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7, 8,
+];
 
 const tapePatternNames = [
   'Kreuze',
@@ -22,8 +41,11 @@ const tapePatternNames = [
   'Halbkreise',
   'Rote Herzen',
   'Pirat',
-  'Namensband blau',
-  'Namensband schwarz',
+  'Textband 1',
+  'Textband 2',
+  'Textband 3',
+  'Textband 4',
+  'Textband 5',
 ];
 
 /// Umriss eines Klebebands von [a] nach [b] mit gezackten Enden.
@@ -274,10 +296,16 @@ void paintTapePattern(Canvas canvas, int pattern, double length, double width) {
       for (var x = r * 2; x < x1; x += step) {
         _skull(canvas, Offset(x, -r * 0.1), r);
       }
-    case 11: // Blaues Band mit weißer Schrift
-    case 12: // Schwarzes Band mit weißer Schrift
-      bg(pattern == 11 ? 0xFF1E5AA8 : 0xFF111111);
-      final tp = _namePainter(width);
+    case 11: // Textbänder 1–5: Band in Farbe, weiße Schrift aus den Einstellungen
+    case 12:
+    case 13:
+    case 14:
+    case 15:
+      final slot = pattern - tapeTextFirst;
+      bg(tapeTextColors[slot]);
+      final text = tapeTextOf(slot);
+      if (text.isEmpty) break;
+      final tp = _namePainter(text, width);
       final tileWidth = tp.width + width * 0.35;
       for (var x = 0.0; x < x1; x += tileWidth) {
         tp.paint(canvas, Offset(x, -tp.height / 2));
@@ -351,12 +379,13 @@ void _skull(Canvas canvas, Offset c, double r) {
   }
 }
 
-final _nameCache = <int, TextPainter>{};
-TextPainter _namePainter(double width) {
-  final key = (width * 10).round();
+final _nameCache = <String, TextPainter>{};
+TextPainter _namePainter(String text, double width) {
+  if (_nameCache.length > 60) _nameCache.clear();
+  final key = '${(width * 10).round()}|$text';
   return _nameCache[key] ??= TextPainter(
     text: TextSpan(
-      text: 'LuckyKvD',
+      text: text,
       style: TextStyle(
         color: const Color(0xFFFFFFFF),
         fontSize: width * 0.42,
