@@ -47,6 +47,7 @@ class MainActivity: FlutterFragmentActivity() {
         registerCryptoChannel(flutterEngine)
         registerPhotoChannel(flutterEngine)
         registerWidgetChannel(flutterEngine)
+        registerLocationChannel(flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "de.luckykvd.feder/ink")
             .setMethodCallHandler { call, result ->
                 if (call.method == "recognize") {
@@ -99,6 +100,71 @@ class MainActivity: FlutterFragmentActivity() {
                     result.success(null)
                 } else {
                     result.notImplemented()
+                }
+            }
+    }
+
+    // Feder-Tagebuch: Standort über den Android-LocationManager (keine Google-Dienste).
+    private fun registerLocationChannel(flutterEngine: FlutterEngine) {
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "de.luckykvd.feder/location")
+            .setMethodCallHandler { call, result ->
+                if (call.method != "get") {
+                    result.notImplemented()
+                    return@setMethodCallHandler
+                }
+                fun reply(l: android.location.Location?) {
+                    if (l == null) {
+                        result.success(null)
+                    } else {
+                        result.success(
+                            mapOf(
+                                "lat" to l.latitude,
+                                "lon" to l.longitude,
+                                "acc" to l.accuracy.toDouble(),
+                                "time" to l.time,
+                            )
+                        )
+                    }
+                }
+                try {
+                    val lm = getSystemService(android.content.Context.LOCATION_SERVICE) as android.location.LocationManager
+                    val providers = lm.getProviders(true)
+                    var best: android.location.Location? = null
+                    for (p in providers) {
+                        val l = try { lm.getLastKnownLocation(p) } catch (e: SecurityException) { null }
+                        if (l != null && (best == null || l.time > best.time)) best = l
+                    }
+                    val last = best
+                    val fresh = last != null && System.currentTimeMillis() - last.time < 10 * 60 * 1000
+                    if (fresh || Build.VERSION.SDK_INT < 30) {
+                        reply(last)
+                        return@setMethodCallHandler
+                    }
+                    val provider = providers.firstOrNull { it != android.location.LocationManager.PASSIVE_PROVIDER }
+                    if (provider == null) {
+                        reply(last)
+                        return@setMethodCallHandler
+                    }
+                    var done = false
+                    val cancel = android.os.CancellationSignal()
+                    val handler = android.os.Handler(mainLooper)
+                    val timeout = Runnable {
+                        if (!done) {
+                            done = true
+                            cancel.cancel()
+                            reply(last)
+                        }
+                    }
+                    handler.postDelayed(timeout, 10000)
+                    lm.getCurrentLocation(provider, cancel, mainExecutor) { loc ->
+                        if (!done) {
+                            done = true
+                            handler.removeCallbacks(timeout)
+                            reply(loc ?: last)
+                        }
+                    }
+                } catch (e: Throwable) {
+                    result.success(null)
                 }
             }
     }

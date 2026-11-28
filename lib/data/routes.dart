@@ -66,6 +66,16 @@ abstract class HomeRoutes {
       ),
     ),
     HomeRoute._(
+      _homeFunction({'subpage': HomePage.diarySubpage}),
+      destination: const NavigationDestination(
+        label: 'Tagebuch',
+        icon: AdaptiveIcon(
+          icon: Icons.auto_stories,
+          cupertinoIcon: CupertinoIcons.book_fill,
+        ),
+      ),
+    ),
+    HomeRoute._(
       _homeFunction({'subpage': HomePage.settingsSubpage}),
       destination: NavigationDestination(
         label: t.home.tabs.settings,

@@ -41,7 +41,9 @@ class _PickNotebookDialogState extends State<_PickNotebookDialog> {
 
   Future<void> _load() async {
     final all = await FileManager.getAllFiles();
-    all.removeWhere((path) => path == widget.excludePath);
+    all.removeWhere(
+      (path) => path == widget.excludePath || path.startsWith('/Tagebuch/'),
+    );
     all.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
     var recents = <String>[];
     try {
