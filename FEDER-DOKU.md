@@ -342,3 +342,8 @@ Im Textmodus gibt es in der Leiste neben „Textfeld hinzufügen" ein Wolken-Sym
 - Beim Öffnen und beim Drehen wird die Ansicht mit den echten Maßen der Fläche auf das Blatt gesetzt (vorher: Bildschirmbreite, dadurch eine Lücke zwischen den Seiten).
 - Textfelder lassen sich über den Seitenrand auf die Nachbarseite ziehen (Doppelblatt und Zwei-Seiten-Ansicht), mit Rückgängig (`HistoricTextBoxMove`).
 - Lineal/Winkelmesser: Das Ausschalten wirkt auf die Seite, auf der das Hilfsmittel liegt (vorher: wurde es auf der linken Seite neu angelegt).
+
+### Nachbesserung Doppelblatt, Runde 3
+- Blätter-Effekt: Das Blatt biegt sich jetzt beim Umklappen (freie Kante eilt dem Falz voraus), mit Perspektive, Schattierung nach Neigung und Schatten auf der darunterliegenden Seite. Vorher klappte es starr wie ein Brett.
+- Fehler beim schnellen Blättern behoben: Tipps während der Bildaufnahme starteten ein zweites Umblättern gleichzeitig; ein Antippen mitten im Umblättern ließ das Doppelblatt auf dem alten Blatt stehen. Jetzt gibt es eine Sperre, und ein Abbruch schließt das Umblättern sofort ab.
+- Einstellungen → „Leistungsanzeige": zeigt die Flutter-Messbalken (UI und Raster), um Ruckeln zu analysieren.

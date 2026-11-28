@@ -62,17 +62,36 @@ class BookFlipPainter extends CustomPainter {
       paint,
     );
 
-    final cosT = cos(theta);
     final sinT = sin(theta);
-    final dist = pw * 4;
-    double scaleAt(double u) => 1 / (1 - (u * sinT) / dist);
+    final dist = pw * 5;
+    // Das Blatt biegt sich: Die freie Kante eilt dem Falz voraus. In der
+    // Mitte des Umklappens ist die Biegung am stärksten, am Anfang und am
+    // Ende liegt das Blatt flach.
+    const bend = 0.95;
+    double angleAt(double u) => (theta + bend * sinT * (u / pw)).clamp(0.0, pi);
+
+    // Streifen von Falz bis freier Kante: Lage (x, Tiefe z) aufsummieren.
+    final xs = List<double>.filled(_strips + 1, x0);
+    final scales = List<double>.filled(_strips + 1, 1);
+    var x = 0.0;
+    var z = 0.0;
+    for (var i = 0; i < _strips; i++) {
+      final um = pw * (i + 0.5) / _strips;
+      final a = angleAt(um);
+      final ds = pw / _strips;
+      x += ds * cos(a);
+      z += ds * sin(a);
+      final sc = 1 / (1 - z / dist);
+      scales[i + 1] = sc;
+      xs[i + 1] = x0 + x * sc;
+    }
 
     // Schatten auf der Seite unter dem Blatt, neben der freien Kante.
-    final edge = x0 + pw * cosT * scaleAt(pw);
-    final shadowW = pw * 0.28;
-    final alpha = 0.32 * sinT;
+    final edge = xs[_strips];
+    final shadowW = pw * 0.3;
+    final alpha = 0.34 * sinT;
     if (alpha > 0.01) {
-      final onRight = cosT > 0;
+      final onRight = edge > x0;
       final rect = onRight
           ? Rect.fromLTRB(edge, 0, min(edge + shadowW, size.width), h)
           : Rect.fromLTRB(max(edge - shadowW, 0), 0, edge, h);
@@ -92,30 +111,44 @@ class BookFlipPainter extends CustomPainter {
       }
     }
 
-    // Das Blatt selbst, in Streifen mit leichter Perspektive.
-    final showFront = cosT >= 0;
-    final img = showFront ? front : back;
-    final iw = img.width.toDouble();
-    final ih = img.height.toDouble();
-    final shade = Paint()
-      ..isAntiAlias = false
-      ..color = Colors.black.withValues(alpha: 0.18 * sinT);
+    final fw = front.width.toDouble();
+    final fh = front.height.toDouble();
+    final bw = back.width.toDouble();
+    final bh = back.height.toDouble();
+    final shade = Paint()..isAntiAlias = false;
     for (var i = 0; i < _strips; i++) {
       final u0 = pw * i / _strips;
       final u1 = pw * (i + 1) / _strips;
-      final s0 = scaleAt(u0);
-      final s1 = scaleAt(u1);
-      final xa = x0 + u0 * cosT * s0;
-      final xb = x0 + u1 * cosT * s1;
+      final am = angleAt((u0 + u1) / 2);
+      final showFront = cos(am) >= 0;
+      final xa = xs[i];
+      final xb = xs[i + 1];
       final left = min(xa, xb) - 0.5;
       final right = max(xa, xb) + 0.5;
-      final sm = (s0 + s1) / 2;
+      final sm = (scales[i] + scales[i + 1]) / 2;
       final inset = h * (1 - sm) / 2; // negativ = größer
       final dst = Rect.fromLTRB(left, inset, right, h - inset);
-      final srcLeft = showFront ? u0 / pw * iw : (1 - u1 / pw) * iw;
-      final src = Rect.fromLTWH(srcLeft, 0, (u1 - u0) / pw * iw + 0.5, ih);
-      canvas.drawImageRect(img, src, dst, paint);
-      if (sinT > 0.02) canvas.drawRect(dst, shade);
+      if (showFront) {
+        canvas.drawImageRect(
+          front,
+          Rect.fromLTWH(u0 / pw * fw, 0, (u1 - u0) / pw * fw + 0.5, fh),
+          dst,
+          paint,
+        );
+      } else {
+        canvas.drawImageRect(
+          back,
+          Rect.fromLTWH((1 - u1 / pw) * bw, 0, (u1 - u0) / pw * bw + 0.5, bh),
+          dst,
+          paint,
+        );
+      }
+      // Licht von links oben: schräg stehende Teile werden dunkler.
+      final dark = 0.30 * pow(sin(am), 1.2).toDouble();
+      if (dark > 0.01) {
+        shade.color = Colors.black.withValues(alpha: dark);
+        canvas.drawRect(dst, shade);
+      }
     }
   }
 

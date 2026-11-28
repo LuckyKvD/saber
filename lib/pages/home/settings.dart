@@ -435,6 +435,15 @@ class _SettingsPageState extends State<SettingsPage> {
                   pref: stows.hyperlegibleFont,
                 ),
 
+                SettingsSwitch(
+                  title: 'Leistungsanzeige',
+                  subtitle:
+                      'Zeigt oben zwei Balken (Zeichnen und Rastern). Hilft, '
+                      'Ruckeln zu finden. Normalerweise aus.',
+                  icon: Icons.speed,
+                  pref: stows.showPerformanceOverlay,
+                ),
+
                 SettingsSubtitle(subtitle: t.settings.prefCategories.writing),
                 SettingsSwitch(
                   title: t.settings.prefLabels.preferGreyscale,

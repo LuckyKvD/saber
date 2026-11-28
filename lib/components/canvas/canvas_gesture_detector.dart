@@ -4,6 +4,8 @@ import 'dart:math';
 import 'dart:ui';
 import 'dart:ui' as ui;
 
+import 'package:flutter/scheduler.dart' show TickerCanceled;
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/services.dart';
@@ -338,6 +340,11 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
   var _bookBaseOnRight = true;
   bool get _flipBusy => _flipImage != null || _bookFront != null;
 
+  /// Ein Umblättern läuft (auch schon während die Bilder aufgenommen werden).
+  /// Verhindert, dass schnelle Tipps zwei Blätter gleichzeitig starten.
+  bool _turning = false;
+  double _bookTargetX = 0;
+
   void _disposeBook() {
     _bookFront?.dispose();
     _bookBack?.dispose();
@@ -380,6 +387,13 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
   void _cancelFlip() {
     if (!_flipBusy) return;
     _flipAnim.stop();
+    // Doppelblatt: Blättern sofort abschließen (Ziel-Blatt zeigen).
+    if (_bookFront != null) {
+      final c = widget._transformationController;
+      final m = c.value.clone();
+      m.setTranslationRaw(_bookTargetX, m.getTranslation().y, 0);
+      c.value = m;
+    }
     _flipImage?.dispose();
     _flipImage = null;
     _disposeBook();
@@ -396,7 +410,7 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
 
   /// Blättert per Tipp um [delta] Seiten (1 = vor, -1 = zurück).
   void turnBy(int delta) {
-    if (!widget.horizontal || widget.pages.isEmpty || _flipBusy) {
+    if (!widget.horizontal || widget.pages.isEmpty || _flipBusy || _turning) {
       return;
     }
     final start = horizontalPageIndex;
@@ -420,6 +434,15 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
   }
 
   Future<void> _turnPage(int from, int to, double targetX) async {
+    _turning = true;
+    try {
+      await _turnPageInner(from, to, targetX);
+    } finally {
+      _turning = false;
+    }
+  }
+
+  Future<void> _turnPageInner(int from, int to, double targetX) async {
     final forward = to > from;
     _playFlipSound();
     final spread = _spread;
@@ -459,7 +482,11 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
         h,
       );
     });
-    await _flipAnim.forward(from: 0);
+    try {
+      await _flipAnim.forward(from: 0).orCancel;
+    } on TickerCanceled {
+      return;
+    }
     if (!mounted || _flipImage != image) return;
     _flipImage?.dispose();
     setState(() => _flipImage = null);
@@ -501,9 +528,9 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
       return false;
     }
     final images = await Future.wait([
-      _capturePage(frontPage!, maxRatio: 1.5),
-      _capturePage(backPage!, maxRatio: 1.5),
-      _capturePage(basePage!, maxRatio: 1.5),
+      _capturePage(frontPage!, maxRatio: 1.25),
+      _capturePage(backPage!, maxRatio: 1.25),
+      _capturePage(basePage!, maxRatio: 1.25),
     ]);
     final front = images[0];
     final back = images[1];
@@ -526,7 +553,7 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
     matrix.setTranslationRaw(startX, matrix.getTranslation().y, 0);
     controller.value = matrix;
 
-    final ratio = min(MediaQuery.devicePixelRatioOf(context), 1.5);
+    final ratio = min(MediaQuery.devicePixelRatioOf(context), 1.25);
     final pageW = front.width / ratio;
     final h = front.height / ratio;
     setState(() {
@@ -542,7 +569,12 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
         h,
       );
     });
-    await _flipAnim.forward(from: 0);
+    _bookTargetX = targetX;
+    try {
+      await _flipAnim.forward(from: 0).orCancel;
+    } on TickerCanceled {
+      return true; // Abgebrochen: _cancelFlip hat das Blatt schon gesetzt.
+    }
     if (!mounted || _bookFront != front) return true;
     final end = controller.value.clone();
     end.setTranslationRaw(targetX, end.getTranslation().y, 0);
@@ -653,7 +685,7 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
       _endGesture();
       return;
     }
-    if (page != start && !_flipBusy) {
+    if (page != start && !_flipBusy && !_turning) {
       _turnPage(start, page, _snapTo);
       return;
     }
