@@ -196,6 +196,7 @@ class _InnerCanvasState extends State<InnerCanvas> {
                   TextBoxWidget(
                     key: ObjectKey(box),
                     box: box,
+                    pageIndex: widget.pageIndex,
                     pageSize: Size(widget.width, widget.height),
                     lineHeight: widget.coreInfo.lineHeight,
                     invert: invert,

@@ -335,3 +335,10 @@ Im Textmodus gibt es in der Leiste neben „Textfeld hinzufügen" ein Wolken-Sym
 ### Nachbesserung Doppelblatt
 - Tippen auf die äußeren ~35 % der rechten/linken Buchseite blättert; die rechte Seite rollt über den Falz und blendet am Falz aus (rückwärts umgekehrt). Wischen blättert ebenso.
 - Lineal und Winkelmesser lassen sich über den Falz auf die Nachbarseite ziehen und von dort auch wieder greifen.
+
+### Nachbesserung Doppelblatt, Runde 2
+- Echtes Buch-Umblättern (`book_flip_painter.dart`): Das Blatt klappt um den Falz. Erst die alte rechte Seite, nach der Hälfte die Rückseite (= neue linke Seite), die links liegen bleibt; darunter kommt die neue rechte Seite zum Vorschein. Rückwärts läuft es umgekehrt. Sind die benötigten Seiten noch nicht gerendert, wird seitlich gewechselt statt zu blättern.
+- Tempo: Im Doppelblatt wird nur das sichtbare Blatt gerendert; die Nachbarblätter folgen erst nach kurzer Ruhe (450 ms) im Hintergrund. Die Bilder für den Blättereffekt entstehen mit geringerer Auflösung (max. 1,5-fach).
+- Beim Öffnen und beim Drehen wird die Ansicht mit den echten Maßen der Fläche auf das Blatt gesetzt (vorher: Bildschirmbreite, dadurch eine Lücke zwischen den Seiten).
+- Textfelder lassen sich über den Seitenrand auf die Nachbarseite ziehen (Doppelblatt und Zwei-Seiten-Ansicht), mit Rückgängig (`HistoricTextBoxMove`).
+- Lineal/Winkelmesser: Das Ausschalten wirkt auf die Seite, auf der das Hilfsmittel liegt (vorher: wurde es auf der linken Seite neu angelegt).

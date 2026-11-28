@@ -9,6 +9,7 @@ import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/services.dart';
 import 'package:keybinder/keybinder.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:saber/components/canvas/book_flip_painter.dart';
 import 'package:saber/components/canvas/page_curl_painter.dart';
 import 'package:saber/components/canvas/hud/canvas_hud.dart';
 import 'package:saber/components/canvas/interactive_canvas.dart';
@@ -330,12 +331,46 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
   var _flipRect = Rect.zero;
   var _flipLeftBlank = 0.0;
 
-  Future<ui.Image?> _capturePage(int index) async {
+  // Doppelblatt: umklappendes Blatt (Vorder-, Rückseite, Seite darunter).
+  ui.Image? _bookFront;
+  ui.Image? _bookBack;
+  ui.Image? _bookBase;
+  var _bookBaseOnRight = true;
+  bool get _flipBusy => _flipImage != null || _bookFront != null;
+
+  void _disposeBook() {
+    _bookFront?.dispose();
+    _bookBack?.dispose();
+    _bookBase?.dispose();
+    _bookFront = _bookBack = _bookBase = null;
+  }
+
+  // Nachbarblätter werden erst nach kurzer Ruhe vorgerendert (schneller
+  // Seitenaufbau; danach steht das Umblättern ohne Wartezeit bereit).
+  int? _prefetchSlot;
+  Timer? _prefetchTimer;
+
+  void _armPrefetch() {
+    _prefetchTimer?.cancel();
+    if (!_spread) return;
+    final slot = CanvasGestureDetector.slotOfPage(horizontalPageIndex, true);
+    if (_prefetchSlot != null && _prefetchSlot != slot) {
+      _prefetchSlot = null;
+    }
+    _prefetchTimer = Timer(const Duration(milliseconds: 450), () {
+      if (!mounted || !_spread) return;
+      final now = CanvasGestureDetector.slotOfPage(horizontalPageIndex, true);
+      if (_prefetchSlot == now) return;
+      setState(() => _prefetchSlot = now);
+    });
+  }
+
+  Future<ui.Image?> _capturePage(int index, {double maxRatio = 2.0}) async {
     final object = _pageKeys[index]?.currentContext?.findRenderObject();
     if (object is! RenderRepaintBoundary) return null;
     try {
       return await object.toImage(
-        pixelRatio: min(MediaQuery.devicePixelRatioOf(context), 2.0),
+        pixelRatio: min(MediaQuery.devicePixelRatioOf(context), maxRatio),
       );
     } catch (_) {
       return null;
@@ -343,10 +378,11 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
   }
 
   void _cancelFlip() {
-    if (_flipImage == null) return;
+    if (!_flipBusy) return;
     _flipAnim.stop();
     _flipImage?.dispose();
     _flipImage = null;
+    _disposeBook();
     if (mounted) setState(() {});
     _endGesture();
   }
@@ -360,7 +396,7 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
 
   /// Blättert per Tipp um [delta] Seiten (1 = vor, -1 = zurück).
   void turnBy(int delta) {
-    if (!widget.horizontal || widget.pages.isEmpty || _flipImage != null) {
+    if (!widget.horizontal || widget.pages.isEmpty || _flipBusy) {
       return;
     }
     final start = horizontalPageIndex;
@@ -386,15 +422,13 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
   Future<void> _turnPage(int from, int to, double targetX) async {
     final forward = to > from;
     _playFlipSound();
-    // Doppelblatt: die rechte Seite rollt über den Falz (vorwärts die
-    // bisherige rechte Seite, rückwärts die rechte Seite des Ziels).
     final spread = _spread;
-    int? imagePage = forward ? from : to;
     if (spread) {
-      final slot = CanvasGestureDetector.slotOfPage(forward ? from : to, true);
-      final right = slot == 0 ? 0 : 2 * slot;
-      imagePage = right < widget.pages.length ? right : null;
+      if (await _turnSpread(from, to, targetX)) return;
+      _slideTo(targetX);
+      return;
     }
+    final int? imagePage = forward ? from : to;
     final image = imagePage == null ? null : await _capturePage(imagePage);
     if (!mounted) {
       image?.dispose();
@@ -402,13 +436,7 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
     }
     final controller = widget._transformationController;
     if (image == null) {
-      // Ersatz: einfaches seitliches Umschalten.
-      _snapFrom = controller.value.getTranslation().x;
-      _snapTo = targetX;
-      _snapScaleFrom = 1;
-      _snapAnim
-        ..reset()
-        ..forward();
+      _slideTo(targetX);
       return;
     }
     final matrix = controller.value.clone();
@@ -438,13 +466,103 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
     _endGesture();
   }
 
+  /// Einfaches seitliches Umschalten (Ersatz, wenn kein Bild möglich ist).
+  void _slideTo(double targetX) {
+    final controller = widget._transformationController;
+    _snapFrom = controller.value.getTranslation().x;
+    _snapTo = targetX;
+    _snapScaleFrom = 1;
+    _snapAnim
+      ..reset()
+      ..forward();
+  }
+
+  /// Echtes Buch-Umblättern. Gibt false zurück, wenn es nicht möglich ist
+  /// (Seiten noch nicht gerendert): dann wird seitlich gewechselt.
+  Future<bool> _turnSpread(int from, int to, double targetX) async {
+    final n = widget.pages.length;
+    final forward = to > from;
+    final slotFrom = CanvasGestureDetector.slotOfPage(from, true);
+    final slotTo = CanvasGestureDetector.slotOfPage(to, true);
+    final low = min(slotFrom, slotTo);
+    final high = max(slotFrom, slotTo);
+    int? rightOf(int slot) {
+      final i = slot == 0 ? 0 : 2 * slot;
+      return i < n ? i : null;
+    }
+
+    int? leftOf(int slot) => slot == 0 ? null : 2 * slot - 1;
+
+    final frontPage = rightOf(low); // alte rechte Seite (Blatt vorne)
+    final backPage = leftOf(high); // neue linke Seite (Blatt hinten)
+    final basePage = forward ? rightOf(high) : leftOf(low);
+    bool ready(int? i) => i != null && widget.pages[i].isRendered;
+    if (!ready(frontPage) || !ready(backPage) || !ready(basePage)) {
+      return false;
+    }
+    final images = await Future.wait([
+      _capturePage(frontPage!, maxRatio: 1.5),
+      _capturePage(backPage!, maxRatio: 1.5),
+      _capturePage(basePage!, maxRatio: 1.5),
+    ]);
+    final front = images[0];
+    final back = images[1];
+    final base = images[2];
+    if (!mounted || front == null || back == null || base == null) {
+      front?.dispose();
+      back?.dispose();
+      base?.dispose();
+      return mounted ? false : true;
+    }
+    final controller = widget._transformationController;
+    // Ansicht auf den Ausgangsfach setzen, damit das Blatt passgenau liegt.
+    final startX = CanvasGestureDetector.getTranslationXOfPage(
+      pageIndex: from,
+      pages: widget.pages,
+      containerWidth: containerBounds.maxWidth,
+      containerHeight: containerBounds.maxHeight,
+    );
+    final matrix = controller.value.clone();
+    matrix.setTranslationRaw(startX, matrix.getTranslation().y, 0);
+    controller.value = matrix;
+
+    final ratio = min(MediaQuery.devicePixelRatioOf(context), 1.5);
+    final pageW = front.width / ratio;
+    final h = front.height / ratio;
+    setState(() {
+      _bookFront = front;
+      _bookBack = back;
+      _bookBase = base;
+      _bookBaseOnRight = forward;
+      _flipForward = forward;
+      _flipRect = Rect.fromLTWH(
+        (containerBounds.maxWidth - (pageW * 2 + 2)) / 2,
+        matrix.getTranslation().y + Editor.gapBetweenPages,
+        pageW * 2 + 2,
+        h,
+      );
+    });
+    await _flipAnim.forward(from: 0);
+    if (!mounted || _bookFront != front) return true;
+    final end = controller.value.clone();
+    end.setTranslationRaw(targetX, end.getTranslation().y, 0);
+    controller.value = end;
+    _disposeBook();
+    setState(() {});
+    _endGesture();
+    _armPrefetch();
+    return true;
+  }
+
   bool _gestureActive = false;
   int _pointersDown = 0;
   int? _startPage;
+  int? _pendingPage;
 
   void _endGesture() {
     _gestureActive = false;
     _startPage = null;
+    _armPrefetch();
   }
 
   /// Index der Seite in der Bildmitte (nur horizontales Blättern).
@@ -535,7 +653,7 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
       _endGesture();
       return;
     }
-    if (page != start && _flipImage == null) {
+    if (page != start && !_flipBusy) {
       _turnPage(start, page, _snapTo);
       return;
     }
@@ -813,13 +931,28 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
         zoomLockedValue = transformCacheItem.transform.approxScale;
       }
     } else if (widget.initialPageIndex != null && widget.horizontal) {
-      CanvasGestureDetector.scrollToPageHorizontal(
-        pageIndex: widget.initialPageIndex!,
-        pages: widget.pages,
-        containerWidth: MediaQuery.sizeOf(context).width,
-        containerHeight: MediaQuery.sizeOf(context).height * 0.85,
-        transformationController: widget._transformationController,
-      );
+      // Echte Maße der Fläche verwenden (sonst sitzt die Ansicht schief).
+      // Gibt es sie noch nicht, wird nach dem ersten Layout positioniert.
+      final known =
+          containerBounds.maxWidth.isFinite && containerBounds.maxHeight.isFinite;
+      if (known) {
+        CanvasGestureDetector.scrollToPageHorizontal(
+          pageIndex: widget.initialPageIndex!,
+          pages: widget.pages,
+          containerWidth: containerBounds.maxWidth,
+          containerHeight: containerBounds.maxHeight,
+          transformationController: widget._transformationController,
+        );
+      } else {
+        _pendingPage = widget.initialPageIndex;
+        CanvasGestureDetector.scrollToPageHorizontal(
+          pageIndex: widget.initialPageIndex!,
+          pages: widget.pages,
+          containerWidth: MediaQuery.sizeOf(context).width,
+          containerHeight: MediaQuery.sizeOf(context).height * 0.85,
+          transformationController: widget._transformationController,
+        );
+      }
     } else if (widget.initialPageIndex != null) {
       // if we're opening a different note, scroll to the last recorded page
       CanvasGestureDetector.scrollToPage(
@@ -846,7 +979,7 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
     if (widget.horizontal) {
       // Während der Rückführ-Animation nicht eingreifen.
       if (_snapAnim.isAnimating) return;
-      if (_flipImage == null) _scheduleSnap();
+      if (!_flipBusy) _scheduleSnap();
       final contentWidth = _contentWidth * scale;
       final minX = min(0.0, containerBounds.maxWidth - contentWidth);
       if (translation.x > 0) {
@@ -1172,7 +1305,45 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
           child: GestureDetector(
             child: LayoutBuilder(
               builder: (BuildContext context, BoxConstraints containerBounds) {
+                // Ändert sich die Fläche (Drehen, erstes Layout), bleibt die
+                // Ansicht auf demselben Blatt und sitzt passgenau.
+                final old = this.containerBounds;
+                final changed =
+                    old.maxWidth != containerBounds.maxWidth ||
+                    old.maxHeight != containerBounds.maxHeight;
+                int? keepPage;
+                if (changed &&
+                    widget.horizontal &&
+                    old.maxWidth.isFinite &&
+                    old.maxHeight.isFinite &&
+                    old.maxWidth > 0) {
+                  keepPage = horizontalPageIndex;
+                }
                 this.containerBounds = containerBounds;
+                if (changed &&
+                    widget.horizontal &&
+                    containerBounds.maxWidth.isFinite &&
+                    containerBounds.maxHeight.isFinite) {
+                  final page = keepPage ?? _pendingPage;
+                  _pendingPage = null;
+                  final bounds = containerBounds;
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (!mounted || widget.pages.isEmpty) return;
+                    if (page != null) {
+                      CanvasGestureDetector.scrollToPageHorizontal(
+                        pageIndex: page,
+                        pages: widget.pages,
+                        containerWidth: bounds.maxWidth,
+                        containerHeight: bounds.maxHeight,
+                        transformationController:
+                            widget._transformationController,
+                      );
+                    } else {
+                      _scheduleSnap();
+                    }
+                    _armPrefetch();
+                  });
+                }
 
                 return InteractiveCanvasViewer.builder(
                   minScale: zoomLockedValue ?? CanvasGestureDetector.kMinScale,
@@ -1212,6 +1383,7 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
                       containerHeight: containerBounds.maxHeight,
                       horizontal: widget.horizontal,
                       twoUp: twoUp,
+                      prefetchSlot: _prefetchSlot,
                       pageKeyFor: _pageKeyFor,
                     );
                   },
@@ -1220,6 +1392,22 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
             ),
           ),
         ),
+        if (_bookFront != null)
+          Positioned.fromRect(
+            rect: _flipRect,
+            child: IgnorePointer(
+              child: CustomPaint(
+                painter: BookFlipPainter(
+                  front: _bookFront!,
+                  back: _bookBack!,
+                  base: _bookBase!,
+                  baseOnRight: _bookBaseOnRight,
+                  animation: _flipAnim,
+                  forward: _flipForward,
+                ),
+              ),
+            ),
+          ),
         if (_flipImage != null)
           Positioned.fromRect(
             rect: _flipRect,
@@ -1269,6 +1457,8 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
     );
     _pageSnapTimer?.cancel();
     _flipImage?.dispose();
+    _disposeBook();
+    _prefetchTimer?.cancel();
     _flipAnim.dispose();
     _snapAnim.dispose();
     widget._transformationController.removeListener(onTransformChanged);
@@ -1307,6 +1497,7 @@ class _PagesBuilder extends StatelessWidget {
     this.containerHeight = double.infinity,
     this.horizontal = false,
     this.twoUp = false,
+    this.prefetchSlot,
     this.pageKeyFor,
   });
 
@@ -1320,6 +1511,9 @@ class _PagesBuilder extends StatelessWidget {
   final double containerHeight;
   final bool horizontal;
   final bool twoUp;
+
+  /// Doppelblatt: Fach, dessen Nachbarn vorgerendert werden dürfen.
+  final int? prefetchSlot;
 
   Widget _buildTwoUp(BuildContext context) {
     final rows = <Widget>[
@@ -1386,9 +1580,13 @@ class _PagesBuilder extends StatelessWidget {
       int? rightPage = slot == 0 ? 0 : first + 1;
       if (rightPage != null && rightPage >= pages.length) rightPage = null;
       final leftOfSlot = slot * containerWidth;
+      // Nur das sichtbare Fach rendern (schneller Aufbau); die Nachbarn erst,
+      // wenn Ruhe herrscht (prefetchSlot) oder wenn gewischt wird.
+      final near = prefetchSlot != null && (slot - prefetchSlot!).abs() <= 1;
       final isInViewport =
-          boundingBox.right >= leftOfSlot - containerWidth * 0.2 &&
-          boundingBox.left <= leftOfSlot + containerWidth * 1.2;
+          near ||
+          (boundingBox.right >= leftOfSlot + 4 &&
+              boundingBox.left <= leftOfSlot + containerWidth - 4);
 
       Widget cell(int? index, int sizeFrom) {
         final ref = pages[min(sizeFrom, pages.length - 1)];

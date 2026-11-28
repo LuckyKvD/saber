@@ -313,10 +313,23 @@ class EditorState extends State<Editor> {
         CanvasGestureDetector.isSpread(bounds.maxWidth, bounds.maxHeight);
   }
 
+  /// Seite, auf der Lineal/Winkelmesser gerade liegen (Doppelblatt: auch die
+  /// Partnerseite), sonst die aktuelle Seite.
+  int _guideTargetPage() {
+    final current = currentPageIndex;
+    if (Guides.anyVisible &&
+        identical(Guides.owner, coreInfo) &&
+        Guides.partnerOf(current) == Guides.pageIndex) {
+      return Guides.pageIndex;
+    }
+    return current;
+  }
+
   void _toggleRuler() {
     _prepareGuides();
-    _guideSyncPage = currentPageIndex;
-    final index = currentPageIndex.clamp(0, coreInfo.pages.length - 1);
+    final target = _guideTargetPage();
+    _guideSyncPage = target;
+    final index = target.clamp(0, coreInfo.pages.length - 1);
     setState(() {
       Guides.toggleRuler(coreInfo, index, coreInfo.pages[index].size);
     });
@@ -324,8 +337,9 @@ class EditorState extends State<Editor> {
 
   void _toggleProtractor() {
     _prepareGuides();
-    _guideSyncPage = currentPageIndex;
-    final index = currentPageIndex.clamp(0, coreInfo.pages.length - 1);
+    final target = _guideTargetPage();
+    _guideSyncPage = target;
+    final index = target.clamp(0, coreInfo.pages.length - 1);
     setState(() {
       Guides.cycleProtractor(coreInfo, index, coreInfo.pages[index].size);
     });
@@ -784,6 +798,11 @@ class EditorState extends State<Editor> {
 
       case (final HistoricTextBoxBackground historic):
         historic.box.whiteBackground = historic.before;
+
+      case (final HistoricTextBoxMove historic):
+        coreInfo.pages[historic.toPage].textBoxes.remove(historic.box);
+        historic.box.rect = historic.before;
+        coreInfo.pages[historic.fromPage].textBoxes.add(historic.box);
 
       case (final HistoricBookmark historic):
         coreInfo.pages[historic.pageIndex].bookmark = historic.before;
@@ -4049,6 +4068,8 @@ class EditorState extends State<Editor> {
     },
     onDelete: _removeTextBox,
     onOpenLink: _openLink,
+    neighborPage: _neighborPage,
+    onTransfer: _transferTextBox,
     onBackgroundChanged: (box, before, after) {
       history.recordChange(
         HistoricTextBoxBackground(box: box, before: before, after: after),
@@ -4057,6 +4078,72 @@ class EditorState extends State<Editor> {
       autosaveAfterDelay();
     },
   );
+
+  /// Nachbarseite links/rechts, wenn zwei Seiten nebeneinander stehen
+  /// (Buch-Doppelblatt oder Zwei-Seiten-Ansicht), sonst null.
+  int? _neighborPage(int index, bool toRight) {
+    final detector = _canvasGestureDetectorKey.currentState;
+    if (detector == null) return null;
+    final n = coreInfo.pages.length;
+    final bool leftOfPair;
+    if (horizontalPaging) {
+      final b = detector.containerBounds;
+      if (!CanvasGestureDetector.isSpread(b.maxWidth, b.maxHeight) ||
+          index <= 0) {
+        return null;
+      }
+      leftOfPair = index.isOdd;
+    } else if (detector.twoUp) {
+      leftOfPair = index.isEven;
+    } else {
+      return null;
+    }
+    if (toRight) return leftOfPair && index + 1 < n ? index + 1 : null;
+    return !leftOfPair && index - 1 >= 0 ? index - 1 : null;
+  }
+
+  /// Textfeld auf die Nachbarseite legen (Rückgängig möglich).
+  void _transferTextBox(
+    FreeTextBox box,
+    int from,
+    int to,
+    Rect before,
+    Rect overflow,
+  ) {
+    if (from < 0 ||
+        to < 0 ||
+        from >= coreInfo.pages.length ||
+        to >= coreInfo.pages.length) {
+      return;
+    }
+    final fromPage = coreInfo.pages[from];
+    final toPage = coreInfo.pages[to];
+    final toRight = to > from;
+    var after = toRight
+        ? overflow.shift(Offset(-fromPage.size.width, 0))
+        : overflow.shift(Offset(toPage.size.width, 0));
+    after = Rect.fromLTWH(
+      after.left.clamp(0.0, math.max(0.0, toPage.size.width - after.width)).toDouble(),
+      after.top.clamp(0.0, math.max(0.0, toPage.size.height - after.height)).toDouble(),
+      after.width,
+      after.height,
+    );
+    setState(() {
+      fromPage.textBoxes.remove(box);
+      box.rect = after;
+      toPage.textBoxes.add(box);
+      history.recordChange(
+        HistoricTextBoxMove(
+          box: box,
+          fromPage: from,
+          toPage: to,
+          before: before,
+          after: after,
+        ),
+      );
+    });
+    autosaveAfterDelay();
+  }
 
   /// Neues Textfeld auf der aktuellen Seite.
   void _addTextBox() {

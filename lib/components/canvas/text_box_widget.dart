@@ -12,7 +12,22 @@ class TextBoxActions {
     required this.onDelete,
     required this.onBackgroundChanged,
     required this.onOpenLink,
+    required this.neighborPage,
+    required this.onTransfer,
   });
+
+  /// Nachbarseite links/rechts (Doppelblatt, zwei Seiten nebeneinander).
+  final int? Function(int pageIndex, bool toRight) neighborPage;
+
+  /// Textfeld wurde über den Seitenrand auf die Nachbarseite gezogen.
+  final void Function(
+    FreeTextBox box,
+    int fromPage,
+    int toPage,
+    Rect before,
+    Rect overflow,
+  )
+  onTransfer;
 
   final void Function(FreeTextBox box, Rect before, Rect after) onRectChanged;
   final void Function(FreeTextBox box) onDelete;
@@ -26,6 +41,7 @@ class TextBoxWidget extends StatefulWidget {
   const TextBoxWidget({
     super.key,
     required this.box,
+    required this.pageIndex,
     required this.pageSize,
     required this.lineHeight,
     required this.invert,
@@ -36,6 +52,7 @@ class TextBoxWidget extends StatefulWidget {
   });
 
   final FreeTextBox box;
+  final int pageIndex;
   final Size pageSize;
   final int lineHeight;
   final bool invert;
@@ -68,16 +85,42 @@ class _TextBoxWidgetState extends State<TextBoxWidget> {
     final before = _before;
     _before = null;
     if (before == null || before == widget.box.rect) return;
-    widget.actions?.onRectChanged(widget.box, before, widget.box.rect);
+    final actions = widget.actions;
+    final r = widget.box.rect;
+    final pw = widget.pageSize.width;
+    if (actions != null) {
+      final toRight = r.center.dx > pw;
+      final toLeft = r.center.dx < 0;
+      if (toRight || toLeft) {
+        final to = actions.neighborPage(widget.pageIndex, toRight);
+        if (to != null) {
+          actions.onTransfer(widget.box, widget.pageIndex, to, before, r);
+          return;
+        }
+      }
+    }
+    // Nicht hinübergezogen: zurück in die eigene Seite.
+    final inside = Rect.fromLTWH(
+      r.left.clamp(0.0, max(0.0, pw - r.width)).toDouble(),
+      r.top,
+      r.width,
+      r.height,
+    );
+    if (inside != r) setState(() => widget.box.rect = inside);
+    if (before == widget.box.rect) return;
+    actions?.onRectChanged(widget.box, before, widget.box.rect);
   }
 
   void _move(Offset delta) {
     final r = widget.box.rect.shift(delta);
-    final dx = r.left < 0
-        ? -r.left
-        : (r.right > widget.pageSize.width
-              ? widget.pageSize.width - r.right
-              : 0.0);
+    // Mit Nachbarseite darf das Feld über den Rand hinaus gezogen werden.
+    final canLeft = widget.actions?.neighborPage(widget.pageIndex, false) != null;
+    final canRight = widget.actions?.neighborPage(widget.pageIndex, true) != null;
+    final minLeft = canLeft ? -(r.width - 40) : 0.0;
+    final maxRight = widget.pageSize.width + (canRight ? r.width - 40 : 0.0);
+    final dx = r.left < minLeft
+        ? minLeft - r.left
+        : (r.right > maxRight ? maxRight - r.right : 0.0);
     final dy = r.top < 0
         ? -r.top
         : (r.bottom > widget.pageSize.height
