@@ -818,7 +818,7 @@ class _SettingsPageState extends State<SettingsPage> {
 Future<void> _restoreBackup(BuildContext context) async {
   final messenger = ScaffoldMessenger.of(context);
   final picked = await FilePicker.pickFiles(type: FileType.any);
-  final path = picked?.files.single.path;
+  final path = picked.isEmpty ? null : picked.first.path;
   if (path == null || !context.mounted) return;
   if (!path.toLowerCase().endsWith('.zip')) {
     messenger.showSnackBar(
