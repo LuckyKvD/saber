@@ -410,7 +410,10 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
 
   /// Blättert per Tipp um [delta] Seiten (1 = vor, -1 = zurück).
   void turnBy(int delta) {
-    if (!widget.horizontal || widget.pages.isEmpty || _flipBusy || _turning) {
+    if (!widget.horizontal || widget.pages.isEmpty) return;
+    if (_flipBusy || _turning) {
+      // Schnelles Tippen: nicht verschlucken, sondern (max. 3) vormerken.
+      if ((_pendingTurns + delta).abs() <= 3) _pendingTurns += delta;
       return;
     }
     var start = horizontalPageIndex;
@@ -439,6 +442,7 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
     );
   }
 
+  int _pendingTurns = 0;
   int? _lastTurnTarget;
   double _lastTurnX = 0;
 
@@ -450,6 +454,11 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
       await _turnPageInner(from, to, targetX);
     } finally {
       _turning = false;
+    }
+    if (mounted && _pendingTurns != 0) {
+      final d = _pendingTurns > 0 ? 1 : -1;
+      _pendingTurns -= d;
+      turnBy(d);
     }
   }
 
@@ -631,6 +640,7 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
   }
 
   void _stopSnap() {
+    _pendingTurns = 0;
     _cancelFlip();
     _pageSnapTimer?.cancel();
     _snapAnim.stop();

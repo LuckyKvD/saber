@@ -352,3 +352,4 @@ Im Textmodus gibt es in der Leiste neben „Textfeld hinzufügen" ein Wolken-Sym
 - Blätteranimation startet immer bei 0 (kein Rest-Wert der letzten Animation).
 - Tipp-Blättern merkt sich die Zielseite des letzten Blätterns, solange die Ansicht unverändert ist (gegen Rückwärts-Sprünge).
 - PDF-Seiten werden mit höchstens 170 dpi gerendert (vorher 300 dpi).
+- Schnelles Tippen während einer Blätteranimation wird vorgemerkt (höchstens 3) statt verschluckt.
