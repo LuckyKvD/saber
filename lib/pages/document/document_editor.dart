@@ -234,8 +234,8 @@ class _DocumentEditorPageState extends State<DocumentEditorPage> {
                     showJustifyAlignment: true,
                     showIndent: true,
                     showSearchButton: true,
-                    buttonOptions: const QuillSimpleToolbarButtonOptions(
-                      fontFamily: QuillToolbarFontFamilyButtonOptions(
+                    buttonOptions: QuillSimpleToolbarButtonOptions(
+                      fontFamily: const QuillToolbarFontFamilyButtonOptions(
                         items: {
                           'Arial': 'LiberationSans',
                           'Times New Roman': 'LiberationSerif',
@@ -311,11 +311,6 @@ class _DocumentEditorPageState extends State<DocumentEditorPage> {
                     h1: block(base(DocDefaults.headerSizes[1]!, true)),
                     h2: block(base(DocDefaults.headerSizes[2]!, true)),
                     h3: block(base(DocDefaults.headerSizes[3]!, true)),
-                  ),
-                  spellCheckConfiguration: SpellCheckConfiguration(
-                    spellCheckService: DefaultSpellCheckService(),
-                    misspelledTextStyle:
-                        DefaultSelectionStyle.defaultSpellCheckMisspelledTextStyle,
                   ),
                 ),
               ),
