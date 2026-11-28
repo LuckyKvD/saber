@@ -185,6 +185,9 @@ class PdfEditorImage extends EditorImage {
             // [PdfPageView.pageNumber] starts at 1 not 0
             pageNumber: pdfPage + 1,
             decoration: const BoxDecoration(),
+            // Feder: Rendergröße begrenzen (Standard 300 dpi ist auf dem
+            // Tablet bei zwei Seiten nebeneinander unnötig teuer).
+            maximumDpi: 170,
           ),
         );
       },

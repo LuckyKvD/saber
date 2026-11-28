@@ -347,3 +347,8 @@ Im Textmodus gibt es in der Leiste neben „Textfeld hinzufügen" ein Wolken-Sym
 - Blätter-Effekt: Das Blatt biegt sich jetzt beim Umklappen (freie Kante eilt dem Falz voraus), mit Perspektive, Schattierung nach Neigung und Schatten auf der darunterliegenden Seite. Vorher klappte es starr wie ein Brett.
 - Fehler beim schnellen Blättern behoben: Tipps während der Bildaufnahme starteten ein zweites Umblättern gleichzeitig; ein Antippen mitten im Umblättern ließ das Doppelblatt auf dem alten Blatt stehen. Jetzt gibt es eine Sperre, und ein Abbruch schließt das Umblättern sofort ab.
 - Einstellungen → „Leistungsanzeige": zeigt die Flutter-Messbalken (UI und Raster), um Ruckeln zu analysieren.
+
+### Nachbesserung Runde 4 (Blättern/Rendern)
+- Blätteranimation startet immer bei 0 (kein Rest-Wert der letzten Animation).
+- Tipp-Blättern merkt sich die Zielseite des letzten Blätterns, solange die Ansicht unverändert ist (gegen Rückwärts-Sprünge).
+- PDF-Seiten werden mit höchstens 170 dpi gerendert (vorher 300 dpi).

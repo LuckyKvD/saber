@@ -413,7 +413,13 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
     if (!widget.horizontal || widget.pages.isEmpty || _flipBusy || _turning) {
       return;
     }
-    final start = horizontalPageIndex;
+    var start = horizontalPageIndex;
+    // Steht die Ansicht noch genau dort, wo das letzte Blättern endete,
+    // gilt dessen Zielseite (verhindert Rückwärts-Sprünge durch Rundung).
+    final tx = widget._transformationController.value.getTranslation().x;
+    if (_lastTurnTarget != null && (tx - _lastTurnX).abs() < 1.5) {
+      start = _lastTurnTarget!;
+    }
     final page = CanvasGestureDetector.adjacentPage(
       start,
       delta,
@@ -433,7 +439,12 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
     );
   }
 
+  int? _lastTurnTarget;
+  double _lastTurnX = 0;
+
   Future<void> _turnPage(int from, int to, double targetX) async {
+    _lastTurnTarget = to;
+    _lastTurnX = targetX;
     _turning = true;
     try {
       await _turnPageInner(from, to, targetX);
@@ -471,6 +482,7 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
     final h = image.height / ratio;
     // Doppelblatt: Fläche beider Seiten (+2 px Falz), Bild nur rechts.
     final w = spread ? pageW * 2 + 2 : pageW;
+    _flipAnim.value = 0;
     setState(() {
       _flipImage = image;
       _flipForward = forward;
@@ -556,6 +568,7 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
     final ratio = min(MediaQuery.devicePixelRatioOf(context), 1.25);
     final pageW = front.width / ratio;
     final h = front.height / ratio;
+    _flipAnim.value = 0;
     setState(() {
       _bookFront = front;
       _bookBack = back;
