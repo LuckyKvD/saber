@@ -137,7 +137,10 @@ class PdfEditorImage extends EditorImage {
     assert(id != -1, 'id must be set before firstLoad is called');
     _pdfDocument.value ??= await assetCache.pdfDocumentCache.load(
       pdfFile?.path ?? 'inline_pdf_$id.pdf',
-      pdfBytes: pdfBytes ?? await FileManager.readBytes(pdfFile!),
+      pdfBytes: pdfBytes,
+      readBytes: pdfBytes == null
+          ? () => FileManager.readBytes(pdfFile!)
+          : null,
     );
     await _pdfDocument.value!.pages[pdfPage].ensureLoaded();
   }
@@ -185,6 +188,9 @@ class PdfEditorImage extends EditorImage {
             // [PdfPageView.pageNumber] starts at 1 not 0
             pageNumber: pdfPage + 1,
             decoration: const BoxDecoration(),
+            // Feder: Rendergröße begrenzen (Standard 300 dpi ist auf dem
+            // Tablet bei zwei Seiten nebeneinander unnötig teuer).
+            maximumDpi: 170,
           ),
         );
       },

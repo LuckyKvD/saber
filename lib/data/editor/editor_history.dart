@@ -311,6 +311,24 @@ class const HistoricTextBoxRect({
   HistoricTextBoxRect reverse() => .new(box: box, before: after, after: before);
 }
 
+/// Feder: Textfeld auf eine Nachbarseite verschoben (Doppelblatt/zwei Seiten).
+class const HistoricTextBoxMove({
+  required final FreeTextBox box,
+  required final int fromPage,
+  required final int toPage,
+  required final Rect before,
+  required final Rect after,
+}) extends Historic {
+  @override
+  HistoricTextBoxMove reverse() => .new(
+    box: box,
+    fromPage: toPage,
+    toPage: fromPage,
+    before: after,
+    after: before,
+  );
+}
+
 /// Feder: Lesezeichen einer Seite geaendert.
 class const HistoricBookmark({
   required final int pageIndex,

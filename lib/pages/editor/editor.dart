@@ -62,6 +62,7 @@ import 'package:saber/data/search/correction_dictionary.dart';
 import 'package:saber/data/search/line_grouper.dart';
 import 'package:saber/data/extensions/change_notifier_extensions.dart';
 import 'package:saber/data/extensions/matrix4_extensions.dart';
+import 'package:saber/data/diary.dart';
 import 'package:saber/data/file_manager/file_manager.dart';
 import 'package:saber/data/nextcloud/saber_syncer.dart';
 import 'package:saber/data/prefs.dart';
@@ -179,6 +180,8 @@ class EditorState extends State<Editor> {
         transformationController: _transformationController,
       );
     } else {
+      // Sprung zu einer Seite: Ansicht mit einer Seite pro Zeile (Zoom 1).
+      _canvasGestureDetectorKey.currentState?.forceSingleColumn();
       CanvasGestureDetector.scrollToPage(
         pageIndex: pageIndex,
         pages: coreInfo.pages,
@@ -304,23 +307,42 @@ class EditorState extends State<Editor> {
   void _prepareGuides() {
     Guides.pageSizes = [for (final p in coreInfo.pages) p.size];
     Guides.verticalPages = !horizontalPaging;
+    final bounds = _canvasGestureDetectorKey.currentState?.containerBounds;
+    Guides.spread =
+        horizontalPaging &&
+        bounds != null &&
+        CanvasGestureDetector.isSpread(bounds.maxWidth, bounds.maxHeight);
   }
 
-  void _toggleRuler() {
-    _prepareGuides();
-    _guideSyncPage = currentPageIndex;
-    final index = currentPageIndex.clamp(0, coreInfo.pages.length - 1);
-    setState(() {
-      Guides.toggleRuler(coreInfo, index, coreInfo.pages[index].size);
-    });
+  /// Seite, auf der Lineal/Winkelmesser gerade liegen (Doppelblatt: auch die
+  /// Partnerseite), sonst die aktuelle Seite.
+  int _guideTargetPage() {
+    final current = currentPageIndex;
+    if (Guides.anyVisible &&
+        identical(Guides.owner, coreInfo) &&
+        Guides.partnerOf(current) == Guides.pageIndex) {
+      return Guides.pageIndex;
+    }
+    return current;
   }
 
-  void _toggleProtractor() {
+  void _toggleGuide(GuideKind kind) {
     _prepareGuides();
-    _guideSyncPage = currentPageIndex;
-    final index = currentPageIndex.clamp(0, coreInfo.pages.length - 1);
+    final target = _guideTargetPage();
+    _guideSyncPage = target;
+    final index = target.clamp(0, coreInfo.pages.length - 1);
+    final size = coreInfo.pages[index].size;
     setState(() {
-      Guides.cycleProtractor(coreInfo, index, coreInfo.pages[index].size);
+      switch (kind) {
+        case GuideKind.ruler:
+          Guides.toggleRuler(coreInfo, index, size);
+        case GuideKind.protractor:
+          Guides.cycleProtractor(coreInfo, index, size);
+        case GuideKind.triangle:
+          Guides.toggleTriangle(coreInfo, index, size);
+        case GuideKind.compass:
+          Guides.toggleCompass(coreInfo, index, size);
+      }
     });
   }
 
@@ -612,15 +634,19 @@ class EditorState extends State<Editor> {
       // scroll to the last page (only if we're below the last page)
 
       final scrollY = this.scrollY;
+      _canvasGestureDetectorKey.currentState?.forceSingleColumn();
+      const twoUp = false;
       late final topOfLastPage = -CanvasGestureDetector.getTopOfPage(
         pageIndex: coreInfo.pages.length - 1,
         pages: coreInfo.pages,
         screenWidth: MediaQuery.sizeOf(context).width,
+        twoUp: twoUp,
       );
       final bottomOfLastPage = -CanvasGestureDetector.getTopOfPage(
         pageIndex: coreInfo.pages.length,
         pages: coreInfo.pages,
         screenWidth: MediaQuery.sizeOf(context).width,
+        twoUp: twoUp,
       );
 
       if (scrollY < bottomOfLastPage) {
@@ -773,6 +799,11 @@ class EditorState extends State<Editor> {
 
       case (final HistoricTextBoxBackground historic):
         historic.box.whiteBackground = historic.before;
+
+      case (final HistoricTextBoxMove historic):
+        coreInfo.pages[historic.toPage].textBoxes.remove(historic.box);
+        historic.box.rect = historic.before;
+        coreInfo.pages[historic.fromPage].textBoxes.add(historic.box);
 
       case (final HistoricBookmark historic):
         coreInfo.pages[historic.pageIndex].bookmark = historic.before;
@@ -1397,7 +1428,9 @@ class EditorState extends State<Editor> {
   void onDeleteImage(EditorImage image) {
     history.recordChange(HistoricDelete(strokes: [], images: [image]));
     setState(() {
-      coreInfo.pages[image.pageIndex].images.remove(image);
+      final page = coreInfo.pages[image.pageIndex];
+      page.images.remove(image);
+      if (image.inStrip) EditorImage.layoutStrip(page.images, page.size);
     });
     autosaveAfterDelay();
   }
@@ -1641,6 +1674,32 @@ class EditorState extends State<Editor> {
   Future<void> _renameFileNow() async {
     final newName = filenameTextEditingController.text.trim();
     if (newName == coreInfo.fileName) return;
+
+    // Feder-Tagebuch: Der Titel beginnt mit dem Datum (TT.MM.JJJJ oder
+    // JJJJ-MM-TT), danach darf eine Beschriftung folgen. Der Eintrag wird
+    // an den passenden Tag verschoben; ungültige Eingaben werden zurückgesetzt.
+    if (Diary.isDiaryPath(coreInfo.filePath)) {
+      final parsed = Diary.parseName(newName);
+      if (parsed != null &&
+          FileManager.validateFilename(Diary.baseName(newName)) == null) {
+        coreInfo.filePath = await Diary.moveEntry(
+          coreInfo.filePath,
+          parsed.day,
+          parsed.rest,
+        );
+        needsNaming = false;
+      }
+      final actual = coreInfo.fileName;
+      filenameTextEditingController.value = filenameTextEditingController.value
+          .copyWith(
+            text: actual,
+            selection: TextSelection.fromPosition(
+              TextPosition(offset: actual.length),
+            ),
+            composing: TextRange.empty,
+          );
+      return;
+    }
 
     if (_filenameFormKey.currentState?.validate() ??
         _validateFilenameTextField(newName) == null) {
@@ -2764,6 +2823,21 @@ class EditorState extends State<Editor> {
       }
     }
 
+    // Feder-Tagebuch: Fotos kommen in die Fotoleiste am unteren Seitenrand.
+    if (Diary.isDiaryPath(coreInfo.filePath) && images.isNotEmpty) {
+      final ps = coreInfo.pages[currentPageIndex].size;
+      if (ps.isFinite) {
+        var slot = coreInfo.pages[currentPageIndex].images
+            .where((i) => i.inStrip)
+            .length;
+        for (final image in images) {
+          image
+            ..inStrip = true
+            ..rowSlot = slot++;
+        }
+      }
+    }
+
     _lastPickedImages = images;
     if (images.isNotEmpty) {
       // use the Select tool so that the user can move the new image
@@ -3586,12 +3660,7 @@ class EditorState extends State<Editor> {
           },
           pickPhoto: _pickPhotos,
           toggleWritingPad: _toggleWritingPad,
-          toggleRuler: _toggleRuler,
-          rulerVisible: Guides.ruler != null,
-          toggleProtractor: _toggleProtractor,
-          protractorMode: Guides.protractor == null
-              ? 0
-              : (Guides.protractor!.full ? 2 : 1),
+          toggleGuide: _toggleGuide,
           writingPadVisible: showWritingPad,
           paste: paste,
           exportAsSba: exportAsSba,
@@ -4038,6 +4107,8 @@ class EditorState extends State<Editor> {
     },
     onDelete: _removeTextBox,
     onOpenLink: _openLink,
+    neighborPage: _neighborPage,
+    onTransfer: _transferTextBox,
     onBackgroundChanged: (box, before, after) {
       history.recordChange(
         HistoricTextBoxBackground(box: box, before: before, after: after),
@@ -4046,6 +4117,72 @@ class EditorState extends State<Editor> {
       autosaveAfterDelay();
     },
   );
+
+  /// Nachbarseite links/rechts, wenn zwei Seiten nebeneinander stehen
+  /// (Buch-Doppelblatt oder Zwei-Seiten-Ansicht), sonst null.
+  int? _neighborPage(int index, bool toRight) {
+    final detector = _canvasGestureDetectorKey.currentState;
+    if (detector == null) return null;
+    final n = coreInfo.pages.length;
+    final bool leftOfPair;
+    if (horizontalPaging) {
+      final b = detector.containerBounds;
+      if (!CanvasGestureDetector.isSpread(b.maxWidth, b.maxHeight) ||
+          index <= 0) {
+        return null;
+      }
+      leftOfPair = index.isOdd;
+    } else if (detector.twoUp) {
+      leftOfPair = index.isEven;
+    } else {
+      return null;
+    }
+    if (toRight) return leftOfPair && index + 1 < n ? index + 1 : null;
+    return !leftOfPair && index - 1 >= 0 ? index - 1 : null;
+  }
+
+  /// Textfeld auf die Nachbarseite legen (Rückgängig möglich).
+  void _transferTextBox(
+    FreeTextBox box,
+    int from,
+    int to,
+    Rect before,
+    Rect overflow,
+  ) {
+    if (from < 0 ||
+        to < 0 ||
+        from >= coreInfo.pages.length ||
+        to >= coreInfo.pages.length) {
+      return;
+    }
+    final fromPage = coreInfo.pages[from];
+    final toPage = coreInfo.pages[to];
+    final toRight = to > from;
+    var after = toRight
+        ? overflow.shift(Offset(-fromPage.size.width, 0))
+        : overflow.shift(Offset(toPage.size.width, 0));
+    after = Rect.fromLTWH(
+      after.left.clamp(0.0, math.max(0.0, toPage.size.width - after.width)).toDouble(),
+      after.top.clamp(0.0, math.max(0.0, toPage.size.height - after.height)).toDouble(),
+      after.width,
+      after.height,
+    );
+    setState(() {
+      fromPage.textBoxes.remove(box);
+      box.rect = after;
+      toPage.textBoxes.add(box);
+      history.recordChange(
+        HistoricTextBoxMove(
+          box: box,
+          fromPage: from,
+          toPage: to,
+          before: before,
+          after: after,
+        ),
+      );
+    });
+    autosaveAfterDelay();
+  }
 
   /// Neues Textfeld auf der aktuellen Seite.
   void _addTextBox() {
@@ -4543,6 +4680,7 @@ class EditorState extends State<Editor> {
       scrollY: -scrollY,
       screenWidth: screenWidth,
       pages: coreInfo.pages,
+      twoUp: _canvasGestureDetectorKey.currentState?.twoUp ?? false,
     );
   }
 
@@ -4551,12 +4689,14 @@ class EditorState extends State<Editor> {
     required double scrollY,
     required double screenWidth,
     required List<EditorPage> pages,
+    bool twoUp = false,
   }) {
     for (int pageIndex = 0; pageIndex < pages.length; pageIndex++) {
       final bottomOfPage = CanvasGestureDetector.getTopOfPage(
         pageIndex: pageIndex + 1, // top of next page
         pages: pages,
         screenWidth: screenWidth,
+        twoUp: twoUp,
       );
 
       if (scrollY < bottomOfPage) {

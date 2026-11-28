@@ -325,3 +325,74 @@ Zusammengeführte Zweige: `feature/regal`, `feature/blaettern`, `feature/widget`
 ## 35. Textfeld → Nextcloud
 
 Im Textmodus gibt es in der Leiste neben „Textfeld hinzufügen" ein Wolken-Symbol: markierter Text (sonst der ganze Inhalt des zuletzt benutzten Textfelds) kann als Aufgabe, Termin oder Kontakt an Nextcloud gesendet werden. Das Lasso wählt weiterhin nur Handschrift, keine Textfelder.
+
+## 36. Zwei Seiten nebeneinander
+
+- Senkrechtes Scrollen, Querformat: Wird weit genug ausgezoomt, stehen zwei Seiten pro Zeile nebeneinander; Einzoomen schaltet zurück auf eine Seite. Die Umschaltung hat eine Hysterese (Eintritt früher als Rückkehr), die Ansicht bleibt dabei auf der gleichen Stelle. Sprünge zu einer Seite (Seitenübersicht, neue Seite) schalten auf eine Seite pro Zeile zurück.
+- Buch-Blättern, Querformat: Doppelblatt wie ein echtes Buch (Seite 1 allein rechts, dann 2/3, 4/5 …; letzte Seite allein links). Jede Seite passt komplett ins Bild. Blättern geht um ein Blatt; statt des Blätter-Effekts gleitet das Blatt seitlich.
+- Im Hochformat bleibt alles wie bisher (eine Seite).
+
+### Nachbesserung Doppelblatt
+- Tippen auf die äußeren ~35 % der rechten/linken Buchseite blättert; die rechte Seite rollt über den Falz und blendet am Falz aus (rückwärts umgekehrt). Wischen blättert ebenso.
+- Lineal und Winkelmesser lassen sich über den Falz auf die Nachbarseite ziehen und von dort auch wieder greifen.
+
+### Nachbesserung Doppelblatt, Runde 2
+- Echtes Buch-Umblättern (`book_flip_painter.dart`): Das Blatt klappt um den Falz. Erst die alte rechte Seite, nach der Hälfte die Rückseite (= neue linke Seite), die links liegen bleibt; darunter kommt die neue rechte Seite zum Vorschein. Rückwärts läuft es umgekehrt. Sind die benötigten Seiten noch nicht gerendert, wird seitlich gewechselt statt zu blättern.
+- Tempo: Im Doppelblatt wird nur das sichtbare Blatt gerendert; die Nachbarblätter folgen erst nach kurzer Ruhe (450 ms) im Hintergrund. Die Bilder für den Blättereffekt entstehen mit geringerer Auflösung (max. 1,5-fach).
+- Beim Öffnen und beim Drehen wird die Ansicht mit den echten Maßen der Fläche auf das Blatt gesetzt (vorher: Bildschirmbreite, dadurch eine Lücke zwischen den Seiten).
+- Textfelder lassen sich über den Seitenrand auf die Nachbarseite ziehen (Doppelblatt und Zwei-Seiten-Ansicht), mit Rückgängig (`HistoricTextBoxMove`).
+- Lineal/Winkelmesser: Das Ausschalten wirkt auf die Seite, auf der das Hilfsmittel liegt (vorher: wurde es auf der linken Seite neu angelegt).
+
+### Nachbesserung Doppelblatt, Runde 3
+- Blätter-Effekt: Das Blatt biegt sich jetzt beim Umklappen (freie Kante eilt dem Falz voraus), mit Perspektive, Schattierung nach Neigung und Schatten auf der darunterliegenden Seite. Vorher klappte es starr wie ein Brett.
+- Fehler beim schnellen Blättern behoben: Tipps während der Bildaufnahme starteten ein zweites Umblättern gleichzeitig; ein Antippen mitten im Umblättern ließ das Doppelblatt auf dem alten Blatt stehen. Jetzt gibt es eine Sperre, und ein Abbruch schließt das Umblättern sofort ab.
+- Einstellungen → „Leistungsanzeige": zeigt die Flutter-Messbalken (UI und Raster), um Ruckeln zu analysieren.
+
+### Nachbesserung Runde 4 (Blättern/Rendern)
+- Blätteranimation startet immer bei 0 (kein Rest-Wert der letzten Animation).
+- Tipp-Blättern merkt sich die Zielseite des letzten Blätterns, solange die Ansicht unverändert ist (gegen Rückwärts-Sprünge).
+- PDF-Seiten werden mit höchstens 170 dpi gerendert (vorher 300 dpi).
+- Schnelles Tippen während einer Blätteranimation wird vorgemerkt (höchstens 3) statt verschluckt.
+- Tipp-Blättern: Der Einrast-Timer der Tipp-Geste läuft nicht mehr gegen ein laufendes oder vorbereitetes Blättern (Ursache für Hin-und-her-Springen, Vermutung).
+- Blätter-Protokoll: Tippen, Blättern und Einrasten schreiben Zeilen („Blaettern | …“) ins Protokoll (Einstellungen → Protokoll anzeigen), um Fehler beim Tippen mit echten Daten zu finden.
+
+## 37. Geodreieck, Zirkel und Hilfsmittel-Menü
+- Ein Werkzeugleisten-Symbol „Zeichenhilfen" öffnet ein Menü: Lineal, Winkelmesser (Halbkreis/Vollkreis), Geodreieck, Zirkel. Mehrere können gleichzeitig sichtbar sein.
+- Geodreieck: gleichschenklig-rechtwinklig (Hypotenuse 16 cm), cm-Skala an allen Kanten, Griff in der Mitte zum Drehen; Stifte rasten an allen drei Kanten ein.
+- Zirkel: Nadelspitze verschieben, Griff am Kreisrand stellt Radius (1–12 cm) und Richtung ein; der Stift rastet auf dem Kreis ein.
+- Maße gehen von 21 cm Seitenbreite aus (wie beim Lineal).
+- **Ursache Rückwärts-Sprung (Protokoll vom Test, Build 165, Fakt aus den Zeilen):** Nach einem Tipp-Blättern stand die Ansicht 155 px neben dem Blatt (Gleit-Animation mittendrin gestoppt); der Einrast-Timer las das als „mehr als 1/7 gezogen" und blätterte von selbst zurück oder vor. Behebung: ein angehaltenes Gleiten wird sofort ans Ziel gesetzt, und nach einem Tipp-Blättern rastet die Ansicht nur noch auf der Zielseite ein, bis ein Finger aufgesetzt wird (`_settlePage`).
+- Einstellungen → „Blätter-Protokoll als Datei teilen“ speichert nur die Blätter-Zeilen als Textdatei (Teilen-Dialog).
+- Nachbarblätter werden nach 200 ms Ruhe vorgerendert (vorher 450 ms), damit beim schnellen Tippen weniger oft auf das seitliche Gleiten ohne Blättereffekt ausgewichen wird (Vermutung, Protokoll zeigte Gleiten bei großen PDF-Seiten).
+
+## 38. Ordner verschieben und Notizbuch-Auswahl (Teilen-Ansicht)
+
+- **Ordner in andere Ordner/Notizbücher verschieben:** In der aufgeklappten Ordnerkarte gibt es jetzt die Schaltfläche „Verschieben …". Sie öffnet die Ordnerauswahl (`pickFolder`, `/` = Hauptregal) und ruft `FileManager.moveDirectory` auf. Verboten sind: in sich selbst oder einen Unterordner verschieben, und ein Ziel mit gleichem Namen (dann wird ein eindeutiger Name vergeben).
+- **Notizbuch-Auswahl für die zweite Hälfte der geteilten Ansicht** (`pick_notebook_dialog.dart`): Titel groß, Ordner klein und grau darunter; „Zuletzt geöffnet" steht oben; Ordner-Schnellfilter als Chips; Vorschaubild (dieselbe `.p`-Datei wie auf der Startseite, ggf. entschlüsselt), ersatzweise ein Buch-Symbol.
+
+## 39. Feste Regale, Konfliktkopie, PDF-Laden
+
+- **Feste Regale „Dienst" und „Privat":** stehen immer neben Schnellnotiz und Hauptregal in der Leiste. Das Regal wird beim ersten Antippen angelegt. Umbenennen/Löschen per Langdruck ist für sie gesperrt.
+- **Konfliktkopie (Nextcloud):** Pro Notiz wird der Zeitstempel der zuletzt abgeglichenen Version gespeichert (`KnownMtimes`, Einstellung `fileSyncKnownMtimes`). Haben beide Seiten (lokal und Server) die Notiz seit dem letzten Abgleich verändert, wird die unterlegene Version als eigene Notiz „… (Konflikt JJJJ-MM-TT HH.mm)" gesichert und synchronisiert, statt stillschweigend überschrieben zu werden. Das gilt für das Herunterladen (lokale Änderungen werden gesichert) und das Hochladen (Server-Stand wird gesichert). Grenze: Notizen ohne gemerkten Stand (erster Abgleich nach dem Update) werden nicht geprüft; es wird nichts zusammengeführt.
+- **PDF-Laden:** Beim Öffnen jeder PDF-Seite wurde die komplette Datei neu gelesen und ggf. entschlüsselt, auch wenn das Dokument schon im Cache lag. Jetzt wird die Datei nur noch bei einem Cache-Fehlgriff gelesen (`PdfDocumentCache.load(readBytes: …)`).
+
+## 40. Tagebuch (Rubrik)
+
+- **Neuer Reiter „Tagebuch"** in der Navigation. Monatskalender (Tage mit Eintrag sind markiert, heute ist umrandet), Monatswechsel per Pfeile oder Tipp auf den Monatsnamen, Liste der Einträge des Monats mit Vorschaubild, Knopf „Heute schreiben".
+- **Ablage:** pro Kalendertag ein normales handschriftliches Notizbuch unter `/Tagebuch/JJJJ/MM/JJJJ-MM-TT`. Mehrere Einträge am Tag = weitere Seiten desselben Notizbuchs. Fotos, Stifte, Zeichenhilfen usw. wie in jedem Notizbuch. Verschlüsselung und Nextcloud-Sync wie bei allen Notizen.
+- **Getrennt von den Notizen:** Der Ordner „Tagebuch" erscheint nicht in der Regalleiste und nicht in der Notizbuch-Auswahl der geteilten Ansicht.
+- **Ort:** Beim ersten Schreiben **am selben Tag** werden die Koordinaten über den Android-Standortdienst (`LocationManager`, keine Google-Dienste, keine Online-Abfrage) in `….ort` neben dem Notizbuch gespeichert. Die Datei ist lokal verschlüsselt und wird synchronisiert. Nachgetragene Tage bekommen bewusst keinen Ort. Anzeige: Koordinaten und ein Knopf, der die Karten-App öffnet. Ein Ortsname (Adresse) wird nicht ermittelt, dafür wäre ein Online-Dienst nötig.
+- **Nicht enthalten:** Wetter, Video, Tags, Statistiken, Volltextsuche der Handschrift.
+
+## 41. Tagebuch: Nachbesserungen, Karte, Fotoreihe, Sicherung
+
+- **Fehler „Eintrag verschwindet" (Fakt, Ursache):** Der Titel oben links ist der Dateiname. Wurde er geändert, hieß die Datei nicht mehr nach einem Datum und der Kalender fand sie nicht mehr. Jetzt: Bei Tagebucheinträgen ist der Titel gesperrt, solange er ein Datum ist. Einträge ohne Datum im Namen (z. B. frühere Umbenennungen) stehen unten in der Tagebuch-Ansicht; dort lässt sich der Titel auf `TT.MM.JJJJ` oder `JJJJ-MM-TT` setzen, dann wird der Eintrag an den richtigen Tag verschoben (samt Ort).
+- **Karte:** Knopf „Karte" in der Tagebuch-Ansicht. Zeigt alle gespeicherten Orte als Markierungen (Paket `flutter_map`), Antippen öffnet den Eintrag. Kartenkacheln kommen von openstreetmap.org (kostenlos, Fakt: dabei sieht der Server den Kartenausschnitt und die IP-Adresse, aber keine Tagebuchinhalte). Ohne Internet bleibt die Karte leer.
+- **Fotoreihe:** In Tagebuchnotizen werden eingefügte Fotos in einer Reihe am unteren Seitenrand platziert (5 pro Reihe, weitere Reihen darüber; Größe passt sich an). Sie lassen sich danach wie sonst verschieben.
+- **Sicherung:** Einstellungen → „Sicherung erstellen und weitergeben". Packt alle Dateien in eine ZIP (lokal verschlüsselte Notizen bleiben verschlüsselt), legt sie außerhalb des Sync-Ordners ab (die letzten 3 bleiben) und öffnet das Teilen-Menü (Cloud, USB, andere App). Wiederherstellen ist noch nicht in der App.
+
+## 42. Rücksicherung, Tagebuch verwalten, Fotoleiste
+
+- **Sicherung einspielen** (Einstellungen): ZIP wählen, dann „Nur Fehlendes" (vorhandene Dateien bleiben) oder „Alles ersetzen" (überschreibt gleichnamige Dateien; vorher entsteht automatisch eine Sicherung des jetzigen Stands). Dateien werden unverändert (also ggf. weiter lokal verschlüsselt) zurückgeschrieben, aus der Löschliste des Syncs genommen und neu hochgeladen. Pfade mit `..` oder absoluten Anteilen werden abgelehnt. Grenze: Die Sicherung ist nur mit demselben Hauptschlüssel (Passwort) lesbar.
+- **Tagebuch verwalten:** Pro Eintrag Menü (Punkte rechts oder Langdruck): Beschriftung ändern, auf anderes Datum verschieben, löschen (mit Rückfrage, samt Bildern und Ort). Der Titel im Editor akzeptiert `TT.MM.JJJJ Text` oder `JJJJ-MM-TT Text`; das Datum bestimmt den Tag, der Text ist die Beschriftung. Mehrere Einträge pro Tag sind damit möglich; ein Tipp auf einen Tag mit mehreren Einträgen zeigt eine Auswahl.
+- **Fotoleiste:** Fotos in Tagebuchnotizen gehören zur Leiste am unteren Seitenrand (Markierung `sr` in der Notiz). Sie werden in Reihen zu 5 angeordnet, darüber steht „Fotos" mit einer Linie. Wird ein Leistenfoto gelöscht, rücken die übrigen nach. Verschieben von Hand ist weiter möglich, bis zum nächsten Löschen.

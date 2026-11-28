@@ -421,6 +421,13 @@ class Stows {
     volatile: !_isOnMainIsolate,
   );
 
+  /// Entwicklerhilfe: Messbalken für Zeichnen (UI) und Rastern (GPU).
+  final showPerformanceOverlay = PlainStow(
+    'showPerformanceOverlay',
+    false,
+    volatile: !_isOnMainIsolate,
+  );
+
   /// Korrekturwörterbuch der Handschrifterkennung (JSON: erkannt → richtig).
   final handwritingCorrections = PlainStow(
     'handwritingCorrections',
@@ -555,6 +562,14 @@ class Stows {
   final fileSyncPendingDeletes = PlainStow(
     'fileSyncPendingDeletes',
     <String>{},
+    volatile: !_isOnMainIsolate,
+  );
+
+  /// Feder: JSON-Zuordnung Pfad -> Zeitstempel (ms) der Version, die zuletzt
+  /// mit dem Server abgeglichen war. Dient der Erkennung von Konflikten.
+  final fileSyncKnownMtimes = PlainStow(
+    'fileSyncKnownMtimes',
+    '',
     volatile: !_isOnMainIsolate,
   );
 

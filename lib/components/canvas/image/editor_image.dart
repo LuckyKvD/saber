@@ -68,8 +68,55 @@ sealed class EditorImage extends ChangeNotifier {
   /// Vom Editor gesetzt: Ziel für dieses Bild per Antippen wählen.
   static void Function(EditorImage image)? targetHandler;
 
+  /// Feder-Tagebuch: Das Bild gehört zur Fotoleiste am unteren Seitenrand
+  /// (wird gespeichert, ordnet sich selbst neu an).
+  bool inStrip = false;
+
+  /// Nur für die erste Platzierung: Platz (ab 0) in der Leiste.
+  int? rowSlot;
+
+  static const rowColumns = 5;
+  static const rowMargin = 24.0;
+  static const rowGap = 8.0;
+  static const rowHeightFactor = 1.3;
+
+  static double rowSlotWidth(Size ps) =>
+      (ps.width - 2 * rowMargin - rowGap * (rowColumns - 1)) / rowColumns;
+
+  /// Rechteck für Platz [slot] einer Bildgröße [size] (Seitenverhältnis).
+  static Rect stripRect(int slot, Size ps, Size size) {
+    final slotW = rowSlotWidth(ps);
+    final maxH = slotW * rowHeightFactor;
+    final ratio = size.width / size.height;
+    final w = min(slotW, maxH * ratio).toDouble();
+    final h = w / ratio;
+    final col = slot % rowColumns;
+    final row = slot ~/ rowColumns;
+    final left = rowMargin + col * (slotW + rowGap) + (slotW - w) / 2;
+    final bottom = ps.height - rowMargin - row * (maxH + rowGap);
+    return Rect.fromLTWH(left, bottom - h, w, h);
+  }
+
+  /// Ordnet alle Leistenbilder der Seite lückenlos neu an.
+  static void layoutStrip(Iterable<EditorImage> pageImages, Size ps) {
+    if (!ps.isFinite) return;
+    final strip = pageImages.where((i) => i.inStrip).toList()
+      ..sort((a, b) => a.id.compareTo(b.id));
+    for (var i = 0; i < strip.length; i++) {
+      final image = strip[i];
+      final r = image.dstRect;
+      if (r.width <= 0 || r.height <= 0) continue;
+      image.dstRect = stripRect(i, ps, r.size);
+    }
+  }
+
   /// Rechteck für die erste Platzierung: um [centerHint] herum, sonst oben links.
   Rect placeRect(Size size) {
+    final slot = rowSlot;
+    final psRow = pageSize;
+    if (slot != null && psRow != null && psRow.isFinite) {
+      return stripRect(slot, psRow, size);
+    }
     final hint = centerHint;
     if (hint == null) return dstRect.topLeft & size;
     var left = hint.dx - size.width / 2;
@@ -182,6 +229,7 @@ sealed class EditorImage extends ChangeNotifier {
       );
     }
     image.angle = (json['r'] as num?)?.toDouble() ?? 0;
+    image.inStrip = json['sr'] == 1;
     return image;
   }
 
@@ -226,6 +274,7 @@ sealed class EditorImage extends ChangeNotifier {
     'id': id,
     'e': extension,
     'i': pageIndex,
+    if (inStrip) 'sr': 1,
     'v': invertible,
     'f': backgroundFit.index,
     'x': dstRect.left,

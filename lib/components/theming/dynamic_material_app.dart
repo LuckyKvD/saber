@@ -213,7 +213,23 @@ class ExplicitlyThemedApp extends StatelessWidget {
           colorScheme: darkTheme?.colorScheme.withHighContrast(),
         );
 
+    return ListenableBuilder(
+      listenable: stows.showPerformanceOverlay,
+      builder: (context, _) => _buildApp(
+        context,
+        highContrastTheme,
+        highContrastDarkTheme,
+      ),
+    );
+  }
+
+  Widget _buildApp(
+    BuildContext context,
+    ThemeData highContrastTheme,
+    ThemeData? highContrastDarkTheme,
+  ) {
     return MaterialApp.router(
+      showPerformanceOverlay: stows.showPerformanceOverlay.value,
       key: _materialAppKey,
       title: title,
       routeInformationProvider: router.routeInformationProvider,

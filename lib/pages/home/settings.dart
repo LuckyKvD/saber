@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:saber/components/settings/about_feder.dart';
 import 'package:saber/components/settings/local_encryption_tile.dart';
 import 'package:saber/components/navbar/responsive_navbar.dart';
@@ -27,6 +28,8 @@ import 'package:saber/components/theming/adaptive_alert_dialog.dart';
 import 'package:saber/components/theming/adaptive_toggle_buttons.dart';
 import 'package:saber/components/theming/saber_theme.dart';
 import 'package:saber/components/theming/uni_icon.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:saber/data/backup.dart';
 import 'package:saber/data/file_manager/file_manager.dart';
 import 'package:saber/data/flavor_config.dart';
 import 'package:saber/data/is_this_a_test.dart';
@@ -36,7 +39,9 @@ import 'package:saber/data/quick_note.dart';
 import 'package:saber/data/routes.dart';
 import 'package:saber/data/sentry/sentry_init.dart';
 import 'package:saber/data/tools/shape_pen.dart';
+import 'package:saber/pages/logs.dart' show logsHistory;
 import 'package:saber/i18n/strings.g.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:stow/stow.dart';
 
 class const SettingsPage({super.key}) extends StatefulWidget {
@@ -435,6 +440,15 @@ class _SettingsPageState extends State<SettingsPage> {
                   pref: stows.hyperlegibleFont,
                 ),
 
+                SettingsSwitch(
+                  title: 'Leistungsanzeige',
+                  subtitle:
+                      'Zeigt oben zwei Balken (Zeichnen und Rastern). Hilft, '
+                      'Ruckeln zu finden. Normalerweise aus.',
+                  icon: Icons.speed,
+                  pref: stows.showPerformanceOverlay,
+                ),
+
                 SettingsSubtitle(subtitle: t.settings.prefCategories.writing),
                 SettingsSwitch(
                   title: t.settings.prefLabels.preferGreyscale,
@@ -721,6 +735,64 @@ class _SettingsPageState extends State<SettingsPage> {
                     },
                   ),
                 SettingsButton(
+                  title: 'Sicherung erstellen und weitergeben',
+                  subtitle:
+                      'Packt alle Notizen und das Tagebuch in eine ZIP-Datei '
+                      '(bleibt lokal verschlüsselt). Danach kannst du sie '
+                      'z. B. in die Cloud, auf einen USB-Stick oder in eine '
+                      'andere App legen.',
+                  icon: Icons.backup,
+                  onPressed: () async {
+                    final messenger = ScaffoldMessenger.of(context);
+                    messenger.showSnackBar(
+                      const SnackBar(content: Text('Sicherung wird erstellt …')),
+                    );
+                    try {
+                      final file = await Backup.create();
+                      messenger.hideCurrentSnackBar();
+                      await SharePlus.instance.share(
+                        ShareParams(files: [XFile(file.path)]),
+                      );
+                    } catch (e) {
+                      messenger.hideCurrentSnackBar();
+                      messenger.showSnackBar(
+                        SnackBar(content: Text('Sicherung fehlgeschlagen: $e')),
+                      );
+                    }
+                  },
+                ),
+                SettingsButton(
+                  title: 'Sicherung einspielen',
+                  subtitle:
+                      'Stellt Notizen und Tagebuch aus einer ZIP-Sicherung '
+                      'wieder her. Du wählst, ob nur Fehlendes ergänzt oder '
+                      'alles ersetzt wird.',
+                  icon: Icons.settings_backup_restore,
+                  onPressed: () => _restoreBackup(context),
+                ),
+                SettingsButton(
+                  title: 'Blätter-Protokoll als Datei teilen',
+                  subtitle:
+                      'Nur Blätter-Zeilen, ohne Notiznamen. In Downloads '
+                      'speichern oder an Claude senden.',
+                  icon: Icons.ios_share,
+                  onPressed: () async {
+                    final lines = [
+                      for (final r in logsHistory.history)
+                        if (r.loggerName == 'Blaettern')
+                          '${r.time.toIso8601String().substring(11, 23)} '
+                              '${r.message}',
+                    ];
+                    if (lines.isEmpty) return;
+                    final dir = await getTemporaryDirectory();
+                    final file = File('${dir.path}/blaettern-protokoll.txt');
+                    await file.writeAsString(lines.join('\n'));
+                    await SharePlus.instance.share(
+                      ShareParams(files: [XFile(file.path)]),
+                    );
+                  },
+                ),
+                SettingsButton(
                   title: t.logs.viewLogs,
                   subtitle: t.logs.debuggingInfo,
                   icon: Icons.receipt_long,
@@ -739,5 +811,69 @@ class _SettingsPageState extends State<SettingsPage> {
     stows.locale.removeListener(onChanged);
     UpdateManager.status.removeListener(onChanged);
     super.dispose();
+  }
+}
+
+/// Feder: Sicherung auswählen, Modus abfragen, einspielen.
+Future<void> _restoreBackup(BuildContext context) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final picked = await FilePicker.pickFiles(type: FileType.any);
+  final path = picked.isEmpty ? null : picked.first.path;
+  if (path == null || !context.mounted) return;
+  if (!path.toLowerCase().endsWith('.zip')) {
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Bitte eine ZIP-Sicherung auswählen.')),
+    );
+    return;
+  }
+  final mode = await showDialog<String>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: const Text('Sicherung einspielen'),
+      content: const Text(
+        'Nur Fehlendes ergänzen: vorhandene Dateien bleiben unverändert.\n\n'
+        'Alles ersetzen: Dateien aus der Sicherung überschreiben vorhandene '
+        'mit gleichem Namen. Vorher wird automatisch eine neue Sicherung des '
+        'jetzigen Stands erstellt.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(),
+          child: const Text('Abbrechen'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop('missing'),
+          child: const Text('Nur Fehlendes'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop('all'),
+          child: const Text('Alles ersetzen'),
+        ),
+      ],
+    ),
+  );
+  if (mode == null) return;
+  messenger.showSnackBar(
+    const SnackBar(content: Text('Sicherung wird eingespielt …')),
+  );
+  try {
+    final result = await Backup.restore(
+      File(path),
+      replaceExisting: mode == 'all',
+    );
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          '${result.restored} Dateien wiederhergestellt, '
+          '${result.skipped} übersprungen.',
+        ),
+      ),
+    );
+  } catch (e) {
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(content: Text('Einspielen fehlgeschlagen: $e')),
+    );
   }
 }

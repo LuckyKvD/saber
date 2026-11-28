@@ -5,6 +5,7 @@ import 'package:saber/components/navbar/responsive_navbar.dart';
 import 'package:saber/components/settings/update_manager.dart';
 import 'package:saber/components/theming/dynamic_material_app.dart';
 import 'package:saber/pages/home/browse.dart';
+import 'package:saber/pages/home/diary.dart';
 import 'package:saber/pages/home/settings.dart';
 
 class HomePage extends StatefulWidget {
@@ -18,9 +19,11 @@ class HomePage extends StatefulWidget {
 
   static const recentSubpage = 'recent';
   static const browseSubpage = 'browse';
+  static const diarySubpage = 'diary';
   static const settingsSubpage = 'settings';
   static const List<String> subpages = [
     browseSubpage,
+    diarySubpage,
     settingsSubpage,
   ];
 }
@@ -52,6 +55,7 @@ class _HomePageState extends State<HomePage> {
         child: switch (widget.subpage) {
           HomePage.browseSubpage ||
           HomePage.recentSubpage => BrowsePage(path: widget.path),
+          HomePage.diarySubpage => const DiaryPage(),
           HomePage.settingsSubpage => const SettingsPage(),
           _ => BrowsePage(path: widget.path),
         },

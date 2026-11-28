@@ -13,6 +13,9 @@
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" tools:node="remove" />
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" tools:node="remove" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <!-- Feder-Tagebuch: Ort des Tages (nur auf dem Gerät, ohne Google-Dienste) -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
    <application
         android:label="Feder"

@@ -8,14 +8,28 @@ class PdfDocumentCache {
 
   /// Loads a PDF document from [filePath].
   /// If the bytes are provided, they are used instead of reading from disk.
-  FutureOr<PdfDocument> load(String filePath, {Uint8List? pdfBytes}) {
-    return _cache[filePath] ??= _loadCacheMiss(filePath, pdfBytes: pdfBytes);
+  ///
+  /// Feder: [readBytes] wird nur bei einem Cache-Fehlgriff aufgerufen. Vorher
+  /// wurde die komplette (ggf. entschlüsselte) PDF-Datei für JEDE Seite neu
+  /// gelesen, auch wenn das Dokument längst im Cache lag.
+  FutureOr<PdfDocument> load(
+    String filePath, {
+    Uint8List? pdfBytes,
+    Future<Uint8List> Function()? readBytes,
+  }) {
+    return _cache[filePath] ??= _loadCacheMiss(
+      filePath,
+      pdfBytes: pdfBytes,
+      readBytes: readBytes,
+    );
   }
 
   Future<PdfDocument> _loadCacheMiss(
     String filePath, {
     Uint8List? pdfBytes,
+    Future<Uint8List> Function()? readBytes,
   }) async {
+    pdfBytes ??= await readBytes?.call();
     final document = pdfBytes == null
         ? PdfDocument.openFile(filePath, useProgressiveLoading: true)
         : PdfDocument.openData(
