@@ -369,3 +369,9 @@ Im Textmodus gibt es in der Leiste neben „Textfeld hinzufügen" ein Wolken-Sym
 
 - **Ordner in andere Ordner/Notizbücher verschieben:** In der aufgeklappten Ordnerkarte gibt es jetzt die Schaltfläche „Verschieben …". Sie öffnet die Ordnerauswahl (`pickFolder`, `/` = Hauptregal) und ruft `FileManager.moveDirectory` auf. Verboten sind: in sich selbst oder einen Unterordner verschieben, und ein Ziel mit gleichem Namen (dann wird ein eindeutiger Name vergeben).
 - **Notizbuch-Auswahl für die zweite Hälfte der geteilten Ansicht** (`pick_notebook_dialog.dart`): Titel groß, Ordner klein und grau darunter; „Zuletzt geöffnet" steht oben; Ordner-Schnellfilter als Chips; Vorschaubild (dieselbe `.p`-Datei wie auf der Startseite, ggf. entschlüsselt), ersatzweise ein Buch-Symbol.
+
+## 39. Feste Regale, Konfliktkopie, PDF-Laden
+
+- **Feste Regale „Dienst" und „Privat":** stehen immer neben Schnellnotiz und Hauptregal in der Leiste. Das Regal wird beim ersten Antippen angelegt. Umbenennen/Löschen per Langdruck ist für sie gesperrt.
+- **Konfliktkopie (Nextcloud):** Pro Notiz wird der Zeitstempel der zuletzt abgeglichenen Version gespeichert (`KnownMtimes`, Einstellung `fileSyncKnownMtimes`). Haben beide Seiten (lokal und Server) die Notiz seit dem letzten Abgleich verändert, wird die unterlegene Version als eigene Notiz „… (Konflikt JJJJ-MM-TT HH.mm)" gesichert und synchronisiert, statt stillschweigend überschrieben zu werden. Das gilt für das Herunterladen (lokale Änderungen werden gesichert) und das Hochladen (Server-Stand wird gesichert). Grenze: Notizen ohne gemerkten Stand (erster Abgleich nach dem Update) werden nicht geprüft; es wird nichts zusammengeführt.
+- **PDF-Laden:** Beim Öffnen jeder PDF-Seite wurde die komplette Datei neu gelesen und ggf. entschlüsselt, auch wenn das Dokument schon im Cache lag. Jetzt wird die Datei nur noch bei einem Cache-Fehlgriff gelesen (`PdfDocumentCache.load(readBytes: …)`).

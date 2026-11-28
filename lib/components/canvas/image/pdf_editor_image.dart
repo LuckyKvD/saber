@@ -137,7 +137,10 @@ class PdfEditorImage extends EditorImage {
     assert(id != -1, 'id must be set before firstLoad is called');
     _pdfDocument.value ??= await assetCache.pdfDocumentCache.load(
       pdfFile?.path ?? 'inline_pdf_$id.pdf',
-      pdfBytes: pdfBytes ?? await FileManager.readBytes(pdfFile!),
+      pdfBytes: pdfBytes,
+      readBytes: pdfBytes == null
+          ? () => FileManager.readBytes(pdfFile!)
+          : null,
     );
     await _pdfDocument.value!.pages[pdfPage].ensureLoaded();
   }
