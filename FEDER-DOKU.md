@@ -354,3 +354,4 @@ Im Textmodus gibt es in der Leiste neben „Textfeld hinzufügen" ein Wolken-Sym
 - PDF-Seiten werden mit höchstens 170 dpi gerendert (vorher 300 dpi).
 - Schnelles Tippen während einer Blätteranimation wird vorgemerkt (höchstens 3) statt verschluckt.
 - Tipp-Blättern: Der Einrast-Timer der Tipp-Geste läuft nicht mehr gegen ein laufendes oder vorbereitetes Blättern (Ursache für Hin-und-her-Springen, Vermutung).
+- Blätter-Protokoll: Tippen, Blättern und Einrasten schreiben Zeilen („Blaettern | …“) ins Protokoll (Einstellungen → Protokoll anzeigen), um Fehler beim Tippen mit echten Daten zu finden.

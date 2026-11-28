@@ -10,6 +10,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/services.dart';
 import 'package:keybinder/keybinder.dart';
+import 'package:logging/logging.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:saber/components/canvas/book_flip_painter.dart';
 import 'package:saber/components/canvas/page_curl_painter.dart';
@@ -301,6 +302,17 @@ class CanvasGestureDetector extends StatefulWidget {
 
 class CanvasGestureDetectorState extends State<CanvasGestureDetector>
     with TickerProviderStateMixin {
+  /// Blätter-Protokoll (Einstellungen → Protokoll), zur Fehlersuche beim Tippen.
+  static final _log = Logger('Blaettern');
+  void _trace(String what) {
+    if (!widget.horizontal) return;
+    final tx = widget._transformationController.value.getTranslation().x;
+    _log.info(
+      '$what | tx=${tx.toStringAsFixed(0)} turning=$_turning busy=$_flipBusy '
+      'pend=$_pendingTurns last=$_lastTurnTarget',
+    );
+  }
+
   late var containerBounds = const BoxConstraints();
 
   /// Feder: Im Querformat und weit ausgezoomt stehen zwei Seiten nebeneinander.
@@ -386,6 +398,7 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
 
   void _cancelFlip() {
     if (!_flipBusy) return;
+    _trace('cancelFlip');
     _flipAnim.stop();
     // Doppelblatt: Blättern sofort abschließen (Ziel-Blatt zeigen).
     if (_bookFront != null) {
@@ -411,6 +424,7 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
   /// Blättert per Tipp um [delta] Seiten (1 = vor, -1 = zurück).
   void turnBy(int delta) {
     if (!widget.horizontal || widget.pages.isEmpty) return;
+    _trace('turnBy($delta)');
     if (_flipBusy || _turning) {
       // Schnelles Tippen: nicht verschlucken, sondern (max. 3) vormerken.
       if ((_pendingTurns + delta).abs() <= 3) _pendingTurns += delta;
@@ -429,6 +443,7 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
       widget.pages.length,
       _spread,
     );
+    _trace('turnBy start=$start page=$page');
     if (page == start) return;
     _turnPage(
       start,
@@ -447,6 +462,7 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
   double _lastTurnX = 0;
 
   Future<void> _turnPage(int from, int to, double targetX) async {
+    _trace('turnPage $from->$to');
     _lastTurnTarget = to;
     _lastTurnX = targetX;
     _pageSnapTimer?.cancel();
@@ -654,6 +670,7 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
       return;
     }
     if (_pointersDown > 0) return;
+    _trace('snap');
     // Läuft schon ein Blättern (oder wird es vorbereitet), darf der Einrast-
     // Timer der Tipp-Geste nicht dagegenarbeiten (sonst springt die Ansicht
     // zurück oder hin und her).
@@ -1231,6 +1248,7 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
         event.kind == PointerDeviceKind.stylus ||
         event.kind == PointerDeviceKind.invertedStylus;
     if (event is PointerDownEvent) {
+      _trace('down ${event.kind.name}');
       _pointersDown++;
       _tapDown(event);
       _stopSnap();
@@ -1308,6 +1326,7 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
     if (box == null) return;
     final x = box.globalToLocal(event.position).dx;
     final width = box.size.width;
+    _trace('tapUp x=${x.toStringAsFixed(0)}/${width.toStringAsFixed(0)}');
     // Doppelblatt: Tippen auf die rechte/linke Buchseite blättert.
     final zone = _spread ? 0.35 : 0.18;
     if (x > width * (1 - zone)) {
