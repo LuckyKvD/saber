@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:printing/printing.dart';
 import 'package:saber/data/doc_export.dart';
 import 'package:saber/data/documents.dart';
+import 'package:saber/data/spell_check.dart';
 import 'package:share_plus/share_plus.dart';
 
 /// Editor für Feder-Textdokumente (A4-Blatt, Ränder, Export als PDF/Word).
@@ -168,6 +169,13 @@ class _DocumentEditorPageState extends State<DocumentEditorPage> {
           await SharePlus.instance.share(
             ShareParams(files: [XFile(file.path)]),
           );
+        case 'spell':
+          await _spell(_controller!.document.toPlainText());
+        case 'spelltest':
+          await _spell(
+            'Das ist ein Tehst mit Fehlren, einem Hauptbahnhofsvorplatz '
+            'und einem Donaudampfschifffahrtskapitän. Ich habe es geshen.',
+          );
         case 'words':
           final n = countWords(_doc.delta);
           _snack('$n Wörter');
@@ -175,6 +183,38 @@ class _DocumentEditorPageState extends State<DocumentEditorPage> {
     } catch (e) {
       _snack('Export fehlgeschlagen: $e');
     }
+  }
+
+  Future<void> _spell(String text) async {
+    final sw = Stopwatch()..start();
+    final r = await SpellCheck.check(text);
+    sw.stop();
+    if (!mounted) return;
+    final body = !r.available
+        ? 'Nicht verfügbar: ${r.reason ?? 'unbekannt'}'
+        : r.issues.isEmpty
+        ? 'Keine Fehler gemeldet (${text.length} Zeichen, ${sw.elapsedMilliseconds} ms).'
+        : '${r.issues.length} Fehler (${sw.elapsedMilliseconds} ms):\n\n' +
+              r.issues
+                  .take(40)
+                  .map((i) {
+                    final w = text.substring(
+                      i.start.clamp(0, text.length),
+                      (i.start + i.length).clamp(0, text.length),
+                    );
+                    return '$w → ${i.suggestions.take(3).join(', ')}';
+                  })
+                  .join('\n');
+    await showDialog<void>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Rechtschreibung (Systemprüfer)'),
+        content: SingleChildScrollView(child: Text(body)),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(c).pop(), child: const Text('OK')),
+        ],
+      ),
+    );
   }
 
   @override
@@ -206,6 +246,8 @@ class _DocumentEditorPageState extends State<DocumentEditorPage> {
               PopupMenuItem(value: 'word', child: Text('Als Word (.docx) teilen')),
               PopupMenuItem(value: 'pdf', child: Text('Drucken / PDF speichern')),
               PopupMenuItem(value: 'words', child: Text('Wörter zählen')),
+              PopupMenuItem(value: 'spell', child: Text('Rechtschreibung prüfen (Test)')),
+              PopupMenuItem(value: 'spelltest', child: Text('Prüfer mit Testsatz testen')),
             ],
           ),
         ],
