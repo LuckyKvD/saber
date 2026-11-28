@@ -364,3 +364,8 @@ Im Textmodus gibt es in der Leiste neben „Textfeld hinzufügen" ein Wolken-Sym
 - **Ursache Rückwärts-Sprung (Protokoll vom Test, Build 165, Fakt aus den Zeilen):** Nach einem Tipp-Blättern stand die Ansicht 155 px neben dem Blatt (Gleit-Animation mittendrin gestoppt); der Einrast-Timer las das als „mehr als 1/7 gezogen" und blätterte von selbst zurück oder vor. Behebung: ein angehaltenes Gleiten wird sofort ans Ziel gesetzt, und nach einem Tipp-Blättern rastet die Ansicht nur noch auf der Zielseite ein, bis ein Finger aufgesetzt wird (`_settlePage`).
 - Einstellungen → „Blätter-Protokoll als Datei teilen“ speichert nur die Blätter-Zeilen als Textdatei (Teilen-Dialog).
 - Nachbarblätter werden nach 200 ms Ruhe vorgerendert (vorher 450 ms), damit beim schnellen Tippen weniger oft auf das seitliche Gleiten ohne Blättereffekt ausgewichen wird (Vermutung, Protokoll zeigte Gleiten bei großen PDF-Seiten).
+
+## 38. Ordner verschieben und Notizbuch-Auswahl (Teilen-Ansicht)
+
+- **Ordner in andere Ordner/Notizbücher verschieben:** In der aufgeklappten Ordnerkarte gibt es jetzt die Schaltfläche „Verschieben …". Sie öffnet die Ordnerauswahl (`pickFolder`, `/` = Hauptregal) und ruft `FileManager.moveDirectory` auf. Verboten sind: in sich selbst oder einen Unterordner verschieben, und ein Ziel mit gleichem Namen (dann wird ein eindeutiger Name vergeben).
+- **Notizbuch-Auswahl für die zweite Hälfte der geteilten Ansicht** (`pick_notebook_dialog.dart`): Titel groß, Ordner klein und grau darunter; „Zuletzt geöffnet" steht oben; Ordner-Schnellfilter als Chips; Vorschaubild (dieselbe `.p`-Datei wie auf der Startseite, ggf. entschlüsselt), ersatzweise ein Buch-Symbol.

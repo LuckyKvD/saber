@@ -22,6 +22,7 @@ import 'package:saber/components/home/syncing_button.dart';
 import 'package:saber/components/shelf/cover_dialogs.dart';
 import 'package:saber/components/shelf/shelf_files.dart';
 import 'package:saber/components/import/saber_import_tile.dart';
+import 'package:saber/components/shelf/pick_folder_dialog.dart';
 import 'package:saber/components/shelf/shelf_tabs.dart';
 import 'package:saber/components/theming/saber_theme.dart';
 import 'package:saber/data/file_manager/file_manager.dart';
@@ -291,6 +292,32 @@ class _BrowsePageState extends State<BrowsePage> {
             deleteFolder: (String folderName) async {
               final folderPath = '${path ?? ''}/$folderName';
               await FileManager.deleteDirectory(folderPath);
+              findChildrenOfPath();
+            },
+            moveFolder: (String folderName) async {
+              final from = '${path ?? ''}/$folderName';
+              final target = await pickFolder(
+                context,
+                title: '„$folderName“ verschieben nach',
+                excludePath: from,
+              );
+              if (target == null || !mounted) return;
+              final base = target == '/' ? '' : target;
+              var newPath = '$base/$folderName';
+              var n = 2;
+              while (Directory(
+                FileManager.documentsDirectory + newPath,
+              ).existsSync()) {
+                newPath = '$base/$folderName $n';
+                n++;
+              }
+              final ok = await FileManager.moveDirectory(from, newPath);
+              if (!mounted) return;
+              if (!ok) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Verschieben nicht möglich.')),
+                );
+              }
               findChildrenOfPath();
             },
             folders: [
