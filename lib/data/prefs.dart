@@ -565,6 +565,14 @@ class Stows {
     volatile: !_isOnMainIsolate,
   );
 
+  /// Feder: JSON-Zuordnung Pfad -> Zeitstempel (ms) der Version, die zuletzt
+  /// mit dem Server abgeglichen war. Dient der Erkennung von Konflikten.
+  final fileSyncKnownMtimes = PlainStow(
+    'fileSyncKnownMtimes',
+    '',
+    volatile: !_isOnMainIsolate,
+  );
+
   /// File paths that are known to be corrupted on Nextcloud
   final fileSyncCorruptFiles = PlainStow(
     'fileSyncCorruptFiles',

@@ -40,6 +40,18 @@ class ShelfTabs extends StatelessWidget {
 
   bool _exists(String name) => folders.contains(name);
 
+  /// Feste Regale: stehen immer in der Leiste, werden beim ersten Antippen
+  /// angelegt und lassen sich nicht umbenennen oder löschen.
+  static const fixedShelves = ['Dienst', 'Privat'];
+
+  void _openFixed(String name) {
+    if (_exists(name)) {
+      onSelect(name);
+    } else {
+      createFolder(name);
+    }
+  }
+
   Future<void> _showMenu(BuildContext context, String folder) async {
     final choice = await showModalBottomSheet<String>(
       context: context,
@@ -150,10 +162,14 @@ class ShelfTabs extends StatelessWidget {
                           Navigator.of(sheetContext).pop();
                           onSelect(folder);
                         },
-                        onLongPress: () async {
-                          Navigator.of(sheetContext).pop();
-                          if (context.mounted) await _showMenu(context, folder);
-                        },
+                        onLongPress: fixedShelves.contains(folder)
+                            ? null
+                            : () async {
+                                Navigator.of(sheetContext).pop();
+                                if (context.mounted) {
+                                  await _showMenu(context, folder);
+                                }
+                              },
                       ),
                     _Tab(
                       label: 'Neues Regal',
@@ -196,7 +212,14 @@ class ShelfTabs extends StatelessWidget {
             selected: current == null,
             onTap: () => onSelect(null),
           ),
-          if (current != null)
+          for (final name in fixedShelves)
+            _Tab(
+              label: name,
+              icon: name == 'Dienst' ? Icons.work : Icons.home,
+              selected: current == name,
+              onTap: () => _openFixed(name),
+            ),
+          if (current != null && !fixedShelves.contains(current))
             ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 170),
               child: _Tab(

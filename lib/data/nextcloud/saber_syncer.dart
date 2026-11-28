@@ -12,6 +12,7 @@ import 'package:nextcloud/webdav.dart';
 import 'package:saber/data/file_manager/file_manager.dart';
 import 'package:saber/data/nextcloud/nextcloud_client_extension.dart';
 import 'package:saber/data/prefs.dart';
+import 'package:saber/pages/editor/editor.dart';
 
 final syncer = Syncer<SaberSyncInterface, SaberSyncFile, File, WebDavFile>(
   const SaberSyncInterface(),
@@ -55,6 +56,14 @@ class const SaberSyncInterface()
         case .remote:
           // Remote file is newer, do nothing
           break;
+      }
+      // Feder: Stand merken, solange beide Seiten übereinstimmen.
+      final remoteTime = syncFile.remoteFile?.lastModified;
+      if (remoteTime != null &&
+          KnownMtimes.get(syncFile.relativeLocalPath) == null &&
+          remoteTime.difference(syncFile.localFile.lastModifiedSync()).abs() <
+              const Duration(milliseconds: 500)) {
+        KnownMtimes.set(syncFile.relativeLocalPath, remoteTime);
       }
     }
     // Feder: Noch nicht gemeldete Löschungen erneut anstoßen (z. B. nach
@@ -218,6 +227,7 @@ class const SaberSyncInterface()
   }) async {
     if (encryptedBytes.isEmpty) {
       // Remote file was deleted
+      KnownMtimes.remove(file.relativeLocalPath);
       await FileManager.deleteFile(file.relativeLocalPath, alsoUpload: false);
       stows.fileSyncAlreadyDeleted.value.add(file.relativeLocalPath);
       stows.fileSyncAlreadyDeleted.notifyListeners();
@@ -240,14 +250,38 @@ class const SaberSyncInterface()
       log.severe('Entschlüsselung fehlgeschlagen für ${file.remotePath}', e, st);
       return;
     }
+    // Feder: Wurde die lokale Datei seit dem letzten Abgleich geändert,
+    // geht ihr Inhalt nicht verloren, sondern wird als Konfliktkopie
+    // gesichert, bevor die Server-Version sie ersetzt.
+    final rel = file.relativeLocalPath;
+    if (KnownMtimes.isNote(rel) && file.localFile.existsSync()) {
+      final known = KnownMtimes.get(rel);
+      if (KnownMtimes.differs(known, file.localFile.lastModifiedSync())) {
+        try {
+          final localBytes = await FileManager.readBytes(file.localFile);
+          if (localBytes.isNotEmpty) {
+            await FileManager.writeFile(
+              KnownMtimes.conflictPath(rel),
+              localBytes,
+              awaitWrite: true,
+            );
+            log.warning('Konflikt: lokale Änderungen von $rel als Kopie gesichert');
+          }
+        } catch (e, st) {
+          log.severe('Konfliktkopie fehlgeschlagen für $rel', e, st);
+        }
+      }
+    }
     await FileManager.writeFile(
-      file.relativeLocalPath,
+      rel,
       decryptedData,
       awaitWrite: awaitWrite,
       alsoUpload: false,
       // Local file should have the same last modified date as remote
       lastModified: file.remoteFile?.lastModified,
     );
+    final remoteTime = file.remoteFile?.lastModified;
+    if (remoteTime != null) KnownMtimes.set(rel, remoteTime);
   }
 
   @override
@@ -293,11 +327,48 @@ class const SaberSyncInterface()
     if (client == null)
       throw Exception('Tried to upload file without being logged in');
 
+    // Feder: Hat sich die Server-Version seit dem letzten Abgleich geändert
+    // (anderes Gerät), wird sie vor dem Überschreiben als Konfliktkopie
+    // gesichert.
+    final rel = file.relativeLocalPath;
+    if (encryptedBytes.isNotEmpty && KnownMtimes.isNote(rel)) {
+      try {
+        final known = KnownMtimes.get(rel);
+        final remoteNow = await _getWebDavFileUncached(file.remotePath);
+        if (remoteNow != null &&
+            (remoteNow.size ?? 0) > 0 &&
+            KnownMtimes.differs(known, remoteNow.lastModified)) {
+          final remoteBytes = await client.webdav.get(
+            PathUri.parse(file.remotePath),
+          );
+          final plain = await FederCrypto.decryptFile(
+            FederSession.masterKey,
+            remoteBytes,
+            path: _logicalPath(file),
+          );
+          if (plain.isNotEmpty) {
+            await FileManager.writeFile(
+              KnownMtimes.conflictPath(rel),
+              plain,
+              awaitWrite: true,
+            );
+            log.warning('Konflikt: Server-Version von $rel als Kopie gesichert');
+          }
+        }
+      } catch (e, st) {
+        log.severe('Konfliktprüfung vor dem Hochladen fehlgeschlagen', e, st);
+      }
+    }
     await client.webdav.put(
       encryptedBytes,
       PathUri.parse(file.remotePath),
       lastModified: lastModified,
     );
+    if (encryptedBytes.isNotEmpty) {
+      KnownMtimes.set(rel, lastModified);
+    } else {
+      KnownMtimes.remove(rel);
+    }
     // Feder: Löschung bzw. neue Version ist auf dem Server angekommen.
     if (stows.fileSyncPendingDeletes.value.remove(file.relativeLocalPath)) {
       stows.fileSyncPendingDeletes.notifyListeners();
@@ -595,3 +666,66 @@ extension SaberSyncerComponent on SyncerComponent {
 }
 
 enum BestFile { local, remote }
+
+/// Feder: Merkt sich pro Datei den Zeitstempel der zuletzt abgeglichenen
+/// Version. Weicht die lokale oder die Server-Datei davon ab, wurde sie seit
+/// dem letzten Abgleich geändert; ändern beide Seiten, ist es ein Konflikt.
+class KnownMtimes {
+  KnownMtimes._();
+
+  static Map<String, int>? _cache;
+
+  static Map<String, int> get _map {
+    var map = _cache;
+    if (map != null) return map;
+    map = <String, int>{};
+    try {
+      final raw = stows.fileSyncKnownMtimes.value;
+      if (raw.isNotEmpty) {
+        (jsonDecode(raw) as Map).forEach((k, v) => map![k as String] = v as int);
+      }
+    } catch (_) {}
+    return _cache = map;
+  }
+
+  static int? get(String relativePath) => _map[relativePath];
+
+  static void set(String relativePath, DateTime time) {
+    final ms = time.millisecondsSinceEpoch;
+    if (_map[relativePath] == ms) return;
+    _map[relativePath] = ms;
+    _save();
+  }
+
+  static void remove(String relativePath) {
+    if (_map.remove(relativePath) != null) _save();
+  }
+
+  static void _save() {
+    stows.fileSyncKnownMtimes.value = jsonEncode(_map);
+  }
+
+  /// Unterscheiden sich [time] und der gemerkte Stand um mehr als 1 s?
+  static bool differs(int? known, DateTime? time) {
+    if (known == null || time == null) return false;
+    return (time.millisecondsSinceEpoch - known).abs() > 1000;
+  }
+
+  /// Nur echte Notizen, keine Vorschaubilder (`.p`) o. Ä.
+  static bool isNote(String relativePath) =>
+      relativePath.endsWith(Editor.extension);
+
+  /// Name der Konfliktkopie, z. B. `/Regal/Notiz (Konflikt 2026-11-28 14.05).sbn2`.
+  static String conflictPath(String relativePath) {
+    final base = relativePath.substring(
+      0,
+      relativePath.length - Editor.extension.length,
+    );
+    final now = DateTime.now();
+    String two(int n) => n.toString().padLeft(2, '0');
+    final stamp =
+        '${now.year}-${two(now.month)}-${two(now.day)} '
+        '${two(now.hour)}.${two(now.minute)}';
+    return '$base (Konflikt $stamp)${Editor.extension}';
+  }
+}
