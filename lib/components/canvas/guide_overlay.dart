@@ -87,7 +87,12 @@ class _GuideOverlayState extends State<GuideOverlay> {
         Guides.moveBy(shape, Offset.zero, size);
       }
     } else if (_ids.length == 1) {
-      if (_rotating) {
+      if (_rotating && shape.kind == GuideKind.compass) {
+        // Zirkel: Griff stellt Radius und Richtung ein.
+        final d = now - shape.center;
+        shape.radiusCm = (d.distance / _ppc).clamp(1.0, 12.0).toDouble();
+        shape.rawAngle = d.direction;
+      } else if (_rotating) {
         final a0 = (prev - shape.center).direction;
         final a1 = (now - shape.center).direction;
         shape.rawAngle += _wrap(a1 - a0);
@@ -174,6 +179,176 @@ class _GuidePainter extends CustomPainter {
     if (ruler != null) _paintRuler(canvas, ruler, ppc);
     final protractor = Guides.protractor;
     if (protractor != null) _paintProtractor(canvas, protractor, ppc);
+    final triangle = Guides.triangle;
+    if (triangle != null) _paintTriangle(canvas, triangle, ppc);
+    final compass = Guides.compass;
+    if (compass != null) _paintCompass(canvas, compass, ppc);
+  }
+
+  static ui.Picture? _trianglePicture;
+  static double _trianglePpc = 0;
+
+  void _paintTriangle(Canvas canvas, GuideShape t, double ppc) {
+    if (_trianglePicture == null || _trianglePpc != ppc) {
+      _trianglePicture = _recordTriangle(ppc);
+      _trianglePpc = ppc;
+    }
+    canvas.save();
+    canvas.translate(t.center.dx, t.center.dy);
+    canvas.rotate(t.angle);
+    canvas.drawPicture(_trianglePicture!);
+    canvas.restore();
+  }
+
+  ui.Picture _recordTriangle(double ppc) {
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    final half = GuideShape.triangleHypCm * ppc / 2;
+    final h = GuideShape.triangleHeightCm * ppc;
+    final a = Offset(-half, 0);
+    final b = Offset(half, 0);
+    final apex = Offset(0, -h);
+
+    // Ausschnitt in der Mitte (verkleinertes Dreieck um den Inkreismittelpunkt).
+    final rIn = GuideShape.triangleInradiusCm;
+    final k = (rIn - 1.5) / rIn;
+    final c = Offset(0, -rIn * ppc);
+    Offset shrink(Offset v) => c + (v - c) * k;
+    final outer = Path()
+      ..moveTo(a.dx, a.dy)
+      ..lineTo(apex.dx, apex.dy)
+      ..lineTo(b.dx, b.dy)
+      ..close();
+    final inner = Path()
+      ..moveTo(shrink(a).dx, shrink(a).dy)
+      ..lineTo(shrink(apex).dx, shrink(apex).dy)
+      ..lineTo(shrink(b).dx, shrink(b).dy)
+      ..close();
+    final body = Path.combine(PathOperation.difference, outer, inner);
+    canvas.drawPath(body, Paint()..color = const Color(0x66FFD54F));
+    canvas.drawPath(
+      body,
+      Paint()
+        ..color = const Color(0xFF8D6E00)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
+
+    final tick = Paint()
+      ..color = _ink
+      ..strokeWidth = 1;
+    // Hypotenuse: cm-Skala 0 bis 16 (Striche nach oben in den Körper).
+    final mm = (GuideShape.triangleHypCm * 10).round();
+    for (var i = 0; i <= mm; i++) {
+      final x = -half + i * ppc / 10;
+      final tl = i % 10 == 0
+          ? ppc * 0.45
+          : i % 5 == 0
+          ? ppc * 0.3
+          : ppc * 0.18;
+      canvas.drawLine(Offset(x, 0), Offset(x, -tl), tick);
+      if (i % 10 == 0 && i > 0 && i < mm) {
+        final tp = TextPainter(
+          text: TextSpan(
+            text: '${i ~/ 10}',
+            style: TextStyle(color: _ink, fontSize: ppc * 0.38),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        tp.paint(canvas, Offset(x - tp.width / 2, -ppc * 0.5 - tp.height));
+      }
+    }
+    // Schenkel: cm-Skala ab der Spitze (rechter Winkel), Striche nach innen.
+    final legMm = (GuideShape.triangleHeightCm * math.sqrt2 * 10).floor();
+    final s2 = math.sqrt1_2;
+    for (final left in [true, false]) {
+      final d = Offset(left ? -s2 : s2, s2);
+      final n = Offset(left ? s2 : -s2, s2);
+      for (var i = 0; i <= legMm; i++) {
+        final tl = i % 10 == 0
+            ? ppc * 0.45
+            : i % 5 == 0
+            ? ppc * 0.3
+            : ppc * 0.18;
+        final pt = apex + d * (i * ppc / 10);
+        canvas.drawLine(pt, pt + n * tl, tick);
+      }
+    }
+    // Mittelmarke an der Hypotenuse und Drehgriff in der Mitte.
+    canvas.drawLine(Offset(0, 0), Offset(0, -ppc * 0.9), tick..strokeWidth = 1.5);
+    final hc = Offset(0, -rIn * ppc);
+    final hr = 1.0 * ppc;
+    canvas.drawCircle(hc, hr, Paint()..color = const Color(0x55FFFFFF));
+    final ring = Paint()
+      ..color = _ink
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5;
+    canvas.drawCircle(hc, hr, ring);
+    canvas.drawArc(
+      Rect.fromCircle(center: hc, radius: hr * 0.55),
+      -math.pi * 0.8,
+      math.pi * 1.5,
+      false,
+      ring,
+    );
+    return recorder.endRecording();
+  }
+
+  void _paintCompass(Canvas canvas, GuideShape cp, double ppc) {
+    final r = cp.radiusCm * ppc;
+    canvas.save();
+    canvas.translate(cp.center.dx, cp.center.dy);
+    canvas.rotate(cp.angle);
+    final line = Paint()
+      ..color = const Color(0xFF8D6E00)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+    // Kreis (zeigt, wo gezeichnet würde) und Schenkel von der Spitze zum Griff.
+    canvas.drawCircle(Offset.zero, r, line..color = const Color(0x998D6E00));
+    canvas.drawLine(Offset.zero, Offset(r, 0), line..color = const Color(0xFF8D6E00));
+    canvas.drawCircle(Offset.zero, ppc * 0.25, Paint()..color = _ink);
+    final tick = Paint()
+      ..color = _ink
+      ..strokeWidth = 1;
+    for (var i = 0; i <= (cp.radiusCm * 10).floor(); i++) {
+      final x = i * ppc / 10;
+      final tl = i % 10 == 0
+          ? ppc * 0.4
+          : i % 5 == 0
+          ? ppc * 0.28
+          : ppc * 0.16;
+      canvas.drawLine(Offset(x, 0), Offset(x, -tl), tick);
+    }
+    final hr = 0.9 * ppc;
+    final hc = Offset(r, 0);
+    canvas.drawCircle(hc, hr, Paint()..color = const Color(0x88FFFFFF));
+    final ring = Paint()
+      ..color = _ink
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5;
+    canvas.drawCircle(hc, hr, ring);
+    canvas.drawArc(
+      Rect.fromCircle(center: hc, radius: hr * 0.55),
+      -math.pi * 0.8,
+      math.pi * 1.5,
+      false,
+      ring,
+    );
+    // Radiusanzeige, nie kopfüber.
+    if (math.cos(cp.angle) < 0) canvas.rotate(math.pi);
+    final label = TextPainter(
+      text: TextSpan(
+        text: 'r = ${cp.radiusCm.toStringAsFixed(1).replaceAll('.', ',')} cm',
+        style: TextStyle(
+          color: _ink,
+          fontSize: ppc * 0.7,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    label.paint(canvas, Offset(-label.width / 2, ppc * 0.5));
+    canvas.restore();
   }
 
   void _paintRuler(Canvas canvas, GuideShape ruler, double ppc) {

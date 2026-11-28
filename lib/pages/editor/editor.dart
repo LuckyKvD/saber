@@ -325,23 +325,23 @@ class EditorState extends State<Editor> {
     return current;
   }
 
-  void _toggleRuler() {
+  void _toggleGuide(GuideKind kind) {
     _prepareGuides();
     final target = _guideTargetPage();
     _guideSyncPage = target;
     final index = target.clamp(0, coreInfo.pages.length - 1);
+    final size = coreInfo.pages[index].size;
     setState(() {
-      Guides.toggleRuler(coreInfo, index, coreInfo.pages[index].size);
-    });
-  }
-
-  void _toggleProtractor() {
-    _prepareGuides();
-    final target = _guideTargetPage();
-    _guideSyncPage = target;
-    final index = target.clamp(0, coreInfo.pages.length - 1);
-    setState(() {
-      Guides.cycleProtractor(coreInfo, index, coreInfo.pages[index].size);
+      switch (kind) {
+        case GuideKind.ruler:
+          Guides.toggleRuler(coreInfo, index, size);
+        case GuideKind.protractor:
+          Guides.cycleProtractor(coreInfo, index, size);
+        case GuideKind.triangle:
+          Guides.toggleTriangle(coreInfo, index, size);
+        case GuideKind.compass:
+          Guides.toggleCompass(coreInfo, index, size);
+      }
     });
   }
 
@@ -3616,12 +3616,7 @@ class EditorState extends State<Editor> {
           },
           pickPhoto: _pickPhotos,
           toggleWritingPad: _toggleWritingPad,
-          toggleRuler: _toggleRuler,
-          rulerVisible: Guides.ruler != null,
-          toggleProtractor: _toggleProtractor,
-          protractorMode: Guides.protractor == null
-              ? 0
-              : (Guides.protractor!.full ? 2 : 1),
+          toggleGuide: _toggleGuide,
           writingPadVisible: showWritingPad,
           paste: paste,
           exportAsSba: exportAsSba,

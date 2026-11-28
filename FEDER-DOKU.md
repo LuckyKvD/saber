@@ -353,3 +353,9 @@ Im Textmodus gibt es in der Leiste neben „Textfeld hinzufügen" ein Wolken-Sym
 - Tipp-Blättern merkt sich die Zielseite des letzten Blätterns, solange die Ansicht unverändert ist (gegen Rückwärts-Sprünge).
 - PDF-Seiten werden mit höchstens 170 dpi gerendert (vorher 300 dpi).
 - Schnelles Tippen während einer Blätteranimation wird vorgemerkt (höchstens 3) statt verschluckt.
+
+## 37. Geodreieck, Zirkel und Hilfsmittel-Menü
+- Ein Werkzeugleisten-Symbol „Zeichenhilfen" öffnet ein Menü: Lineal, Winkelmesser (Halbkreis/Vollkreis), Geodreieck, Zirkel. Mehrere können gleichzeitig sichtbar sein.
+- Geodreieck: gleichschenklig-rechtwinklig (Hypotenuse 16 cm), cm-Skala an allen Kanten, Griff in der Mitte zum Drehen; Stifte rasten an allen drei Kanten ein.
+- Zirkel: Nadelspitze verschieben, Griff am Kreisrand stellt Radius (1–12 cm) und Richtung ein; der Stift rastet auf dem Kreis ein.
+- Maße gehen von 21 cm Seitenbreite aus (wie beim Lineal).
