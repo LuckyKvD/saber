@@ -68,8 +68,11 @@ sealed class EditorImage extends ChangeNotifier {
   /// Vom Editor gesetzt: Ziel für dieses Bild per Antippen wählen.
   static void Function(EditorImage image)? targetHandler;
 
-  /// Feder-Tagebuch: Platz (ab 0) in der Bilderreihe am unteren Seitenrand.
-  /// Pro Reihe [rowColumns] Bilder, weitere Reihen stehen darüber.
+  /// Feder-Tagebuch: Das Bild gehört zur Fotoleiste am unteren Seitenrand
+  /// (wird gespeichert, ordnet sich selbst neu an).
+  bool inStrip = false;
+
+  /// Nur für die erste Platzierung: Platz (ab 0) in der Leiste.
   int? rowSlot;
 
   static const rowColumns = 5;
@@ -80,14 +83,31 @@ sealed class EditorImage extends ChangeNotifier {
   static double rowSlotWidth(Size ps) =>
       (ps.width - 2 * rowMargin - rowGap * (rowColumns - 1)) / rowColumns;
 
-  /// Oberkante des Streifens, in dem die unterste Reihe liegt.
-  static double rowBandTop(Size ps) =>
-      ps.height - rowMargin - rowSlotWidth(ps) * rowHeightFactor;
+  /// Rechteck für Platz [slot] einer Bildgröße [size] (Seitenverhältnis).
+  static Rect stripRect(int slot, Size ps, Size size) {
+    final slotW = rowSlotWidth(ps);
+    final maxH = slotW * rowHeightFactor;
+    final ratio = size.width / size.height;
+    final w = min(slotW, maxH * ratio).toDouble();
+    final h = w / ratio;
+    final col = slot % rowColumns;
+    final row = slot ~/ rowColumns;
+    final left = rowMargin + col * (slotW + rowGap) + (slotW - w) / 2;
+    final bottom = ps.height - rowMargin - row * (maxH + rowGap);
+    return Rect.fromLTWH(left, bottom - h, w, h);
+  }
 
-  /// Wie viele der [images] liegen schon in der untersten Reihe?
-  static int countInRowBand(Iterable<EditorImage> images, Size ps) {
-    final top = rowBandTop(ps) - 4;
-    return images.where((i) => i.dstRect.top >= top).length;
+  /// Ordnet alle Leistenbilder der Seite lückenlos neu an.
+  static void layoutStrip(Iterable<EditorImage> pageImages, Size ps) {
+    if (!ps.isFinite) return;
+    final strip = pageImages.where((i) => i.inStrip).toList()
+      ..sort((a, b) => a.id.compareTo(b.id));
+    for (var i = 0; i < strip.length; i++) {
+      final image = strip[i];
+      final r = image.dstRect;
+      if (r.width <= 0 || r.height <= 0) continue;
+      image.dstRect = stripRect(i, ps, r.size);
+    }
   }
 
   /// Rechteck für die erste Platzierung: um [centerHint] herum, sonst oben links.
@@ -95,19 +115,7 @@ sealed class EditorImage extends ChangeNotifier {
     final slot = rowSlot;
     final psRow = pageSize;
     if (slot != null && psRow != null && psRow.isFinite) {
-      final slotW = rowSlotWidth(psRow);
-      final maxH = slotW * rowHeightFactor;
-      final scale = min(
-        1.0,
-        min(slotW / size.width, maxH / size.height),
-      ).toDouble();
-      final w = size.width * scale;
-      final h = size.height * scale;
-      final col = slot % rowColumns;
-      final row = slot ~/ rowColumns;
-      final left = rowMargin + col * (slotW + rowGap) + (slotW - w) / 2;
-      final bottom = psRow.height - rowMargin - row * (maxH + rowGap);
-      return Rect.fromLTWH(left, bottom - h, w, h);
+      return stripRect(slot, psRow, size);
     }
     final hint = centerHint;
     if (hint == null) return dstRect.topLeft & size;
@@ -221,6 +229,7 @@ sealed class EditorImage extends ChangeNotifier {
       );
     }
     image.angle = (json['r'] as num?)?.toDouble() ?? 0;
+    image.inStrip = json['sr'] == 1;
     return image;
   }
 
@@ -265,6 +274,7 @@ sealed class EditorImage extends ChangeNotifier {
     'id': id,
     'e': extension,
     'i': pageIndex,
+    if (inStrip) 'sr': 1,
     'v': invertible,
     'f': backgroundFit.index,
     'x': dstRect.left,

@@ -13,6 +13,7 @@ import 'package:saber/components/canvas/image/editor_image.dart';
 import 'package:saber/components/canvas/text_box_widget.dart';
 import 'package:saber/data/editor/editor_core_info.dart';
 import 'package:saber/data/extensions/color_extensions.dart';
+import 'package:saber/data/diary.dart';
 import 'package:saber/data/prefs.dart';
 import 'package:saber/data/tools/select.dart';
 import 'package:sbn/canvas_background_pattern.dart';
@@ -167,6 +168,39 @@ class _InnerCanvasState extends State<InnerCanvas> {
           child: DeferredPointerHandler(
             child: Stack(
               children: [
+                // Feder-Tagebuch: Beschriftung über der Fotoleiste.
+                if (Diary.isDiaryPath(widget.coreInfo.filePath) &&
+                    page.images.any((i) => i.inStrip))
+                  Positioned(
+                    left: EditorImage.rowMargin,
+                    right: EditorImage.rowMargin,
+                    top: page.images
+                            .where((i) => i.inStrip)
+                            .map((i) => i.dstRect.top)
+                            .reduce((a, b) => a < b ? a : b) -
+                        22,
+                    height: 18,
+                    child: IgnorePointer(
+                      child: Row(
+                        children: [
+                          Text(
+                            'Fotos',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: primaryColor.withValues(alpha: 0.6),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Divider(
+                              height: 1,
+                              color: primaryColor.withValues(alpha: 0.35),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 if (page.backgroundImage != null)
                   CanvasImage(
                     filePath: widget.coreInfo.filePath,

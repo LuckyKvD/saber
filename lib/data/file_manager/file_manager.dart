@@ -471,6 +471,24 @@ class FileManager {
     stows.fileSyncPendingDeletes.notifyListeners();
   }
 
+  /// Feder-Rücksicherung: schreibt Rohbytes (genau so, wie sie auf dem Gerät
+  /// liegen, also ggf. schon lokal verschlüsselt) an [relativePath] und stößt
+  /// den Abgleich mit der Nextcloud an.
+  static Future<void> restoreRawFile(
+    String relativePath,
+    List<int> bytes,
+  ) async {
+    if (!relativePath.startsWith('/')) relativePath = '/$relativePath';
+    relativePath = _sanitisePath(relativePath);
+    final file = getFile(relativePath);
+    await _createFileDirectory(relativePath);
+    await file.writeAsBytes(bytes);
+    stows.fileSyncAlreadyDeleted.value.remove(relativePath);
+    stows.fileSyncPendingDeletes.value.remove(relativePath);
+    broadcastFileWrite(FileOperationType.write, relativePath);
+    syncer.uploader.enqueueRel(relativePath);
+  }
+
   static Future deleteFile(
     String filePath, {
     bool alsoUpload = true,

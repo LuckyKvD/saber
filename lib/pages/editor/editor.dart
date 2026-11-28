@@ -1428,7 +1428,9 @@ class EditorState extends State<Editor> {
   void onDeleteImage(EditorImage image) {
     history.recordChange(HistoricDelete(strokes: [], images: [image]));
     setState(() {
-      coreInfo.pages[image.pageIndex].images.remove(image);
+      final page = coreInfo.pages[image.pageIndex];
+      page.images.remove(image);
+      if (image.inStrip) EditorImage.layoutStrip(page.images, page.size);
     });
     autosaveAfterDelay();
   }
@@ -1673,23 +1675,18 @@ class EditorState extends State<Editor> {
     final newName = filenameTextEditingController.text.trim();
     if (newName == coreInfo.fileName) return;
 
-    // Feder-Tagebuch: Der Titel ist das Datum. Ein gültiges Datum verschiebt
-    // den Eintrag an den passenden Tag; alles andere wird zurückgesetzt.
+    // Feder-Tagebuch: Der Titel beginnt mit dem Datum (TT.MM.JJJJ oder
+    // JJJJ-MM-TT), danach darf eine Beschriftung folgen. Der Eintrag wird
+    // an den passenden Tag verschoben; ungültige Eingaben werden zurückgesetzt.
     if (Diary.isDiaryPath(coreInfo.filePath)) {
-      final day = Diary.dayFromName(newName);
-      if (day != null && !Diary.exists(day)) {
-        final oldPath = coreInfo.filePath;
-        final newPath = await FileManager.moveFile(
-          oldPath + Editor.extension,
-          Diary.pathFor(day) + Editor.extension,
+      final parsed = Diary.parseName(newName);
+      if (parsed != null &&
+          FileManager.validateFilename(Diary.baseName(newName)) == null) {
+        coreInfo.filePath = await Diary.moveEntry(
+          coreInfo.filePath,
+          parsed.day,
+          parsed.rest,
         );
-        coreInfo.filePath = newPath.substring(
-          0,
-          newPath.lastIndexOf(Editor.extension),
-        );
-        if (FileManager.doesFileExist('$oldPath.ort')) {
-          await FileManager.moveFile('$oldPath.ort', '${Diary.pathFor(day)}.ort');
-        }
         needsNaming = false;
       }
       final actual = coreInfo.fileName;
@@ -2826,16 +2823,17 @@ class EditorState extends State<Editor> {
       }
     }
 
-    // Feder-Tagebuch: Fotos stehen in einer Reihe am unteren Seitenrand.
+    // Feder-Tagebuch: Fotos kommen in die Fotoleiste am unteren Seitenrand.
     if (Diary.isDiaryPath(coreInfo.filePath) && images.isNotEmpty) {
       final ps = coreInfo.pages[currentPageIndex].size;
       if (ps.isFinite) {
-        var slot = EditorImage.countInRowBand(
-          coreInfo.pages[currentPageIndex].images,
-          ps,
-        );
+        var slot = coreInfo.pages[currentPageIndex].images
+            .where((i) => i.inStrip)
+            .length;
         for (final image in images) {
-          image.rowSlot = slot++;
+          image
+            ..inStrip = true
+            ..rowSlot = slot++;
         }
       }
     }
@@ -3765,9 +3763,6 @@ class EditorState extends State<Editor> {
                           ),
                           controller: filenameTextEditingController,
                           onChanged: renameFile,
-                          readOnly:
-                              Diary.isDiaryPath(coreInfo.filePath) &&
-                              Diary.dayFromName(coreInfo.fileName) != null,
                           autofocus: needsNaming,
                           validator: _validateFilenameTextField,
                         ),

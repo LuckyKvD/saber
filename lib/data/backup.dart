@@ -70,4 +70,44 @@ abstract class Backup {
     await encoder.close();
     return count;
   }
+
+  /// Spielt eine Sicherung ein.
+  ///
+  /// [replaceExisting] = false: nur Dateien, die lokal fehlen.
+  /// [replaceExisting] = true: alle Dateien aus der Sicherung; vorhandene
+  /// werden überschrieben (vorher wird automatisch eine Sicherung erstellt).
+  static Future<({int restored, int skipped})> restore(
+    File zipFile, {
+    required bool replaceExisting,
+  }) async {
+    if (replaceExisting) await create();
+
+    final input = InputFileStream(zipFile.path);
+    var restored = 0;
+    var skipped = 0;
+    try {
+      final archive = ZipDecoder().decodeStream(input);
+      for (final entry in archive) {
+        if (!entry.isFile) continue;
+        final name = entry.name.replaceAll('\\', '/');
+        // Pfad-Tricks ausschließen.
+        if (name.startsWith('/') ||
+            name.split('/').any((part) => part == '..' || part.isEmpty)) {
+          skipped++;
+          continue;
+        }
+        final relative = '/$name';
+        if (!replaceExisting && FileManager.getFile(relative).existsSync()) {
+          skipped++;
+          continue;
+        }
+        final bytes = entry.content as List<int>;
+        await FileManager.restoreRawFile(relative, bytes);
+        restored++;
+      }
+    } finally {
+      await input.close();
+    }
+    return (restored: restored, skipped: skipped);
+  }
 }

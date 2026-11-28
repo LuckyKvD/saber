@@ -65,25 +65,41 @@ abstract class Diary {
 
   static bool isDiaryPath(String filePath) => filePath.startsWith('$root/');
 
-  /// Liest ein Datum aus einem Dateinamen: `2026-11-28` oder `28.11.2026`.
-  static DateTime? dayFromName(String name) {
-    var m = RegExp(r'^(\d{4})-(\d{1,2})-(\d{1,2})$').firstMatch(name.trim());
-    int? y, mo, d;
+  /// Liest `2026-11-28`, `2026-11-28 Text` oder `28.11.2026 Text` aus einem
+  /// Dateinamen. [rest] ist der Text nach dem Datum (mit führendem Leerzeichen
+  /// oder leer).
+  static ({DateTime day, String rest})? parseName(String name) {
+    name = name.trim();
+    var m = RegExp(r'^(\d{4})-(\d{1,2})-(\d{1,2})(\s.*)?$').firstMatch(name);
+    int y, mo, d;
+    String? rest;
     if (m != null) {
       y = int.parse(m.group(1)!);
       mo = int.parse(m.group(2)!);
       d = int.parse(m.group(3)!);
+      rest = m.group(4);
     } else {
-      m = RegExp(r'^(\d{1,2})\.(\d{1,2})\.(\d{4})$').firstMatch(name.trim());
+      m = RegExp(r'^(\d{1,2})\.(\d{1,2})\.(\d{4})(\s.*)?$').firstMatch(name);
       if (m == null) return null;
       d = int.parse(m.group(1)!);
       mo = int.parse(m.group(2)!);
       y = int.parse(m.group(3)!);
+      rest = m.group(4);
     }
     final date = DateTime(y, mo, d);
     if (date.year != y || date.month != mo || date.day != d) return null;
-    return date;
+    final text = (rest ?? '').trim();
+    return (day: date, rest: text.isEmpty ? '' : ' $text');
   }
+
+  static DateTime? dayFromName(String name) => parseName(name)?.day;
+
+  /// Dateiname (ohne Endung) für Tag und Beschriftung.
+  static String pathForNamed(DateTime day, String rest) =>
+      '${pathFor(day)}$rest';
+
+  static String baseName(String path) =>
+      path.substring(path.lastIndexOf('/') + 1);
 
   /// Einträge unter `/Tagebuch`, deren Name kein Datum ist (z. B. nach dem
   /// Umbenennen). Sie lassen sich im Editor per Titel wieder auf ein Datum
@@ -100,19 +116,19 @@ abstract class Diary {
       ..sort();
   }
 
-  /// Tage (1–31) des Monats, für die ein Eintrag existiert.
-  static Future<Set<int>> daysWithEntries(int year, int month) async {
-    final children = await FileManager.getChildrenOfDirectory(
-      monthDir(year, month),
-    );
-    final days = <int>{};
-    final pattern = RegExp(r'(\d{4})-(\d{2})-(\d{2})$');
+  /// Alle Einträge (Pfad ohne Endung) des Monats, sortiert nach Name.
+  static Future<List<String>> entriesInMonth(int year, int month) async {
+    final dir = monthDir(year, month);
+    final children = await FileManager.getChildrenOfDirectory(dir);
+    final result = <String>[];
     for (final file in children?.files ?? const <String>[]) {
-      final m = pattern.firstMatch(file);
-      if (m == null) continue;
-      days.add(int.parse(m.group(3)!));
+      final name = file.substring(file.lastIndexOf('/') + 1);
+      final day = dayFromName(name);
+      if (day == null || day.year != year || day.month != month) continue;
+      result.add(file.startsWith('/') ? file : '$dir/$file');
     }
-    return days;
+    result.sort();
+    return result;
   }
 
   /// Fragt (falls nötig) die Berechtigung und liefert den aktuellen Ort,
@@ -146,26 +162,31 @@ abstract class Diary {
       );
       final day = dayFromName(base);
       if (day == null) continue;
-      final loc = await readLocation(day);
+      final loc = await readLocation(
+        entity.path.substring(
+          FileManager.documentsDirectory.length,
+          entity.path.length - 4,
+        ),
+      );
       if (loc != null) result.add((day, loc));
     }
     result.sort((a, b) => a.$1.compareTo(b.$1));
     return result;
   }
 
-  static String _locPath(DateTime day) => '${pathFor(day)}.ort';
+  static String _locPath(String basePath) => '$basePath.ort';
 
-  static Future<void> saveLocation(DateTime day, DiaryLocation loc) async {
-    if (FileManager.doesFileExist(_locPath(day))) return;
+  static Future<void> saveLocation(String basePath, DiaryLocation loc) async {
+    if (FileManager.doesFileExist(_locPath(basePath))) return;
     await FileManager.writeFile(
-      _locPath(day),
+      _locPath(basePath),
       utf8.encode(jsonEncode(loc.toJson())),
       awaitWrite: true,
     );
   }
 
-  static Future<DiaryLocation?> readLocation(DateTime day) async {
-    final path = _locPath(day);
+  static Future<DiaryLocation?> readLocation(String basePath) async {
+    final path = _locPath(basePath);
     if (!FileManager.doesFileExist(path)) return null;
     try {
       final bytes = await FileManager.readBytes(FileManager.getFile(path));
@@ -175,6 +196,34 @@ abstract class Diary {
     } catch (e) {
       _log.warning('Ort nicht lesbar: $e');
       return null;
+    }
+  }
+
+  /// Verschiebt einen Eintrag (samt Ort) auf [day] mit Beschriftung [rest].
+  /// Gibt den neuen Pfad (ohne Endung) zurück.
+  static Future<String> moveEntry(
+    String oldPath,
+    DateTime day,
+    String rest,
+  ) async {
+    final target = pathForNamed(day, rest);
+    if (target == oldPath) return oldPath;
+    final moved = await FileManager.moveFile(
+      oldPath + Editor.extension,
+      target + Editor.extension,
+    );
+    final newPath = moved.substring(0, moved.lastIndexOf(Editor.extension));
+    if (FileManager.doesFileExist(_locPath(oldPath))) {
+      await FileManager.moveFile(_locPath(oldPath), _locPath(newPath));
+    }
+    return newPath;
+  }
+
+  /// Löscht einen Eintrag samt Ort, Vorschau und Bildern.
+  static Future<void> deleteEntry(String path) async {
+    await FileManager.deleteFile(path + Editor.extension);
+    if (FileManager.doesFileExist(_locPath(path))) {
+      await FileManager.deleteFile(_locPath(path));
     }
   }
 }

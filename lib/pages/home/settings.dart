@@ -28,6 +28,7 @@ import 'package:saber/components/theming/adaptive_alert_dialog.dart';
 import 'package:saber/components/theming/adaptive_toggle_buttons.dart';
 import 'package:saber/components/theming/saber_theme.dart';
 import 'package:saber/components/theming/uni_icon.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:saber/data/backup.dart';
 import 'package:saber/data/file_manager/file_manager.dart';
 import 'package:saber/data/flavor_config.dart';
@@ -761,6 +762,15 @@ class _SettingsPageState extends State<SettingsPage> {
                   },
                 ),
                 SettingsButton(
+                  title: 'Sicherung einspielen',
+                  subtitle:
+                      'Stellt Notizen und Tagebuch aus einer ZIP-Sicherung '
+                      'wieder her. Du wählst, ob nur Fehlendes ergänzt oder '
+                      'alles ersetzt wird.',
+                  icon: Icons.settings_backup_restore,
+                  onPressed: () => _restoreBackup(context),
+                ),
+                SettingsButton(
                   title: 'Blätter-Protokoll als Datei teilen',
                   subtitle:
                       'Nur Blätter-Zeilen, ohne Notiznamen. In Downloads '
@@ -801,5 +811,69 @@ class _SettingsPageState extends State<SettingsPage> {
     stows.locale.removeListener(onChanged);
     UpdateManager.status.removeListener(onChanged);
     super.dispose();
+  }
+}
+
+/// Feder: Sicherung auswählen, Modus abfragen, einspielen.
+Future<void> _restoreBackup(BuildContext context) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final picked = await FilePicker.pickFiles(type: FileType.any);
+  final path = picked?.files.single.path;
+  if (path == null || !context.mounted) return;
+  if (!path.toLowerCase().endsWith('.zip')) {
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Bitte eine ZIP-Sicherung auswählen.')),
+    );
+    return;
+  }
+  final mode = await showDialog<String>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: const Text('Sicherung einspielen'),
+      content: const Text(
+        'Nur Fehlendes ergänzen: vorhandene Dateien bleiben unverändert.\n\n'
+        'Alles ersetzen: Dateien aus der Sicherung überschreiben vorhandene '
+        'mit gleichem Namen. Vorher wird automatisch eine neue Sicherung des '
+        'jetzigen Stands erstellt.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(),
+          child: const Text('Abbrechen'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop('missing'),
+          child: const Text('Nur Fehlendes'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop('all'),
+          child: const Text('Alles ersetzen'),
+        ),
+      ],
+    ),
+  );
+  if (mode == null) return;
+  messenger.showSnackBar(
+    const SnackBar(content: Text('Sicherung wird eingespielt …')),
+  );
+  try {
+    final result = await Backup.restore(
+      File(path),
+      replaceExisting: mode == 'all',
+    );
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          '${result.restored} Dateien wiederhergestellt, '
+          '${result.skipped} übersprungen.',
+        ),
+      ),
+    );
+  } catch (e) {
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(content: Text('Einspielen fehlgeschlagen: $e')),
+    );
   }
 }

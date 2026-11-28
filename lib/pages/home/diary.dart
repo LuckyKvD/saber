@@ -36,9 +36,9 @@ class _DiaryPageState extends State<DiaryPage> {
   static const _weekdays = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 
   late DateTime month = DateTime(DateTime.now().year, DateTime.now().month);
-  Set<int> days = {};
+  List<String> entries = []; // Pfade ohne Endung
   List<String> strays = [];
-  Map<int, DiaryLocation?> locations = {};
+  Map<String, DiaryLocation?> locations = {};
   StreamSubscription<FileOperation>? _sub;
 
   @override
@@ -56,18 +56,22 @@ class _DiaryPageState extends State<DiaryPage> {
     super.dispose();
   }
 
+  Set<int> get days => {
+    for (final e in entries) ?Diary.dayFromName(Diary.baseName(e))?.day,
+  };
+
   Future<void> _reload() async {
     final shown = month;
-    final found = await Diary.daysWithEntries(shown.year, shown.month);
-    final locs = <int, DiaryLocation?>{};
-    for (final d in found) {
-      locs[d] = await Diary.readLocation(DateTime(shown.year, shown.month, d));
+    final found = await Diary.entriesInMonth(shown.year, shown.month);
+    final locs = <String, DiaryLocation?>{};
+    for (final e in found) {
+      locs[e] = await Diary.readLocation(e);
     }
     final stray = await Diary.strayEntries();
     if (!mounted || shown != month) return;
     setState(() {
       strays = stray;
-      days = found;
+      entries = found;
       locations = locs;
     });
   }
@@ -75,7 +79,7 @@ class _DiaryPageState extends State<DiaryPage> {
   void _shift(int delta) {
     setState(() {
       month = DateTime(month.year, month.month + delta);
-      days = {};
+      entries = [];
       locations = {};
     });
     _reload();
@@ -92,25 +96,176 @@ class _DiaryPageState extends State<DiaryPage> {
     if (picked == null) return;
     setState(() {
       month = DateTime(picked.year, picked.month);
-      days = {};
+      entries = [];
       locations = {};
     });
     _reload();
   }
 
-  Future<void> _open(DateTime day) async {
-    final isNew = !Diary.exists(day);
+  List<String> _entriesOf(DateTime day) => [
+    for (final e in entries)
+      if (Diary.dayFromName(Diary.baseName(e)) == day) e,
+  ];
+
+  /// Tag antippen: kein Eintrag = neuer Eintrag, einer = öffnen, mehrere =
+  /// Auswahl.
+  Future<void> _openDay(DateTime day) async {
+    final list = _entriesOf(day);
+    if (list.isEmpty) return _openNew(day);
+    if (list.length == 1) return _openEntry(list.first);
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final e in list)
+              ListTile(
+                leading: const Icon(Icons.menu_book),
+                title: Text(Diary.baseName(e)),
+                onTap: () => Navigator.of(sheetContext).pop(e),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (choice != null) await _openEntry(choice);
+  }
+
+  Future<void> _openEntry(String path) async {
+    await context.push(RoutePaths.editFilePath(path));
+    if (mounted) _reload();
+  }
+
+  Future<void> _openNew(DateTime day) async {
+    final path = Diary.pathFor(day);
     // Ort nur für heute: beim Nachtragen wäre er falsch.
-    final Future<DiaryLocation?>? location = isNew && Diary.isToday(day)
+    final Future<DiaryLocation?>? location = Diary.isToday(day)
         ? Diary.captureLocation()
         : null;
-    await context.push(RoutePaths.editFilePath(Diary.pathFor(day)));
-    if (isNew && location != null && Diary.exists(day)) {
+    await context.push(RoutePaths.editFilePath(path));
+    if (location != null &&
+        FileManager.doesFileExist('$path${Editor.extension}')) {
       final loc = await location;
-      if (loc != null) await Diary.saveLocation(day, loc);
+      if (loc != null) await Diary.saveLocation(path, loc);
     }
     if (mounted) _reload();
   }
+
+  Future<void> _entryMenu(String path) async {
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: Text(
+                Diary.baseName(path),
+                style: Theme.of(sheetContext).textTheme.titleMedium,
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.edit),
+              title: const Text('Beschriftung ändern'),
+              onTap: () => Navigator.of(sheetContext).pop('label'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.event),
+              title: const Text('Auf anderes Datum verschieben'),
+              onTap: () => Navigator.of(sheetContext).pop('date'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_forever),
+              title: const Text('Eintrag löschen'),
+              onTap: () => Navigator.of(sheetContext).pop('delete'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || choice == null) return;
+    final parsed = Diary.parseName(Diary.baseName(path));
+    switch (choice) {
+      case 'label':
+        final text = await _askText(
+          'Beschriftung',
+          (parsed?.rest ?? '').trim(),
+        );
+        if (text == null || parsed == null) return;
+        final rest = text.trim().isEmpty ? '' : ' ${text.trim()}';
+        if (FileManager.validateFilename(Diary.baseName(Diary.pathForNamed(parsed.day, rest))) != null) {
+          _snack('Diese Beschriftung enthält ungültige Zeichen.');
+          return;
+        }
+        await Diary.moveEntry(path, parsed.day, rest);
+      case 'date':
+        final picked = await showDatePicker(
+          context: context,
+          initialDate: parsed?.day ?? DateTime.now(),
+          firstDate: DateTime(2000),
+          lastDate: DateTime(DateTime.now().year + 5),
+          helpText: 'Neues Datum',
+        );
+        if (picked == null) return;
+        await Diary.moveEntry(
+          path,
+          DateTime(picked.year, picked.month, picked.day),
+          parsed?.rest ?? '',
+        );
+      case 'delete':
+        final ok = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Eintrag löschen?'),
+            content: Text(
+              '„${Diary.baseName(path)}“ wird samt Bildern und Ort gelöscht. '
+              'Das lässt sich nicht rückgängig machen (außer über eine '
+              'Sicherung).',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text('Abbrechen'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: const Text('Löschen'),
+              ),
+            ],
+          ),
+        );
+        if (ok != true) return;
+        await Diary.deleteEntry(path);
+    }
+    if (mounted) _reload();
+  }
+
+  Future<String?> _askText(String title, String initial) {
+    final controller = TextEditingController(text: initial);
+    return showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(title),
+        content: TextField(controller: controller, autofocus: true),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Abbrechen'),
+          ),
+          TextButton(
+            onPressed: () =>
+                Navigator.of(dialogContext).pop(controller.text),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _snack(String text) => ScaffoldMessenger.of(
+    context,
+  ).showSnackBar(SnackBar(content: Text(text)));
 
   @override
   Widget build(BuildContext context) {
@@ -121,11 +276,11 @@ class _DiaryPageState extends State<DiaryPage> {
     final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
     final cells = firstWeekday - 1 + daysInMonth;
     final rows = (cells / 7).ceil();
-    final entryDays = days.toList()..sort((a, b) => b.compareTo(a));
 
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _open(DateTime(today.year, today.month, today.day)),
+        onPressed: () =>
+            _openDay(DateTime(today.year, today.month, today.day)),
         icon: const Icon(Icons.edit),
         label: const Text('Heute schreiben'),
       ),
@@ -192,12 +347,12 @@ class _DiaryPageState extends State<DiaryPage> {
                 ],
               ),
             const Divider(height: 24),
-            if (entryDays.isEmpty)
+            if (entries.isEmpty)
               const Padding(
                 padding: EdgeInsets.all(24),
                 child: Center(child: Text('Keine Einträge in diesem Monat')),
               ),
-            for (final d in entryDays) _entryTile(DateTime(month.year, month.month, d)),
+            for (final e in entries.reversed) _entryTile(e),
             if (strays.isNotEmpty) ...[
               const Divider(height: 24),
               const Padding(
@@ -212,10 +367,8 @@ class _DiaryPageState extends State<DiaryPage> {
                   leading: const Icon(Icons.help_outline),
                   title: Text(path.substring(path.lastIndexOf('/') + 1)),
                   subtitle: Text(path.substring(1)),
-                  onTap: () async {
-                    await context.push(RoutePaths.editFilePath(path));
-                    if (mounted) _reload();
-                  },
+                  onTap: () => _openEntry(path),
+                  onLongPress: () => _entryMenu(path),
                 ),
             ],
           ],
@@ -231,7 +384,7 @@ class _DiaryPageState extends State<DiaryPage> {
     final isToday = Diary.isToday(date);
     return InkWell(
       borderRadius: BorderRadius.circular(10),
-      onTap: () => _open(date),
+      onTap: () => _openDay(date),
       child: Container(
         height: 52,
         margin: const EdgeInsets.all(2),
@@ -260,12 +413,13 @@ class _DiaryPageState extends State<DiaryPage> {
     );
   }
 
-  Widget _entryTile(DateTime day) {
+  Widget _entryTile(String path) {
     const wd = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
-    final loc = locations[day.day];
-    final file = FileManager.getFile(
-      '${Diary.pathFor(day)}${Editor.extension}.p',
-    );
+    final parsed = Diary.parseName(Diary.baseName(path));
+    if (parsed == null) return const SizedBox.shrink();
+    final day = parsed.day;
+    final loc = locations[path];
+    final file = FileManager.getFile('$path${Editor.extension}.p');
     String two(int n) => n.toString().padLeft(2, '0');
     return ListTile(
       leading: SizedBox(
@@ -295,17 +449,28 @@ class _DiaryPageState extends State<DiaryPage> {
         ),
       ),
       title: Text(
-        '${wd[day.weekday - 1]}, ${two(day.day)}.${two(day.month)}.${day.year}',
+        '${wd[day.weekday - 1]}, ${two(day.day)}.${two(day.month)}.${day.year}'
+        '${parsed.rest}',
       ),
       subtitle: loc == null ? null : Text('Ort: ${loc.label}'),
-      trailing: loc == null
-          ? null
-          : IconButton(
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (loc != null)
+            IconButton(
               tooltip: 'Auf Karte zeigen',
               icon: const Icon(Icons.place),
               onPressed: () => launchUrl(loc.mapUri),
             ),
-      onTap: () => _open(day),
+          IconButton(
+            tooltip: 'Verwalten',
+            icon: const Icon(Icons.more_vert),
+            onPressed: () => _entryMenu(path),
+          ),
+        ],
+      ),
+      onTap: () => _openEntry(path),
+      onLongPress: () => _entryMenu(path),
     );
   }
 }
