@@ -104,6 +104,8 @@ dependencies:
   workmanager: ^0.10.7
 
   archive: ^4.0.3
+  flutter_map: ^8.2.2  # Feder-Tagebuch: Weltkarte (OpenStreetMap)
+  latlong2: ^0.9.1
 
   flutter_sharing_intent: ^2.0.4
 

@@ -28,6 +28,7 @@ import 'package:saber/components/theming/adaptive_alert_dialog.dart';
 import 'package:saber/components/theming/adaptive_toggle_buttons.dart';
 import 'package:saber/components/theming/saber_theme.dart';
 import 'package:saber/components/theming/uni_icon.dart';
+import 'package:saber/data/backup.dart';
 import 'package:saber/data/file_manager/file_manager.dart';
 import 'package:saber/data/flavor_config.dart';
 import 'package:saber/data/is_this_a_test.dart';
@@ -732,6 +733,33 @@ class _SettingsPageState extends State<SettingsPage> {
                       }
                     },
                   ),
+                SettingsButton(
+                  title: 'Sicherung erstellen und weitergeben',
+                  subtitle:
+                      'Packt alle Notizen und das Tagebuch in eine ZIP-Datei '
+                      '(bleibt lokal verschlüsselt). Danach kannst du sie '
+                      'z. B. in die Cloud, auf einen USB-Stick oder in eine '
+                      'andere App legen.',
+                  icon: Icons.backup,
+                  onPressed: () async {
+                    final messenger = ScaffoldMessenger.of(context);
+                    messenger.showSnackBar(
+                      const SnackBar(content: Text('Sicherung wird erstellt …')),
+                    );
+                    try {
+                      final file = await Backup.create();
+                      messenger.hideCurrentSnackBar();
+                      await SharePlus.instance.share(
+                        ShareParams(files: [XFile(file.path)]),
+                      );
+                    } catch (e) {
+                      messenger.hideCurrentSnackBar();
+                      messenger.showSnackBar(
+                        SnackBar(content: Text('Sicherung fehlgeschlagen: $e')),
+                      );
+                    }
+                  },
+                ),
                 SettingsButton(
                   title: 'Blätter-Protokoll als Datei teilen',
                   subtitle:

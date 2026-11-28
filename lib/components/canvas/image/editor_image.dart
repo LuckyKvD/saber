@@ -68,8 +68,47 @@ sealed class EditorImage extends ChangeNotifier {
   /// Vom Editor gesetzt: Ziel für dieses Bild per Antippen wählen.
   static void Function(EditorImage image)? targetHandler;
 
+  /// Feder-Tagebuch: Platz (ab 0) in der Bilderreihe am unteren Seitenrand.
+  /// Pro Reihe [rowColumns] Bilder, weitere Reihen stehen darüber.
+  int? rowSlot;
+
+  static const rowColumns = 5;
+  static const rowMargin = 24.0;
+  static const rowGap = 8.0;
+  static const rowHeightFactor = 1.3;
+
+  static double rowSlotWidth(Size ps) =>
+      (ps.width - 2 * rowMargin - rowGap * (rowColumns - 1)) / rowColumns;
+
+  /// Oberkante des Streifens, in dem die unterste Reihe liegt.
+  static double rowBandTop(Size ps) =>
+      ps.height - rowMargin - rowSlotWidth(ps) * rowHeightFactor;
+
+  /// Wie viele der [images] liegen schon in der untersten Reihe?
+  static int countInRowBand(Iterable<EditorImage> images, Size ps) {
+    final top = rowBandTop(ps) - 4;
+    return images.where((i) => i.dstRect.top >= top).length;
+  }
+
   /// Rechteck für die erste Platzierung: um [centerHint] herum, sonst oben links.
   Rect placeRect(Size size) {
+    final slot = rowSlot;
+    final psRow = pageSize;
+    if (slot != null && psRow != null && psRow.isFinite) {
+      final slotW = rowSlotWidth(psRow);
+      final maxH = slotW * rowHeightFactor;
+      final scale = min(
+        1.0,
+        min(slotW / size.width, maxH / size.height),
+      ).toDouble();
+      final w = size.width * scale;
+      final h = size.height * scale;
+      final col = slot % rowColumns;
+      final row = slot ~/ rowColumns;
+      final left = rowMargin + col * (slotW + rowGap) + (slotW - w) / 2;
+      final bottom = psRow.height - rowMargin - row * (maxH + rowGap);
+      return Rect.fromLTWH(left, bottom - h, w, h);
+    }
     final hint = centerHint;
     if (hint == null) return dstRect.topLeft & size;
     var left = hint.dx - size.width / 2;

@@ -7,6 +7,7 @@ import 'package:saber/data/file_manager/decrypted_file_image.dart';
 import 'package:saber/data/file_manager/file_manager.dart';
 import 'package:saber/data/routes.dart';
 import 'package:saber/pages/editor/editor.dart';
+import 'package:saber/pages/home/diary_map.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Feder-Tagebuch: Kalender mit einem handschriftlichen Notizbuch pro Tag.
@@ -36,6 +37,7 @@ class _DiaryPageState extends State<DiaryPage> {
 
   late DateTime month = DateTime(DateTime.now().year, DateTime.now().month);
   Set<int> days = {};
+  List<String> strays = [];
   Map<int, DiaryLocation?> locations = {};
   StreamSubscription<FileOperation>? _sub;
 
@@ -61,8 +63,10 @@ class _DiaryPageState extends State<DiaryPage> {
     for (final d in found) {
       locs[d] = await Diary.readLocation(DateTime(shown.year, shown.month, d));
     }
+    final stray = await Diary.strayEntries();
     if (!mounted || shown != month) return;
     setState(() {
+      strays = stray;
       days = found;
       locations = locs;
     });
@@ -129,6 +133,16 @@ class _DiaryPageState extends State<DiaryPage> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(12, 8, 12, 96),
           children: [
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                icon: const Icon(Icons.public),
+                label: const Text('Karte'),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => const DiaryMapPage()),
+                ),
+              ),
+            ),
             Row(
               children: [
                 IconButton(
@@ -184,6 +198,26 @@ class _DiaryPageState extends State<DiaryPage> {
                 child: Center(child: Text('Keine Einträge in diesem Monat')),
               ),
             for (final d in entryDays) _entryTile(DateTime(month.year, month.month, d)),
+            if (strays.isNotEmpty) ...[
+              const Divider(height: 24),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  'Einträge ohne Datum im Namen (Titel auf TT.MM.JJJJ setzen, '
+                  'dann landen sie im Kalender)',
+                ),
+              ),
+              for (final path in strays)
+                ListTile(
+                  leading: const Icon(Icons.help_outline),
+                  title: Text(path.substring(path.lastIndexOf('/') + 1)),
+                  subtitle: Text(path.substring(1)),
+                  onTap: () async {
+                    await context.push(RoutePaths.editFilePath(path));
+                    if (mounted) _reload();
+                  },
+                ),
+            ],
           ],
         ),
       ),

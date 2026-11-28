@@ -62,6 +62,7 @@ import 'package:saber/data/search/correction_dictionary.dart';
 import 'package:saber/data/search/line_grouper.dart';
 import 'package:saber/data/extensions/change_notifier_extensions.dart';
 import 'package:saber/data/extensions/matrix4_extensions.dart';
+import 'package:saber/data/diary.dart';
 import 'package:saber/data/file_manager/file_manager.dart';
 import 'package:saber/data/nextcloud/saber_syncer.dart';
 import 'package:saber/data/prefs.dart';
@@ -1672,6 +1673,37 @@ class EditorState extends State<Editor> {
     final newName = filenameTextEditingController.text.trim();
     if (newName == coreInfo.fileName) return;
 
+    // Feder-Tagebuch: Der Titel ist das Datum. Ein gültiges Datum verschiebt
+    // den Eintrag an den passenden Tag; alles andere wird zurückgesetzt.
+    if (Diary.isDiaryPath(coreInfo.filePath)) {
+      final day = Diary.dayFromName(newName);
+      if (day != null && !Diary.exists(day)) {
+        final oldPath = coreInfo.filePath;
+        final newPath = await FileManager.moveFile(
+          oldPath + Editor.extension,
+          Diary.pathFor(day) + Editor.extension,
+        );
+        coreInfo.filePath = newPath.substring(
+          0,
+          newPath.lastIndexOf(Editor.extension),
+        );
+        if (FileManager.doesFileExist('$oldPath.ort')) {
+          await FileManager.moveFile('$oldPath.ort', '${Diary.pathFor(day)}.ort');
+        }
+        needsNaming = false;
+      }
+      final actual = coreInfo.fileName;
+      filenameTextEditingController.value = filenameTextEditingController.value
+          .copyWith(
+            text: actual,
+            selection: TextSelection.fromPosition(
+              TextPosition(offset: actual.length),
+            ),
+            composing: TextRange.empty,
+          );
+      return;
+    }
+
     if (_filenameFormKey.currentState?.validate() ??
         _validateFilenameTextField(newName) == null) {
       coreInfo.filePath = await FileManager.moveFile(
@@ -2794,6 +2826,20 @@ class EditorState extends State<Editor> {
       }
     }
 
+    // Feder-Tagebuch: Fotos stehen in einer Reihe am unteren Seitenrand.
+    if (Diary.isDiaryPath(coreInfo.filePath) && images.isNotEmpty) {
+      final ps = coreInfo.pages[currentPageIndex].size;
+      if (ps.isFinite) {
+        var slot = EditorImage.countInRowBand(
+          coreInfo.pages[currentPageIndex].images,
+          ps,
+        );
+        for (final image in images) {
+          image.rowSlot = slot++;
+        }
+      }
+    }
+
     _lastPickedImages = images;
     if (images.isNotEmpty) {
       // use the Select tool so that the user can move the new image
@@ -3719,6 +3765,9 @@ class EditorState extends State<Editor> {
                           ),
                           controller: filenameTextEditingController,
                           onChanged: renameFile,
+                          readOnly:
+                              Diary.isDiaryPath(coreInfo.filePath) &&
+                              Diary.dayFromName(coreInfo.fileName) != null,
                           autofocus: needsNaming,
                           validator: _validateFilenameTextField,
                         ),
