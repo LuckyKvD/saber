@@ -18,7 +18,7 @@ class GridFolders extends StatelessWidget {
     required this.renameFolder,
     required this.isFolderEmpty,
     required this.deleteFolder,
-    required this.moveFolder,
+    this.moveFolder,
     required this.doesFolderExist,
     required this.folders,
   });
@@ -32,7 +32,7 @@ class GridFolders extends StatelessWidget {
   final Future<void> Function(String oldName, String newName) renameFolder;
   final Future<bool> Function(String) isFolderEmpty;
   final Future<void> Function(String) deleteFolder;
-  final Future<void> Function(String) moveFolder;
+  final Future<void> Function(String)? moveFolder;
 
   final List<String> folders;
 
@@ -81,7 +81,7 @@ class _GridFolder extends StatefulWidget {
     required this.renameFolder,
     required this.isFolderEmpty,
     required this.deleteFolder,
-    required this.moveFolder,
+    this.moveFolder,
     required this.onTap,
   }) : assert(
          (folderName == null) ^ (cardType == .realFolder),
@@ -95,7 +95,7 @@ class _GridFolder extends StatefulWidget {
   final Future<void> Function(String oldName, String newName) renameFolder;
   final Future<bool> Function(String) isFolderEmpty;
   final Future<void> Function(String) deleteFolder;
-  final Future<void> Function(String) moveFolder;
+  final Future<void> Function(String)? moveFolder;
   final Function(String) onTap;
 
   @override
@@ -213,16 +213,17 @@ class _GridFolderState extends State<_GridFolder> {
                                         expanded.value = false;
                                       },
                                     ),
-                                    IconButton(
-                                      tooltip: 'Verschieben …',
-                                      icon: const Icon(Icons.drive_file_move),
-                                      onPressed: () async {
-                                        await widget.moveFolder(
-                                          widget.folderName!,
-                                        );
-                                        expanded.value = false;
-                                      },
-                                    ),
+                                    if (widget.moveFolder != null)
+                                      IconButton(
+                                        tooltip: 'Verschieben …',
+                                        icon: const Icon(Icons.drive_file_move),
+                                        onPressed: () async {
+                                          await widget.moveFolder!(
+                                            widget.folderName!,
+                                          );
+                                          expanded.value = false;
+                                        },
+                                      ),
                                     DeleteFolderButton(
                                       folderName: widget.folderName!,
                                       deleteFolder: (String folderName) async {

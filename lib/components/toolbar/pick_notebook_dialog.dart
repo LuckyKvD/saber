@@ -148,7 +148,7 @@ class _PickNotebookDialogState extends State<_PickNotebookDialog> {
                   : ListView.builder(
                       itemCount: shown.length,
                       itemBuilder: (context, index) {
-                        final path = shown[index];
+                        final path = shown![index];
                         final folder = _folderOf(path);
                         final header = recentCount > 0 && index == 0
                             ? 'Zuletzt geöffnet'
