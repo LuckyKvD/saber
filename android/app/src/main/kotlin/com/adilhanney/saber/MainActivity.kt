@@ -48,7 +48,6 @@ class MainActivity: FlutterFragmentActivity() {
         registerPhotoChannel(flutterEngine)
         registerWidgetChannel(flutterEngine)
         registerLocationChannel(flutterEngine)
-        registerSpellChannel(flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "de.luckykvd.feder/ink")
             .setMethodCallHandler { call, result ->
                 if (call.method == "recognize") {
@@ -106,67 +105,6 @@ class MainActivity: FlutterFragmentActivity() {
     }
 
     // Feder-Tagebuch: Standort über den Android-LocationManager (keine Google-Dienste).
-    // Feder: Rechtschreibpruefung ueber den Android-Systemprüfer (Test).
-    private fun registerSpellChannel(flutterEngine: FlutterEngine) {
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "de.luckykvd.feder/spell")
-            .setMethodCallHandler { call, result ->
-                if (call.method != "check") {
-                    result.notImplemented()
-                    return@setMethodCallHandler
-                }
-                val text = call.argument<String>("text") ?: ""
-                val lang = call.argument<String>("lang") ?: "de-DE"
-                var answered = false
-                val handler = android.os.Handler(android.os.Looper.getMainLooper())
-                fun answer(data: Map<String, Any?>) {
-                    if (answered) return
-                    answered = true
-                    result.success(data)
-                }
-                try {
-                    val tsm = getSystemService(android.content.Context.TEXT_SERVICES_MANAGER_SERVICE)
-                        as android.view.textservice.TextServicesManager
-                    var session: android.view.textservice.SpellCheckerSession? = null
-                    val listener = object : android.view.textservice.SpellCheckerSession.SpellCheckerSessionListener {
-                        override fun onGetSuggestions(r: Array<android.view.textservice.SuggestionsInfo>?) {}
-                        override fun onGetSentenceSuggestions(r: Array<android.view.textservice.SentenceSuggestionsInfo>?) {
-                            val issues = ArrayList<Map<String, Any>>()
-                            r?.forEach { s ->
-                                for (i in 0 until s.suggestionsCount) {
-                                    val info = s.getSuggestionsInfoAt(i)
-                                    val flags = info.suggestionsAttributes
-                                    val typo = (flags and android.view.textservice.SuggestionsInfo.RESULT_ATTR_LOOKS_LIKE_TYPO) != 0
-                                    if (typo) {
-                                        val sugg = ArrayList<String>()
-                                        for (k in 0 until info.suggestionsCount) sugg.add(info.getSuggestionAt(k))
-                                        issues.add(mapOf(
-                                            "start" to s.getOffsetAt(i),
-                                            "length" to s.getLengthAt(i),
-                                            "suggestions" to sugg
-                                        ))
-                                    }
-                                }
-                            }
-                            session?.close()
-                            answer(mapOf("available" to true, "issues" to issues))
-                        }
-                    }
-                    session = tsm.newSpellCheckerSession(null, java.util.Locale.forLanguageTag(lang), listener, false)
-                    if (session == null) {
-                        answer(mapOf("available" to false, "reason" to "Kein Systemprüfer für $lang"))
-                    } else {
-                        session.getSentenceSuggestions(arrayOf(android.view.textservice.TextInfo(text)), 5)
-                        handler.postDelayed({
-                            session.close()
-                            answer(mapOf("available" to false, "reason" to "Zeitüberschreitung (keine Antwort des Prüfers)"))
-                        }, 8000)
-                    }
-                } catch (t: Throwable) {
-                    answer(mapOf("available" to false, "reason" to t.toString()))
-                }
-            }
-    }
-
     private fun registerLocationChannel(flutterEngine: FlutterEngine) {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "de.luckykvd.feder/location")
             .setMethodCallHandler { call, result ->

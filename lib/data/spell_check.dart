@@ -1,43 +1,47 @@
-import 'package:flutter/services.dart';
+import 'package:flutter/services.dart' show rootBundle;
+import 'package:saber/data/spell/hunspell.dart';
 
-/// Ein vom Systemprüfer gemeldeter Fehler.
+/// Ein gefundener Rechtschreibfehler.
 class SpellIssue {
-  const SpellIssue(this.start, this.length, this.suggestions);
+  const SpellIssue(this.start, this.length, this.word);
   final int start, length;
-  final List<String> suggestions;
+  final String word;
 }
 
-class SpellResult {
-  const SpellResult({required this.available, this.reason, this.issues = const []});
-  final bool available;
-  final String? reason;
-  final List<SpellIssue> issues;
-}
-
-/// Rechtschreibprüfung über den Android-Systemprüfer (Test).
+/// Rechtschreibprüfung mit eigenem Hunspell-Wörterbuch (Deutsch, de_DE_frami).
 abstract final class SpellCheck {
-  static const _channel = MethodChannel('de.luckykvd.feder/spell');
+  static Hunspell? _hs;
+  static Future<Hunspell>? _loading;
 
-  static Future<SpellResult> check(String text, {String lang = 'de-DE'}) async {
-    try {
-      final r = await _channel.invokeMapMethod<String, dynamic>('check', {
-        'text': text,
-        'lang': lang,
-      });
-      if (r == null || r['available'] != true) {
-        return SpellResult(available: false, reason: r?['reason'] as String?);
-      }
-      final issues = <SpellIssue>[
-        for (final m in (r['issues'] as List))
-          SpellIssue(
-            (m['start'] as num).toInt(),
-            (m['length'] as num).toInt(),
-            [for (final s in (m['suggestions'] as List)) s as String],
-          ),
-      ];
-      return SpellResult(available: true, issues: issues);
-    } catch (e) {
-      return SpellResult(available: false, reason: '$e');
-    }
+  static Future<Hunspell> get engine => _loading ??= _load();
+
+  static Future<Hunspell> _load() async {
+    final aff = await rootBundle.loadString('assets/dict/de_DE_frami.aff');
+    final dic = await rootBundle.loadString('assets/dict/de_DE_frami.dic');
+    return _hs = await Hunspell.parseAsync(aff, dic);
   }
+
+  static final _token = RegExp(r'\p{L}+(?:[-’\x27]\p{L}+)*', unicode: true);
+
+  /// Fehler im [text]; Teile mit Bindestrich werden einzeln geprüft.
+  static Future<List<SpellIssue>> check(String text, {Set<String> ignore = const {}}) async {
+    final hs = await engine;
+    final out = <SpellIssue>[];
+    for (final m in _token.allMatches(text)) {
+      final w = m.group(0)!;
+      var offset = m.start;
+      for (final part in w.split(RegExp(r'[-’\x27]'))) {
+        final len = part.length;
+        if (len > 1 && !_acronym(part) && !ignore.contains(part) && !hs.check(part)) {
+          out.add(SpellIssue(offset, len, part));
+        }
+        offset += len + 1;
+      }
+    }
+    return out;
+  }
+
+  static bool _acronym(String w) => w.length <= 5 && w == w.toUpperCase() && w != w.toLowerCase();
+
+  static Future<List<String>> suggest(String word) async => (await engine).suggest(word);
 }

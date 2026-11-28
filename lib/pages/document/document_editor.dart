@@ -187,28 +187,25 @@ class _DocumentEditorPageState extends State<DocumentEditorPage> {
 
   Future<void> _spell(String text) async {
     final sw = Stopwatch()..start();
-    final r = await SpellCheck.check(text);
+    final issues = await SpellCheck.check(text);
+    final hs = await SpellCheck.engine;
     sw.stop();
     if (!mounted) return;
-    final body = !r.available
-        ? 'Nicht verfügbar: ${r.reason ?? 'unbekannt'}'
-        : r.issues.isEmpty
-        ? 'Keine Fehler gemeldet (${text.length} Zeichen, ${sw.elapsedMilliseconds} ms).'
-        : '${r.issues.length} Fehler (${sw.elapsedMilliseconds} ms):\n\n' +
-              r.issues
-                  .take(40)
-                  .map((i) {
-                    final w = text.substring(
-                      i.start.clamp(0, text.length),
-                      (i.start + i.length).clamp(0, text.length),
-                    );
-                    return '$w → ${i.suggestions.take(3).join(', ')}';
-                  })
-                  .join('\n');
+    final seen = <String>{};
+    final lines = <String>[];
+    for (final i in issues) {
+      if (!seen.add(i.word)) continue;
+      if (lines.length >= 40) break;
+      lines.add('${i.word} → ${hs.suggest(i.word, max: 3).join(', ')}');
+    }
+    final body = issues.isEmpty
+        ? 'Keine Fehler (${text.length} Zeichen, ${sw.elapsedMilliseconds} ms, '
+              '${hs.wordCount} Wörter im Wörterbuch).'
+        : '${issues.length} Fehler (${sw.elapsedMilliseconds} ms):\n\n${lines.join('\n')}';
     await showDialog<void>(
       context: context,
       builder: (c) => AlertDialog(
-        title: const Text('Rechtschreibung (Systemprüfer)'),
+        title: const Text('Rechtschreibung (Hunspell, Deutsch)'),
         content: SingleChildScrollView(child: Text(body)),
         actions: [
           TextButton(onPressed: () => Navigator.of(c).pop(), child: const Text('OK')),

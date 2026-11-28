@@ -236,6 +236,7 @@ flutter:
     - assets/google_fonts/Neucha/OFL.txt
     - assets/fonts/liberation/COPYRIGHT.txt
     - assets/fonts/carlito/COPYRIGHT.txt
+    - assets/dict/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware
