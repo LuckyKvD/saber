@@ -355,3 +355,9 @@ Im Textmodus gibt es in der Leiste neben „Textfeld hinzufügen" ein Wolken-Sym
 - Schnelles Tippen während einer Blätteranimation wird vorgemerkt (höchstens 3) statt verschluckt.
 - Tipp-Blättern: Der Einrast-Timer der Tipp-Geste läuft nicht mehr gegen ein laufendes oder vorbereitetes Blättern (Ursache für Hin-und-her-Springen, Vermutung).
 - Blätter-Protokoll: Tippen, Blättern und Einrasten schreiben Zeilen („Blaettern | …“) ins Protokoll (Einstellungen → Protokoll anzeigen), um Fehler beim Tippen mit echten Daten zu finden.
+
+## 37. Geodreieck, Zirkel und Hilfsmittel-Menü
+- Ein Werkzeugleisten-Symbol „Zeichenhilfen" öffnet ein Menü: Lineal, Winkelmesser (Halbkreis/Vollkreis), Geodreieck, Zirkel. Mehrere können gleichzeitig sichtbar sein.
+- Geodreieck: gleichschenklig-rechtwinklig (Hypotenuse 16 cm), cm-Skala an allen Kanten, Griff in der Mitte zum Drehen; Stifte rasten an allen drei Kanten ein.
+- Zirkel: Nadelspitze verschieben, Griff am Kreisrand stellt Radius (1–12 cm) und Richtung ein; der Stift rastet auf dem Kreis ein.
+- Maße gehen von 21 cm Seitenbreite aus (wie beim Lineal).

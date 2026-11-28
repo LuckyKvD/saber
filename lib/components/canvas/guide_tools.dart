@@ -3,7 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
 
-enum GuideKind { ruler, protractor }
+enum GuideKind { ruler, protractor, triangle, compass }
 
 /// Ein Zeichenhilfsmittel (Lineal oder Winkelmesser) auf einer Seite.
 class GuideShape {
@@ -26,9 +26,21 @@ class GuideShape {
   /// Streifen unter der Grundlinie des Halbkreis-Winkelmessers.
   static const protractorStripCm = 1.0;
 
+  /// Geodreieck: gleichschenklig-rechtwinklig, Hypotenuse unten.
+  static const triangleHypCm = 16.0;
+  static const triangleHeightCm = 8.0;
+
+  /// Abstand des Inkreismittelpunkts von der Hypotenuse.
+  static final triangleInradiusCm =
+      (2 * triangleHeightCm * math.sqrt2 - triangleHypCm) / 2;
+
+  /// Nur Zirkel: eingestellter Radius.
+  double radiusCm = 5;
+
   /// Angezeigter Winkel: rastet nahe an Vielfachen von 45 Grad ein,
   /// sonst frei.
   double get angle {
+    if (kind == GuideKind.compass) return rawAngle;
     final deg = rawAngle * 180 / math.pi;
     final snapped = (deg / 45).roundToDouble() * 45;
     return (deg - snapped).abs() < 1.5 ? snapped * math.pi / 180 : rawAngle;
@@ -75,15 +87,37 @@ class GuideShape {
         if (full) return math.sqrt(u * u + v * v) <= r;
         if (v <= 0) return math.sqrt(u * u + v * v) <= r;
         return v <= protractorStripCm * ppc && u.abs() <= r;
+      case GuideKind.triangle:
+        final h = triangleHeightCm * ppc;
+        if (v > 0 || v < -h) return false;
+        return u.abs() <= triangleHypCm * ppc / 2 + v;
+      case GuideKind.compass:
+        // Nur Nadelspitze und Griff greifen (der Kreis selbst bleibt frei).
+        if (math.sqrt(u * u + v * v) <= 1.5 * ppc) return true;
+        return (Offset(u, v) - handleLocal(ppc)).distance <=
+            handleRadius(ppc) + 0.3 * ppc;
     }
   }
 
-  /// Nur Lineal: Drehgriff nahe dem rechten Ende.
-  Offset handleLocal(double ppc) => Offset(rulerLengthCm * ppc / 2 - 1.8 * ppc, 0);
-  double handleRadius(double ppc) => 1.2 * ppc;
+  /// Drehgriff: Lineal nahe dem rechten Ende, Geodreieck in der Mitte,
+  /// Zirkel am Kreisrand (stellt Radius und Richtung ein).
+  Offset handleLocal(double ppc) {
+    switch (kind) {
+      case GuideKind.ruler:
+        return Offset(rulerLengthCm * ppc / 2 - 1.8 * ppc, 0);
+      case GuideKind.triangle:
+        return Offset(0, -triangleInradiusCm * ppc);
+      case GuideKind.compass:
+        return Offset(radiusCm * ppc, 0);
+      case GuideKind.protractor:
+        return Offset.zero;
+    }
+  }
+
+  double handleRadius(double ppc) => kind == GuideKind.ruler ? 1.2 * ppc : 1.0 * ppc;
 
   bool hitHandle(Offset p, double ppc) {
-    if (kind != GuideKind.ruler) return false;
+    if (kind == GuideKind.protractor) return false;
     final (u, v) = toLocal(p);
     return (Offset(u, v) - handleLocal(ppc)).distance <=
         handleRadius(ppc) + 0.3 * ppc;
@@ -97,7 +131,8 @@ class GuideEdge {
   final GuideShape shape;
 
   /// 0 Lineal oben, 1 Lineal unten, 2 Winkelmesser-Grundlinie,
-  /// 3 Winkelmesser-Außenbogen, 4 Winkelmesser-Innenbogen.
+  /// 3 Winkelmesser-Außenbogen, 4 Winkelmesser-Innenbogen,
+  /// 5 Geodreieck-Hypotenuse, 6/7 Geodreieck-Schenkel, 8 Zirkelkreis.
   final int type;
 }
 
@@ -113,6 +148,16 @@ class Guides {
   static List<Size> pageSizes = const [];
   static GuideShape? ruler;
   static GuideShape? protractor;
+  static GuideShape? triangle;
+  static GuideShape? compass;
+
+  /// Alle sichtbaren Hilfsmittel.
+  static List<GuideShape> get all => [
+    ?ruler,
+    ?protractor,
+    ?triangle,
+    ?compass,
+  ];
 
   /// Wird gesetzt, solange ein Finger ein Hilfsmittel hält.
   /// Dann bewegt sich die Seite nicht mit.
@@ -127,7 +172,7 @@ class Guides {
       owner != null &&
       identical(owner, coreInfo) &&
       index == pageIndex &&
-      (ruler != null || protractor != null);
+      anyVisible;
 
   /// Wo steht das Hilfsmittel auf Seite [index]? `null` = dort nicht zeichnen.
   /// Auf der Besitzerseite 0, auf der Nachbarseite der Versatz, damit das
@@ -171,12 +216,14 @@ class Guides {
         : pageSizes[index].width;
   }
 
-  static bool get anyVisible => ruler != null || protractor != null;
+  static bool get anyVisible => all.isNotEmpty;
 
   static void _claim(Object coreInfo, int index) {
     if (owner != null && (!identical(owner, coreInfo) || pageIndex != index)) {
       ruler = null;
       protractor = null;
+      triangle = null;
+      compass = null;
     }
     owner = coreInfo;
     pageIndex = index;
@@ -210,6 +257,28 @@ class Guides {
     _afterChange();
   }
 
+  static void toggleTriangle(Object coreInfo, int index, Size pageSize) {
+    _claim(coreInfo, index);
+    triangle = triangle == null
+        ? GuideShape(
+            GuideKind.triangle,
+            Offset(pageSize.width / 2, pageSize.height * 0.45),
+          )
+        : null;
+    _afterChange();
+  }
+
+  static void toggleCompass(Object coreInfo, int index, Size pageSize) {
+    _claim(coreInfo, index);
+    compass = compass == null
+        ? GuideShape(
+            GuideKind.compass,
+            Offset(pageSize.width / 2, pageSize.height * 0.4),
+          )
+        : null;
+    _afterChange();
+  }
+
   static void _afterChange() {
     if (!anyVisible) {
       owner = null;
@@ -222,6 +291,8 @@ class Guides {
     owner = null;
     ruler = null;
     protractor = null;
+    triangle = null;
+    compass = null;
     grabbing = false;
     notifier.ping();
   }
@@ -229,10 +300,9 @@ class Guides {
   /// Welches Hilfsmittel liegt unter dem Punkt? Der Winkelmesser liegt oben.
   static GuideShape? pick(Offset p, Size pageSize) {
     final ppc = pxPerCm(pageSize);
-    final pr = protractor;
-    if (pr != null && pr.hitBody(p, ppc)) return pr;
-    final r = ruler;
-    if (r != null && r.hitBody(p, ppc)) return r;
+    for (final shape in [compass, triangle, protractor, ruler]) {
+      if (shape != null && shape.hitBody(p, ppc)) return shape;
+    }
     return null;
   }
 
@@ -268,7 +338,7 @@ class Guides {
     if (spread && anyVisible) {
       final partner = partnerOf(pageIndex);
       if (partner != null && pageIndex < pageSizes.length) {
-        final lead = ruler ?? protractor!;
+        final lead = all.first;
         final size = pageSizes[pageIndex];
         double? shift;
         if (pageIndex.isOdd && lead.center.dx > size.width) {
@@ -278,7 +348,7 @@ class Guides {
         }
         if (shift != null) {
           final target = pageSizes[partner];
-          for (final shape in [ruler, protractor]) {
+          for (final shape in all) {
             if (shape == null) continue;
             shape.center = Offset(
               (shape.center.dx + shift).clamp(0, target.width).toDouble(),
@@ -294,7 +364,7 @@ class Guides {
     }
     if (!verticalPages || !anyVisible) return;
     if (pageIndex < 0 || pageIndex >= pageSizes.length) return;
-    final lead = ruler ?? protractor!;
+    final lead = all.first;
     final dy = lead.center.dy;
     final size = pageSizes[pageIndex];
     var shift = 0.0;
@@ -309,7 +379,7 @@ class Guides {
       return;
     }
     final target = pageSizes[next];
-    for (final shape in [ruler, protractor]) {
+    for (final shape in all) {
       if (shape == null) continue;
       shape.center = Offset(
         shape.center.dx.clamp(0, target.width).toDouble(),
@@ -330,7 +400,7 @@ class Guides {
     if (pageIndex >= pageSizes.length) return;
     final old = pageSizes[pageIndex];
     final size = pageSizes[index];
-    for (final shape in [ruler, protractor]) {
+    for (final shape in all) {
       if (shape == null) continue;
       shape.center = Offset(
         shape.center.dx.clamp(0, size.width).toDouble(),
@@ -388,7 +458,48 @@ class Guides {
         best = GuideEdge(pr, 4);
       }
     }
+    final tr = triangle;
+    if (tr != null) {
+      final (u, v) = tr.toLocal(p);
+      final q = Offset(u, v);
+      final segments = _triangleSegments(ppc);
+      for (var i = 0; i < segments.length; i++) {
+        final d = (q - _nearestOnSegment(q, segments[i].$1, segments[i].$2))
+            .distance;
+        if (d < bestDistance) {
+          bestDistance = d;
+          best = GuideEdge(tr, 5 + i);
+        }
+      }
+    }
+    final cp = compass;
+    if (cp != null) {
+      final (u, v) = cp.toLocal(p);
+      final d = (math.sqrt(u * u + v * v) - cp.radiusCm * ppc).abs();
+      if (d < bestDistance) {
+        bestDistance = d;
+        best = GuideEdge(cp, 8);
+      }
+    }
     return best;
+  }
+
+  /// Hypotenuse, linker und rechter Schenkel in Hilfsmittel-Koordinaten.
+  static List<(Offset, Offset)> _triangleSegments(double ppc) {
+    final a = Offset(-GuideShape.triangleHypCm * ppc / 2, 0);
+    final b = Offset(GuideShape.triangleHypCm * ppc / 2, 0);
+    final apex = Offset(0, -GuideShape.triangleHeightCm * ppc);
+    return [(a, b), (a, apex), (apex, b)];
+  }
+
+  static Offset _nearestOnSegment(Offset p, Offset a, Offset b) {
+    final ab = b - a;
+    final len2 = ab.dx * ab.dx + ab.dy * ab.dy;
+    if (len2 < 1e-9) return a;
+    final t = (((p - a).dx * ab.dx + (p - a).dy * ab.dy) / len2)
+        .clamp(0.0, 1.0)
+        .toDouble();
+    return a + ab * t;
   }
 
   /// Punkt auf die gewählte Kante projizieren.
@@ -407,6 +518,15 @@ class Guides {
       case 2:
         final r = GuideShape.protractorRadiusCm * ppc;
         return s.toPage(u.clamp(-r, r).toDouble(), 0);
+      case 5 || 6 || 7:
+        final seg = _triangleSegments(ppc)[edge.type - 5];
+        final q = _nearestOnSegment(Offset(u, v), seg.$1, seg.$2);
+        return s.toPage(q.dx, q.dy);
+      case 8:
+        final r = s.radiusCm * ppc;
+        final len = math.sqrt(u * u + v * v);
+        if (len < 1e-6) return s.toPage(r, 0);
+        return s.toPage(u / len * r, v / len * r);
       default:
         final r =
             (edge.type == 4

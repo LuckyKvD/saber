@@ -33,6 +33,7 @@ import 'package:saber/data/tools/laser_pointer.dart';
 import 'package:saber/data/tools/pen.dart';
 import 'package:saber/data/tools/pencil.dart';
 import 'package:saber/data/tools/select.dart';
+import 'package:saber/components/canvas/guide_tools.dart';
 import 'package:saber/data/tools/shape_pen.dart';
 import 'package:saber/data/tools/tape_pen.dart';
 import 'package:saber/i18n/strings.g.dart';
@@ -54,10 +55,7 @@ class Toolbar extends StatefulWidget {
     required this.toggleFingerDrawing,
     required this.pickPhoto,
     required this.toggleWritingPad,
-    required this.toggleRuler,
-    required this.rulerVisible,
-    required this.toggleProtractor,
-    required this.protractorMode,
+    required this.toggleGuide,
     required this.writingPadVisible,
     required this.paste,
     required this.duplicateSelection,
@@ -85,13 +83,9 @@ class Toolbar extends StatefulWidget {
   final VoidCallback toggleWritingPad;
   final bool writingPadVisible;
 
-  /// Virtuelles Lineal ein-/ausblenden.
-  final VoidCallback toggleRuler;
-  final bool rulerVisible;
-
-  /// Winkelmesser: tippen schaltet Aus, Halbkreis, Vollkreis durch.
-  final VoidCallback toggleProtractor;
-  final int protractorMode;
+  /// Zeichenhilfe ein-/ausblenden (Lineal, Winkelmesser, Geodreieck, Zirkel).
+  /// Beim Winkelmesser schaltet jeder Aufruf Aus, Halbkreis, Vollkreis durch.
+  final void Function(GuideKind kind) toggleGuide;
 
   final ValueChanged<Tool> setTool;
   final Tool currentTool;
@@ -456,11 +450,11 @@ class _ToolbarState extends State<Toolbar> {
         },
       ),
       _ToolItem(
-        tooltip: 'Lineal',
+        tooltip: 'Zeichenhilfen',
         icon: Icons.straighten,
-        selected: widget.rulerVisible,
+        selected: Guides.anyVisible,
         enabled: !readOnly,
-        onTap: widget.toggleRuler,
+        onTap: _showGuideMenu,
       ),
       _ToolItem(
         tooltip: 'Schreibfeld',
@@ -484,17 +478,6 @@ class _ToolbarState extends State<Toolbar> {
       ),
       _penItem(() => BrushPen.current, invert),
       _penItem(() => FinelinerPen.current, invert),
-      _ToolItem(
-        tooltip: widget.protractorMode == 0
-            ? 'Winkelmesser (Halbkreis)'
-            : widget.protractorMode == 1
-            ? 'Winkelmesser (Vollkreis)'
-            : 'Winkelmesser ausblenden',
-        icon: Icons.square_foot,
-        selected: widget.protractorMode != 0,
-        enabled: !readOnly,
-        onTap: widget.toggleProtractor,
-      ),
       _ToolItem(
         tooltip: t.editor.pens.shapePen,
         icon: Icons.category_outlined,
@@ -573,6 +556,56 @@ class _ToolbarState extends State<Toolbar> {
         onTap: toggleExportBar,
       ),
     ];
+  }
+
+  Future<void> _showGuideMenu() async {
+    final protractor = Guides.protractor;
+    final kind = await showDialog<GuideKind>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('Zeichenhilfen'),
+        children: [
+          _guideOption(context, GuideKind.ruler, Icons.straighten, 'Lineal',
+              Guides.ruler != null),
+          _guideOption(
+            context,
+            GuideKind.protractor,
+            Icons.square_foot,
+            protractor == null
+                ? 'Winkelmesser (Halbkreis)'
+                : protractor.full
+                ? 'Winkelmesser ausblenden'
+                : 'Winkelmesser (Vollkreis)',
+            protractor != null,
+          ),
+          _guideOption(context, GuideKind.triangle, Icons.change_history,
+              'Geodreieck', Guides.triangle != null),
+          _guideOption(context, GuideKind.compass, Icons.circle_outlined,
+              'Zirkel', Guides.compass != null),
+        ],
+      ),
+    );
+    if (kind != null) widget.toggleGuide(kind);
+  }
+
+  Widget _guideOption(
+    BuildContext context,
+    GuideKind kind,
+    IconData icon,
+    String label,
+    bool active,
+  ) {
+    return SimpleDialogOption(
+      onPressed: () => Navigator.pop(context, kind),
+      child: Row(
+        children: [
+          Icon(icon),
+          const SizedBox(width: 16),
+          Expanded(child: Text(label)),
+          if (active) const Icon(Icons.check),
+        ],
+      ),
+    );
   }
 
   _MenuEntry _menuEntryOf(_ToolItem item) => _MenuEntry(
