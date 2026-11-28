@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:saber/components/settings/about_feder.dart';
 import 'package:saber/components/settings/local_encryption_tile.dart';
 import 'package:saber/components/navbar/responsive_navbar.dart';
@@ -36,7 +37,9 @@ import 'package:saber/data/quick_note.dart';
 import 'package:saber/data/routes.dart';
 import 'package:saber/data/sentry/sentry_init.dart';
 import 'package:saber/data/tools/shape_pen.dart';
+import 'package:saber/pages/logs.dart' show logsHistory;
 import 'package:saber/i18n/strings.g.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:stow/stow.dart';
 
 class const SettingsPage({super.key}) extends StatefulWidget {
@@ -729,6 +732,28 @@ class _SettingsPageState extends State<SettingsPage> {
                       }
                     },
                   ),
+                SettingsButton(
+                  title: 'Blätter-Protokoll als Datei teilen',
+                  subtitle:
+                      'Nur Blätter-Zeilen, ohne Notiznamen. In Downloads '
+                      'speichern oder an Claude senden.',
+                  icon: Icons.ios_share,
+                  onPressed: () async {
+                    final lines = [
+                      for (final r in logsHistory.history)
+                        if (r.loggerName == 'Blaettern')
+                          '${r.time.toIso8601String().substring(11, 23)} '
+                              '${r.message}',
+                    ];
+                    if (lines.isEmpty) return;
+                    final dir = await getTemporaryDirectory();
+                    final file = File('${dir.path}/blaettern-protokoll.txt');
+                    await file.writeAsString(lines.join('\n'));
+                    await SharePlus.instance.share(
+                      ShareParams(files: [XFile(file.path)]),
+                    );
+                  },
+                ),
                 SettingsButton(
                   title: t.logs.viewLogs,
                   subtitle: t.logs.debuggingInfo,

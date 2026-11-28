@@ -461,9 +461,15 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
   int? _lastTurnTarget;
   double _lastTurnX = 0;
 
+  /// Seite des letzten Tipp-Blätterns, solange danach kein Finger aufgesetzt
+  /// wurde. Das Einrasten geht dann nur dorthin und blättert nie von selbst
+  /// weiter oder zurück (Ursache der Rückwärts-Sprünge im Protokoll).
+  int? _settlePage;
+
   Future<void> _turnPage(int from, int to, double targetX) async {
     _trace('turnPage $from->$to');
     _lastTurnTarget = to;
+    _settlePage = to;
     _lastTurnX = targetX;
     _pageSnapTimer?.cancel();
     _snapAnim.stop();
@@ -661,6 +667,15 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
     _pendingTurns = 0;
     _cancelFlip();
     _pageSnapTimer?.cancel();
+    // Ein seitliches Gleiten nicht mittendrin stehen lassen (sonst steht die
+    // Ansicht neben dem Blatt und das Einrasten blättert in die falsche
+    // Richtung): sofort ans Ziel setzen.
+    if (_snapAnim.isAnimating && (_snapScaleFrom - 1).abs() <= 0.002) {
+      final c = widget._transformationController;
+      final m = c.value.clone();
+      m.setTranslationRaw(_snapTo, m.getTranslation().y, 0);
+      c.value = m;
+    }
     _snapAnim.stop();
   }
 
@@ -689,6 +704,27 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
       return;
     }
     final width = containerBounds.maxWidth;
+    final settle = _settlePage;
+    if (settle != null && settle < widget.pages.length) {
+      final tx = CanvasGestureDetector.getTranslationXOfPage(
+        pageIndex: settle,
+        pages: widget.pages,
+        containerWidth: width,
+        containerHeight: containerBounds.maxHeight,
+      ).clamp(min(0.0, width - _contentWidth), 0.0).toDouble();
+      _snapFrom = controller.value.getTranslation().x;
+      _snapScaleFrom = 1;
+      _snapTo = tx;
+      _trace('snap->settle $settle');
+      if ((_snapTo - _snapFrom).abs() < 1) {
+        _endGesture();
+        return;
+      }
+      _snapAnim
+        ..reset()
+        ..forward();
+      return;
+    }
     final start = _startPage ?? horizontalPageIndex;
     final startX = CanvasGestureDetector.getTranslationXOfPage(
       pageIndex: start,
@@ -1249,6 +1285,7 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
         event.kind == PointerDeviceKind.invertedStylus;
     if (event is PointerDownEvent) {
       _trace('down ${event.kind.name}');
+      _settlePage = null;
       _pointersDown++;
       _tapDown(event);
       _stopSnap();

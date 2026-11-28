@@ -361,3 +361,5 @@ Im Textmodus gibt es in der Leiste neben „Textfeld hinzufügen" ein Wolken-Sym
 - Geodreieck: gleichschenklig-rechtwinklig (Hypotenuse 16 cm), cm-Skala an allen Kanten, Griff in der Mitte zum Drehen; Stifte rasten an allen drei Kanten ein.
 - Zirkel: Nadelspitze verschieben, Griff am Kreisrand stellt Radius (1–12 cm) und Richtung ein; der Stift rastet auf dem Kreis ein.
 - Maße gehen von 21 cm Seitenbreite aus (wie beim Lineal).
+- **Ursache Rückwärts-Sprung (Protokoll vom Test, Build 165, Fakt aus den Zeilen):** Nach einem Tipp-Blättern stand die Ansicht 155 px neben dem Blatt (Gleit-Animation mittendrin gestoppt); der Einrast-Timer las das als „mehr als 1/7 gezogen" und blätterte von selbst zurück oder vor. Behebung: ein angehaltenes Gleiten wird sofort ans Ziel gesetzt, und nach einem Tipp-Blättern rastet die Ansicht nur noch auf der Zielseite ein, bis ein Finger aufgesetzt wird (`_settlePage`).
+- Einstellungen → „Blätter-Protokoll als Datei teilen“ speichert nur die Blätter-Zeilen als Textdatei (Teilen-Dialog).
