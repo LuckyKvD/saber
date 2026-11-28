@@ -396,3 +396,11 @@ Im Textmodus gibt es in der Leiste neben „Textfeld hinzufügen" ein Wolken-Sym
 - **Sicherung einspielen** (Einstellungen): ZIP wählen, dann „Nur Fehlendes" (vorhandene Dateien bleiben) oder „Alles ersetzen" (überschreibt gleichnamige Dateien; vorher entsteht automatisch eine Sicherung des jetzigen Stands). Dateien werden unverändert (also ggf. weiter lokal verschlüsselt) zurückgeschrieben, aus der Löschliste des Syncs genommen und neu hochgeladen. Pfade mit `..` oder absoluten Anteilen werden abgelehnt. Grenze: Die Sicherung ist nur mit demselben Hauptschlüssel (Passwort) lesbar.
 - **Tagebuch verwalten:** Pro Eintrag Menü (Punkte rechts oder Langdruck): Beschriftung ändern, auf anderes Datum verschieben, löschen (mit Rückfrage, samt Bildern und Ort). Der Titel im Editor akzeptiert `TT.MM.JJJJ Text` oder `JJJJ-MM-TT Text`; das Datum bestimmt den Tag, der Text ist die Beschriftung. Mehrere Einträge pro Tag sind damit möglich; ein Tipp auf einen Tag mit mehreren Einträgen zeigt eine Auswahl.
 - **Fotoleiste:** Fotos in Tagebuchnotizen gehören zur Leiste am unteren Seitenrand (Markierung `sr` in der Notiz). Sie werden in Reihen zu 5 angeordnet, darüber steht „Fotos" mit einer Linie. Wird ein Leistenfoto gelöscht, rücken die übrigen nach. Verschieben von Hand ist weiter möglich, bis zum nächsten Löschen.
+
+## 43. Textverarbeitung (Dokumente)
+
+- Eigene Rubrik „Dokumente“; Ablage unter `/Dokumente/…` als `.fdoc` (JSON: Ränder + Quill-Delta). Liegt im Dokumentenverzeichnis, daher lokal verschlüsselt (LocalCrypto), synchronisiert und in der Sicherung enthalten (wie das Tagebuch).
+- Freies A4-Blatt, Ränder in cm einstellbar (Standard 2,5/2,0/2,5/2,0), Blocksatz, fett/kursiv/unterstrichen, Listen, Einzug, Überschriften, Schriften Arial/Times New Roman/Courier New/Calibri (metrikgleiche Liberation-/Carlito-Schriften eingebettet).
+- Export: Word (.docx, eigener Minimal-Writer) und PDF/Druck.
+- Rechtschreibprüfung: im Quill-Editor nicht verfügbar (Option fehlt). Offen.
+- Testdokument mit ca. 100 Seiten über das Menü der Dokumentenliste.
