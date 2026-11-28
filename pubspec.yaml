@@ -234,6 +234,8 @@ flutter:
     - assets/google_fonts/Dekko/OFL.txt
     - assets/google_fonts/Fira_Mono/OFL.txt
     - assets/google_fonts/Neucha/OFL.txt
+    - assets/fonts/liberation/COPYRIGHT.txt
+    - assets/fonts/carlito/COPYRIGHT.txt
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware
@@ -291,6 +293,46 @@ flutter:
     - family: Neucha
       fonts:
         - asset: assets/google_fonts/Neucha/Neucha-Regular.ttf
+    - family: LiberationSans
+      fonts:
+        - asset: assets/fonts/liberation/LiberationSans-Regular.ttf
+        - asset: assets/fonts/liberation/LiberationSans-Italic.ttf
+          style: italic
+        - asset: assets/fonts/liberation/LiberationSans-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/liberation/LiberationSans-BoldItalic.ttf
+          weight: 700
+          style: italic
+    - family: LiberationSerif
+      fonts:
+        - asset: assets/fonts/liberation/LiberationSerif-Regular.ttf
+        - asset: assets/fonts/liberation/LiberationSerif-Italic.ttf
+          style: italic
+        - asset: assets/fonts/liberation/LiberationSerif-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/liberation/LiberationSerif-BoldItalic.ttf
+          weight: 700
+          style: italic
+    - family: LiberationMono
+      fonts:
+        - asset: assets/fonts/liberation/LiberationMono-Regular.ttf
+        - asset: assets/fonts/liberation/LiberationMono-Italic.ttf
+          style: italic
+        - asset: assets/fonts/liberation/LiberationMono-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/liberation/LiberationMono-BoldItalic.ttf
+          weight: 700
+          style: italic
+    - family: Carlito
+      fonts:
+        - asset: assets/fonts/carlito/Carlito-Regular.ttf
+        - asset: assets/fonts/carlito/Carlito-Italic.ttf
+          style: italic
+        - asset: assets/fonts/carlito/Carlito-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/carlito/Carlito-BoldItalic.ttf
+          weight: 700
+          style: italic
 
   shaders:
     - shaders/pencil.frag

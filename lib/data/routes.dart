@@ -13,6 +13,11 @@ abstract class RoutePaths {
   static const logs = '/logs';
   static const search = '/search';
   static const split = '/split';
+  static const doc = '/doc';
+
+  /// Feder: Textdokument öffnen (Pfad ohne Endung).
+  static String docPath(String path) =>
+      '$doc?path=${Uri.encodeQueryComponent(path)}';
 
   /// Feder: zwei Notizen nebeneinander.
   static String splitPaths(String left, String right) =>
@@ -72,6 +77,16 @@ abstract class HomeRoutes {
         icon: AdaptiveIcon(
           icon: Icons.auto_stories,
           cupertinoIcon: CupertinoIcons.book_fill,
+        ),
+      ),
+    ),
+    HomeRoute._(
+      _homeFunction({'subpage': HomePage.documentsSubpage}),
+      destination: const NavigationDestination(
+        label: 'Dokumente',
+        icon: AdaptiveIcon(
+          icon: Icons.description,
+          cupertinoIcon: CupertinoIcons.doc_text_fill,
         ),
       ),
     ),

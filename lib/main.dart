@@ -31,6 +31,7 @@ import 'package:saber/data/search/search_index.dart';
 import 'package:saber/pages/editor/editor.dart';
 import 'package:saber/pages/search/handwriting_search_page.dart';
 import 'package:saber/pages/split/split_page.dart';
+import 'package:saber/pages/document/document_editor.dart';
 import 'package:saber/pages/home/home.dart';
 import 'package:saber/pages/logs.dart';
 import 'package:saber/pages/user/login.dart';
@@ -265,6 +266,11 @@ class const App({super.key}) extends StatefulWidget {
           pdfPath: state.uri.queryParameters['pdfPath'],
           initialPage: int.tryParse(state.uri.queryParameters['page'] ?? ''),
         ),
+      ),
+      GoRoute(
+        path: RoutePaths.doc,
+        builder: (context, state) =>
+            DocumentEditorPage(path: state.uri.queryParameters['path'] ?? ''),
       ),
       GoRoute(
         path: RoutePaths.split,

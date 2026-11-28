@@ -20,7 +20,7 @@ class LocalCrypto {
 
   /// Dateien, die lokal verschlüsselt werden: Notizen, alte JSON-Notizen,
   /// Vorschaubilder und Anhänge (`.sbn2.0`, `.sbn2.p` …).
-  static final _encryptablePath = RegExp(r'(\.sbn2?(\.[\dpc]+)?|\.ort)$');
+  static final _encryptablePath = RegExp(r'(\.sbn2?(\.[\dpc]+)?|\.ort|\.fdoc)$');
 
   static bool isEncryptablePath(String path) => _encryptablePath.hasMatch(path);
 
