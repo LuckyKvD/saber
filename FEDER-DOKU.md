@@ -353,3 +353,4 @@ Im Textmodus gibt es in der Leiste neben „Textfeld hinzufügen" ein Wolken-Sym
 - Tipp-Blättern merkt sich die Zielseite des letzten Blätterns, solange die Ansicht unverändert ist (gegen Rückwärts-Sprünge).
 - PDF-Seiten werden mit höchstens 170 dpi gerendert (vorher 300 dpi).
 - Schnelles Tippen während einer Blätteranimation wird vorgemerkt (höchstens 3) statt verschluckt.
+- Tipp-Blättern: Der Einrast-Timer der Tipp-Geste läuft nicht mehr gegen ein laufendes oder vorbereitetes Blättern (Ursache für Hin-und-her-Springen, Vermutung).

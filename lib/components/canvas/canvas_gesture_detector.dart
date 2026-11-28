@@ -449,6 +449,8 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
   Future<void> _turnPage(int from, int to, double targetX) async {
     _lastTurnTarget = to;
     _lastTurnX = targetX;
+    _pageSnapTimer?.cancel();
+    _snapAnim.stop();
     _turning = true;
     try {
       await _turnPageInner(from, to, targetX);
@@ -652,6 +654,10 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
       return;
     }
     if (_pointersDown > 0) return;
+    // Läuft schon ein Blättern (oder wird es vorbereitet), darf der Einrast-
+    // Timer der Tipp-Geste nicht dagegenarbeiten (sonst springt die Ansicht
+    // zurück oder hin und her).
+    if (_flipBusy || _turning) return;
     final controller = widget._transformationController;
     final scaleNow = controller.value.approxScale;
     // Bewusst hineingezoomt: Zoom bleibt, bis der Nutzer auf "1.0x" tippt.
