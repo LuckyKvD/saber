@@ -376,7 +376,7 @@ class CanvasGestureDetectorState extends State<CanvasGestureDetector>
     if (_prefetchSlot != null && _prefetchSlot != slot) {
       _prefetchSlot = null;
     }
-    _prefetchTimer = Timer(const Duration(milliseconds: 450), () {
+    _prefetchTimer = Timer(const Duration(milliseconds: 200), () {
       if (!mounted || !_spread) return;
       final now = CanvasGestureDetector.slotOfPage(horizontalPageIndex, true);
       if (_prefetchSlot == now) return;

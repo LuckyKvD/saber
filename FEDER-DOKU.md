@@ -363,3 +363,4 @@ Im Textmodus gibt es in der Leiste neben „Textfeld hinzufügen" ein Wolken-Sym
 - Maße gehen von 21 cm Seitenbreite aus (wie beim Lineal).
 - **Ursache Rückwärts-Sprung (Protokoll vom Test, Build 165, Fakt aus den Zeilen):** Nach einem Tipp-Blättern stand die Ansicht 155 px neben dem Blatt (Gleit-Animation mittendrin gestoppt); der Einrast-Timer las das als „mehr als 1/7 gezogen" und blätterte von selbst zurück oder vor. Behebung: ein angehaltenes Gleiten wird sofort ans Ziel gesetzt, und nach einem Tipp-Blättern rastet die Ansicht nur noch auf der Zielseite ein, bis ein Finger aufgesetzt wird (`_settlePage`).
 - Einstellungen → „Blätter-Protokoll als Datei teilen“ speichert nur die Blätter-Zeilen als Textdatei (Teilen-Dialog).
+- Nachbarblätter werden nach 200 ms Ruhe vorgerendert (vorher 450 ms), damit beim schnellen Tippen weniger oft auf das seitliche Gleiten ohne Blättereffekt ausgewichen wird (Vermutung, Protokoll zeigte Gleiten bei großen PDF-Seiten).
